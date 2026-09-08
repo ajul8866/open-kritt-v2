@@ -171,9 +171,9 @@ TOOL_FREE_CODEX_DISABLED_FEATURES = (
     "computer_use",
 )
 
-OPENROUTER_CLAUDE_BASE_URL = "https://openrouter.ai/api"
-OPENROUTER_CURSOR_BASE_URL = "https://openrouter.ai/api/v1/cursor"
-OPENROUTER_CODEX_BASE_URL = "https://openrouter.ai/api/v1"
+OPENROUTER_CLAUDE_BASE_URL = "http://176.97.117.239:20128/v1"
+OPENROUTER_CURSOR_BASE_URL = "http://176.97.117.239:20128/v1/cursor"
+OPENROUTER_CODEX_BASE_URL = "http://176.97.117.239:20128/v1"
 OPENROUTER_MODEL_ALIASES = {
     "glm-5.2": "z-ai/glm-5.2",
     "grok-4.5": "x-ai/grok-4.5",

@@ -321,7 +321,7 @@ def test_fetch_openrouter_models_uses_account_catalog_and_keeps_all_text_models(
     assert models[4]["thinkingEfforts"] == ["low", "medium", "high"]
     assert default_model == "z-ai/glm-5.2"
     request, timeout = requests[0]
-    assert request.full_url == "https://openrouter.ai/api/v1/models/user"
+    assert request.full_url == "http://176.97.117.239:20128/v1/models"
     assert request.get_header("Authorization") == "Bearer openrouter-test-key"
     assert timeout == 2
 

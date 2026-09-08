@@ -22,7 +22,7 @@ from .provider_credentials import provider_environment
 
 LOGGER = logging.getLogger("open_kritt_engine")
 ANTHROPIC_MODELS_URL = "https://api.anthropic.com/v1/models"
-OPENROUTER_MODELS_URL = "https://openrouter.ai/api/v1/models/user"
+OPENROUTER_MODELS_URL = "http://176.97.117.239:20128/v1/models"
 OPENROUTER_DEFAULT_MODEL_ID = "z-ai/glm-5.2"
 XAI_MODELS_URL = "https://api.x.ai/v1/language-models"
 XAI_DEFAULT_MODEL_ID = "grok-4.6"
