@@ -10,11 +10,15 @@ const payload = {
     workersPerAccount: { value: 15, min: 1, max: 128 },
     autoscaleScanWorkersOnProviderCapacity: { value: true, type: 'boolean' },
     codexMaxSubagentsPerSession: { value: 5, min: 1, max: 5 },
+    codexFastMode: { value: false, type: 'boolean', defaultValue: false },
     minFreeStorageGb: { value: 20, min: 0, max: 1024, step: 0.1, type: 'number' },
     ignoreLowStorage: { value: false, type: 'boolean', defaultValue: false },
     memoryReserveGb: { value: 2, min: 0, max: 1024, step: 0.1, type: 'number' },
     scanRunnerMemoryMb: { value: 1536, min: 0, max: 1048576 },
     scanRunnerMemoryReservationMb: { value: 1536, min: 0, max: 1048576 },
+    scanRunnerCpus: { value: 0, min: 0, max: 64, step: 0.05, type: 'number' },
+    scanRunnerOomScoreAdj: { value: 500, min: -1000, max: 1000 },
+    memoryPressureEvictionEnabled: { value: true, type: 'boolean' },
     workspaceSetupConcurrency: { value: 2, min: 1, max: 32 },
     retryCount: { value: 2, min: 0, max: 10 },
     cyberSafetyRetryCount: { value: 0, min: 0, max: 10 },
@@ -31,11 +35,15 @@ describe('runtime settings form helpers', () => {
       workersPerAccount: '15',
       autoscaleScanWorkersOnProviderCapacity: true,
       codexMaxSubagentsPerSession: '5',
+      codexFastMode: false,
       minFreeStorageGb: '20',
       ignoreLowStorage: false,
       memoryReserveGb: '2',
       scanRunnerMemoryMb: '1536',
       scanRunnerMemoryReservationMb: '1536',
+      scanRunnerCpus: '0',
+      scanRunnerOomScoreAdj: '500',
+      memoryPressureEvictionEnabled: true,
       workspaceSetupConcurrency: '2',
       retryCount: '2',
       cyberSafetyRetryCount: '0',
@@ -63,6 +71,15 @@ describe('runtime settings form helpers', () => {
     ).toEqual({ autoscaleScanWorkersOnProviderCapacity: false });
   });
 
+  it('returns a changed Codex Fast mode toggle', () => {
+    expect(
+      runtimeSettingsPatch(payload, {
+        ...runtimeSettingsDraft(payload),
+        codexFastMode: true,
+      })
+    ).toEqual({ codexFastMode: true });
+  });
+
   it('accepts a fractional minimum-free-storage threshold', () => {
     expect(
       runtimeSettingsPatch(payload, {
@@ -80,6 +97,21 @@ describe('runtime settings form helpers', () => {
         ignoreLowStorage: true,
       })
     ).toEqual({ ignoreLowStorage: true });
+  });
+
+  it('returns changed runner resource safeguards', () => {
+    expect(
+      runtimeSettingsPatch(payload, {
+        ...runtimeSettingsDraft(payload),
+        scanRunnerCpus: '0.35',
+        scanRunnerOomScoreAdj: '600',
+        memoryPressureEvictionEnabled: false,
+      })
+    ).toEqual({
+      scanRunnerCpus: 0.35,
+      scanRunnerOomScoreAdj: 600,
+      memoryPressureEvictionEnabled: false,
+    });
   });
 
   it('rejects empty, fractional, and out-of-range values before saving', () => {

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 
 import { api, apiErrorMessages } from '../api/client.js';
 import { Button, ErrorState, Spinner } from '../components/ui.jsx';
@@ -43,6 +43,13 @@ const PRESENTATION = {
     unit: 'subagents',
     description: 'Hard cap for concurrently running child agents inside each Codex scan session.',
   },
+  codexFastMode: {
+    label: 'Codex Fast mode',
+    description:
+      'Request faster responses for supported native Codex models, with higher usage costs. Models without advertised Fast support keep their normal tier. Availability and cost depend on the model and account.',
+    enabledDescription: 'Applies to new calls using supported native Codex models; running calls are unchanged.',
+    disabledDescription: 'New calls keep their normal service tier.',
+  },
   minFreeStorageGb: {
     label: 'Minimum free storage',
     unit: 'GiB',
@@ -73,6 +80,24 @@ const PRESENTATION = {
     unit: 'MiB',
     description:
       'Soft memory reservation used for worker-capacity planning and live admission. It may be lower than the hard limit so idle runners share unused Docker memory.',
+  },
+  scanRunnerCpus: {
+    label: 'Runner CPU limit',
+    unit: 'CPUs',
+    description:
+      'Maximum CPU capacity for each future scan runner. Fractional values let runners share CPU capacity; set 0 to leave CPU unlimited.',
+  },
+  scanRunnerOomScoreAdj: {
+    label: 'Runner OOM priority',
+    description:
+      'Linux out-of-memory priority for future runners. Positive values make a runner more likely to be terminated before the engine coordinator.',
+  },
+  memoryPressureEvictionEnabled: {
+    label: 'Evict one runner under memory pressure',
+    description:
+      'Disabled by default. When enabled, terminate the newest runner and retry it at reduced concurrency if free Docker memory falls below the engine reserve plus one runner reservation.',
+    enabledDescription: 'One newest runner is recycled before aggregate pressure can restart the engine.',
+    disabledDescription: 'Only admission control and Docker OOM handling protect the engine.',
   },
   workspaceSetupConcurrency: {
     label: 'Workspace setup concurrency',
@@ -115,15 +140,24 @@ const CAPABILITIES = [
 ];
 
 export default function Settings() {
+  const { hash } = useLocation();
   const { data, loading, error, reload, setData } = useFetch(() => api.settings(), []);
   const [draft, setDraft] = useState(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState(null);
   const [notice, setNotice] = useState('');
+  const fieldsReady = Boolean(draft);
 
   useEffect(() => {
     if (data) setDraft(runtimeSettingsDraft(data));
   }, [data]);
+
+  useEffect(() => {
+    if (!fieldsReady || !hash.startsWith('#setting-')) return;
+    const input = document.getElementById(hash.slice(1));
+    input?.scrollIntoView({ block: 'center' });
+    input?.focus({ preventScroll: true });
+  }, [hash, fieldsReady]);
 
   const issues = useMemo(() => runtimeSettingsIssues(data, draft), [data, draft]);
   const patch = useMemo(() => runtimeSettingsPatch(data, draft), [data, draft]);
@@ -164,6 +198,13 @@ export default function Settings() {
       patch.ignoreLowStorage === true &&
       !window.confirm(
         'Ignore the low-storage safeguard? New scan containers may fill the host disk, causing scans or other services to fail.'
+      )
+    )
+      return;
+    if (
+      patch.codexFastMode === true &&
+      !window.confirm(
+        'Enable Codex Fast mode? Supported models can respond faster at a higher usage cost. Pricing and availability depend on your model and account.'
       )
     )
       return;
@@ -370,6 +411,7 @@ function RuntimeSetting({ name, presentation, setting, value, issue, disabled, i
       <input
         id={`setting-${name}`}
         className="mono settings-number-input"
+        aria-label={`${presentation.label}${presentation.unit ? ` (${presentation.unit})` : ''}`}
         type="number"
         inputMode={setting.type === 'number' ? 'decimal' : 'numeric'}
         min={setting.min}

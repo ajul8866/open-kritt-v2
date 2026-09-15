@@ -38,9 +38,16 @@ export const PROVIDER_DEFINITIONS = {
     description: 'Grok Build through an xAI device login or API key.',
     management: 'login',
   },
+  deepseek: {
+    label: 'DeepSeek',
+    envKeys: ['DEEPSEEK_API_KEY'],
+    credentialLabel: 'DeepSeek API key',
+    description: 'DeepSeek model discovery and text API checks. Scan harnesses are not enabled.',
+    management: 'api_key',
+  },
 };
 
-const MANAGED_CREDENTIAL_PROVIDERS = new Set(['openrouter', 'xai']);
+const MANAGED_CREDENTIAL_PROVIDERS = new Set(['openrouter', 'xai', 'deepseek']);
 
 const MAX_CREDENTIAL_LENGTH = 16 * 1024;
 let writeQueue = Promise.resolve();
@@ -221,6 +228,8 @@ export function providerCredentialStatuses({
       credentialLabel: definition.credentialLabel,
       management: definition.management,
       configured,
+      apiKeyConfigured: managedCredential || environmentCredential,
+      apiKeyPath: definition.envKeys[0],
       source,
       canManage: definition.management === 'login' || definition.management === 'api_key',
       // xAI keeps OpenRouter-style managed API keys alongside device login.

@@ -1,12 +1,14 @@
 import { Router } from 'express';
 import { setTimeout as delay } from 'node:timers/promises';
 
+import { createDeepSeekClient, DeepSeekError } from '../lib/deepseek.js';
 import { accountLoginManager } from '../lib/accountLogins.js';
 import {
   consumeCodexManualReset,
   getAccountProvider,
   getAccountsOverview,
   getAccountsSummary,
+  setAccountActive,
 } from '../lib/accounts.js';
 import {
   removeManagedProviderCredential,
@@ -22,6 +24,8 @@ export function createAccountsRouter({
   removeCredential = removeManagedProviderCredential,
   loginManager = accountLoginManager,
   consumeReset = consumeCodexManualReset,
+  deepseek = createDeepSeekClient(),
+  setActive = setAccountActive,
 } = {}) {
   const router = Router();
 
@@ -55,6 +59,35 @@ export function createAccountsRouter({
       return res.json(provider);
     } catch (error) {
       return next(error);
+    }
+  });
+
+  router.get('/deepseek/models', async (req, res) => {
+    try {
+      res.json(await deepseek.listModels());
+    } catch (error) {
+      res.status(error instanceof DeepSeekError ? error.statusCode : 502).json({
+        error: error instanceof DeepSeekError ? error.message : 'Could not load DeepSeek models.',
+      });
+    }
+  });
+
+  router.post('/deepseek/check', async (req, res) => {
+    try {
+      res.json(await deepseek.check(req.body?.model));
+    } catch (error) {
+      res.status(error instanceof DeepSeekError ? error.statusCode : 502).json({
+        error: error instanceof DeepSeekError ? error.message : 'Could not check the DeepSeek API.',
+      });
+    }
+  });
+
+  router.patch('/:provider/account/:activityId/active', async (req, res, next) => {
+    try {
+      res.json(await setActive(req.params.provider, req.params.activityId, req.body?.active));
+    } catch (error) {
+      if (error?.statusCode) return res.status(error.statusCode).json({ error: error.message });
+      next(error);
     }
   });
 

@@ -42,7 +42,7 @@ from .memory_budget import (
     system_memory_available_bytes,
     system_memory_total_bytes,
 )
-from .model_catalog import ModelCatalogRefresher
+from .model_catalog import ModelCatalogRefresher, model_supports_service_tier
 from .model_output_artifacts import record_model_error_output
 from .models import (
     ModelSelection,
@@ -60,6 +60,8 @@ from .prompting import (
 )
 from .provider_credentials import provider_environment
 from .queue import build_pending_jobs, configured_step_ids
+from .resource_diagnostics import publish_resource_diagnostics
+from .runner_resources import evict_newest_scan_runner
 from .runtime_config import runtime_bool, runtime_config_path, runtime_float, runtime_int, runtime_value
 from .schema import OutputValidationError, output_schema, validate_payload
 from .storage_cleanup import prune_docker_build_cache, prune_stopped_scan_containers, prune_unused_docker_images
@@ -101,6 +103,7 @@ RATE_LIMIT_RETRY_AFTER_MAX_SECONDS = 300.0
 RATE_LIMIT_RESUME_DELAY_SECONDS = 60.0
 ARTIFACT_CLEANUP_INTERVAL_SECONDS = 5 * 60.0
 ARTIFACT_CLEANUP_GRACE_SECONDS = 5 * 60.0
+MEMORY_PRESSURE_EVICTION_COOLDOWN_SECONDS = 30.0
 
 
 class StepExecutionError(RuntimeError):
@@ -217,6 +220,7 @@ class Worker:
         self._artifact_cleanup_requested = False
         self._docker_storage_cleanup_lock = threading.Lock()
         self._next_docker_storage_cleanup = 0.0
+        self._next_memory_pressure_eviction = 0.0
 
     def run_forever(self):
         workers: dict[int, tuple[threading.Thread, threading.Event]] = {}
@@ -239,6 +243,7 @@ class Worker:
             self._schedule_artifact_cleanup()
             self._schedule_codex_update()
             self._schedule_model_catalog_refresh()
+            self._evict_runner_under_memory_pressure()
             for worker_id, (thread, _stop_event) in list(workers.items()):
                 if not thread.is_alive():
                     workers.pop(worker_id, None)
@@ -246,6 +251,7 @@ class Worker:
                 generation_worker = None
 
             capacity = self.runtime_memory_capacity()
+            publish_resource_diagnostics(capacity, data_dir=self.config.data_dir)
             desired = capacity.effective_workers
             if capacity != last_capacity:
                 if capacity.total_bytes is None:
@@ -257,13 +263,14 @@ class Worker:
                 else:
                     LOGGER.info(
                         "engine worker capacity is %s of %s configured "
-                        "(%.1f GiB total, %.1f GiB reserve, %s MiB reservation per runner, %s MiB hard cap)",
+                        "(engine-visible Linux system: %.3f GiB total, %.3f GiB reserve, "
+                        "%.3f GiB reservation per runner, %.3f GiB hard cap)",
                         desired,
                         capacity.configured_workers,
                         capacity.total_bytes / GIB,
                         capacity.reserve_bytes / GIB,
-                        capacity.runner_bytes // MIB,
-                        self.runtime_scan_runner_memory_mb(),
+                        capacity.runner_bytes / GIB,
+                        self.runtime_scan_runner_memory_mb() * MIB / GIB,
                     )
                 last_capacity = capacity
 
@@ -471,15 +478,57 @@ class Worker:
         was_paused = bool(getattr(self, "_memory_admission_paused", False))
         if not allowed and not was_paused:
             LOGGER.warning(
-                "pausing new runner admission: %.1f GiB available, %.1f GiB reserve plus %s MiB required",
+                "waiting for memory: engine-visible Linux system has %.3f GiB available; "
+                "%.3f GiB required (%.3f GiB Docker memory reserve + %.3f GiB Runner memory reservation). "
+                "Free memory or increase system/VM memory; review these settings and their tradeoffs in Settings",
                 available_bytes / GIB,
+                (reserve_bytes + runner_bytes) / GIB,
                 reserve_bytes / GIB,
-                runner_bytes // MIB,
+                runner_bytes / GIB,
             )
         elif allowed and was_paused:
-            LOGGER.info("resuming runner admission with %.1f GiB available", available_bytes / GIB)
+            LOGGER.info("resuming runner admission with %.3f GiB available to the Linux system", available_bytes / GIB)
         self._memory_admission_paused = not allowed
         return allowed
+
+    def runtime_memory_pressure_eviction_enabled(self) -> bool:
+        return runtime_bool(
+            "ENGINE_MEMORY_PRESSURE_EVICTION_ENABLED",
+            False,
+            data_dir=getattr(self.config, "data_dir", None),
+        )
+
+    def _evict_runner_under_memory_pressure(self) -> str | None:
+        """Evict one runner before Linux has to choose an OOM victim."""
+
+        if not self.runtime_memory_pressure_eviction_enabled():
+            return None
+        now = time.monotonic()
+        if now < getattr(self, "_next_memory_pressure_eviction", 0.0):
+            return None
+        available_reader = getattr(self, "_system_memory_available_bytes", system_memory_available_bytes)
+        available_bytes = available_reader()
+        if available_bytes is None:
+            return None
+        reserve_bytes = self.runtime_memory_reserve_bytes()
+        runner_bytes = self.runtime_scan_runner_memory_reservation_mb() * MIB
+        required_bytes = reserve_bytes + runner_bytes
+        if available_bytes >= required_bytes:
+            return None
+
+        runner_name = evict_newest_scan_runner()
+        if not runner_name:
+            return None
+        self._next_memory_pressure_eviction = now + MEMORY_PRESSURE_EVICTION_COOLDOWN_SECONDS
+        LOGGER.warning(
+            "evicted newest scan runner %s under memory pressure: %.1f GiB available, "
+            "%.1f GiB reserve plus %s MiB recovery margin required",
+            runner_name,
+            available_bytes / GIB,
+            reserve_bytes / GIB,
+            runner_bytes // MIB,
+        )
+        return runner_name
 
     def runtime_autoscale_scan_workers_on_provider_capacity(self) -> bool:
         return runtime_bool(
@@ -505,6 +554,29 @@ class Worker:
             minimum=1,
             maximum=5,
         )
+
+    def runtime_codex_fast_mode(self) -> bool:
+        return runtime_bool(
+            "ENGINE_CODEX_FAST_MODE",
+            bool(getattr(self.config, "codex_fast_mode", False)),
+            data_dir=getattr(self.config, "data_dir", None),
+        )
+
+    def _codex_fast_mode_for_selection(self, selection: ModelSelection) -> bool:
+        if not self.runtime_codex_fast_mode():
+            return False
+        if scan_model_provider({"model_provider": selection.model_provider}) != "codex":
+            return False
+        load_models = getattr(self.db, "load_model_catalog_models", None)
+        if not callable(load_models):
+            return False
+        try:
+            with self.db.connect() as conn:
+                models = load_models(conn, "codex")
+        except Exception:
+            LOGGER.warning("could not verify Codex Fast Mode support for model %s", selection.model)
+            return False
+        return model_supports_service_tier(models, selection.model, "fast")
 
     def runtime_min_free_storage_bytes(self) -> int:
         configured_default = max(0, int(getattr(self.config, "min_free_storage_bytes", 0) or 0))
@@ -538,6 +610,7 @@ class Worker:
             codex_model_provider=getattr(self.config, "codex_model_provider", None),
             codex_cli_gate=self.codex_cli_gate,
             codex_max_subagents=self.runtime_codex_max_subagents(),
+            codex_fast_mode=self._codex_fast_mode_for_selection(selection),
             runner_memory_mb=self.runtime_scan_runner_memory_mb(),
             runner_memory_reservation_mb=self.runtime_scan_runner_memory_reservation_mb(),
         )
@@ -1040,7 +1113,9 @@ class Worker:
                 LOGGER.warning("scan %s container launch paused: storage check failed: %s", scan_id, check_error)
             else:
                 LOGGER.warning(
-                    "scan %s container launch paused: %.1f GiB free, %.1f GiB required",
+                    "scan %s container launch waiting for storage: engine-data filesystem has %.3f GiB free; "
+                    "Minimum free storage is %.3f GiB. Free space or expand the disk; "
+                    "lowering the setting reduces the safety margin but does not free space",
                     scan_id,
                     free_bytes / 1024**3,
                     required_bytes / 1024**3,
@@ -1553,6 +1628,7 @@ class Worker:
                         getattr(prepared.workspace, "provider_account_provider", None),
                         getattr(prepared.workspace, "provider_account_home", None),
                         data_dir=getattr(self.config, "data_dir", None),
+                        env=prepared.workspace.env,
                     ):
                         harness_arguments = {
                             "prompt": prompt_filled,

@@ -168,9 +168,16 @@ export const api = {
     request(`/accounts/provider/${encodeURIComponent(provider)}${refresh ? '?refresh=1' : ''}`, {
       cache: 'no-store',
     }),
+  deepSeekModels: () => request('/accounts/deepseek/models', { cache: 'no-store' }),
+  checkDeepSeekModel: (model) => request('/accounts/deepseek/check', { method: 'POST', body: { model } }),
   saveProviderCredential: (provider, credential) =>
     request(`/accounts/${provider}`, { method: 'POST', body: { credential } }),
   removeProviderCredential: (provider) => request(`/accounts/${provider}`, { method: 'DELETE' }),
+  setAccountActive: (provider, activityId, active) =>
+    request(`/accounts/${encodeURIComponent(provider)}/account/${encodeURIComponent(activityId)}/active`, {
+      method: 'PATCH',
+      body: { active },
+    }),
   removeProviderAccount: (provider, accountId) =>
     request(`/accounts/${encodeURIComponent(provider)}/account/${encodeURIComponent(accountId)}`, {
       method: 'DELETE',

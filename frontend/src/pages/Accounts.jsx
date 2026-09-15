@@ -2,6 +2,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { api } from '../api/client.js';
 import Pagination from '../components/Pagination.jsx';
+import ProviderVisibility, { useProviderVisibility } from '../components/ProviderVisibility.jsx';
+import DeepSeekApiCheck from '../components/DeepSeekApiCheck.jsx';
+import { PROVIDER_LABELS } from '../lib/providerVisibility.js';
 import { Button, ErrorState, Spinner } from '../components/ui.jsx';
 import { usePageChrome } from '../context/ui.jsx';
 import { usePagination } from '../lib/usePagination.js';
@@ -9,6 +12,7 @@ import { usePagination } from '../lib/usePagination.js';
 const PROVIDER_LINKS = {
   openrouter: 'https://openrouter.ai/settings/keys',
   xai: 'https://console.x.ai/',
+  deepseek: 'https://platform.deepseek.com/api_keys',
 };
 
 const WEEKLY_WINDOW_MINUTES = 7 * 24 * 60;
@@ -25,20 +29,25 @@ const SOURCE_LABELS = {
 const LOGIN_PROVIDERS = new Set(['codex', 'claude', 'xai']);
 
 export default function Accounts() {
+  const { visible } = useProviderVisibility();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
   const [editing, setEditing] = useState(null);
   const [editingKey, setEditingKey] = useState(null);
+  const [credentialRevision, setCredentialRevision] = useState(0);
   const [removingAccount, setRemovingAccount] = useState(null);
   const [startingUsage, setStartingUsage] = useState(() => new Set());
   const [resettingUsage, setResettingUsage] = useState(() => new Set());
   const [loadingProviders, setLoadingProviders] = useState(() => new Set());
   const [providerErrors, setProviderErrors] = useState({});
   const loadSequence = useRef(0);
+  const activeUpdate = useRef(false);
+  const [updatingActive, setUpdatingActive] = useState(false);
 
   const load = useCallback(async (refresh = false) => {
+    if (activeUpdate.current) return;
     const sequence = ++loadSequence.current;
     refresh ? setRefreshing(true) : setLoading(true);
     setError(null);
@@ -99,8 +108,26 @@ export default function Accounts() {
     [refreshing, load]
   );
 
+  const toggleActive = async (provider, account) => {
+    if (activeUpdate.current) return;
+    activeUpdate.current = true;
+    setUpdatingActive(true);
+    ++loadSequence.current;
+    setError(null);
+    try {
+      const saved = await api.setAccountActive(provider.id, account.activityId, !account.active);
+      setData((current) => applyAccountActivity(current, provider.id, saved));
+    } catch (nextError) {
+      setError(nextError);
+    } finally {
+      activeUpdate.current = false;
+      setUpdatingActive(false);
+    }
+  };
+
   const save = async (provider, credential) => {
     const next = await api.saveProviderCredential(provider.id, credential);
+    setCredentialRevision((revision) => revision + 1);
     setData(next);
     setEditing(null);
     setEditingKey(null);
@@ -172,8 +199,8 @@ export default function Accounts() {
         <div>
           <div style={{ fontSize: 27, fontWeight: 600, letterSpacing: '-0.02em' }}>Accounts</div>
           <div style={{ color: 'var(--text-2)', marginTop: 7, maxWidth: 680, lineHeight: 1.5 }}>
-            See which model providers are ready. Sign in to Codex, Claude, or xAI with their official login flows, or
-            add an OpenRouter or xAI API key. Secret values are never returned by the API.
+            Manage provider logins and API keys. Show additional providers below to configure them. Secret values are
+            never returned by the API.
           </div>
         </div>
         {data && (
@@ -189,31 +216,48 @@ export default function Accounts() {
       {data && (
         <>
           <div className="account-summary-grid">
-            <Summary label="Providers ready" value={`${data.configuredProviders}/${data.providerCount}`} />
+            <Summary label="Configured providers" value={`${data.configuredProviders}/${data.providerCount}`} />
             <Summary label="Active accounts" value={data.active} color="var(--ok)" />
             <Summary label="Accounts observed" value={data.total} />
           </div>
 
+          <ProviderVisibility
+            configuredProviders={data.providers
+              .filter((provider) => provider.configured)
+              .map((provider) => provider.id)}
+          />
           <div className="account-provider-grid">
-            {data.providers.map((provider) => (
-              <ProviderCard
-                key={provider.id}
-                provider={provider}
-                onEdit={() => setEditing(provider)}
-                onEditKey={
-                  provider.management === 'login' && provider.canManageKey ? () => setEditingKey(provider) : null
-                }
-                onRemove={() => remove(provider)}
-                onRemoveAccount={(account) => removeLoginAccount(provider, account)}
-                onStartWeeklyUsage={startWeeklyUsage}
-                onUseManualReset={useManualReset}
-                removingAccount={removingAccount}
-                startingUsage={startingUsage}
-                resettingUsage={resettingUsage}
-                loading={loadingProviders.has(provider.id)}
-                loadError={providerErrors[provider.id]}
-              />
-            ))}
+            {data.providers
+              .filter((provider) => visible.includes(provider.id))
+              .map((provider) => (
+                <ProviderCard
+                  key={provider.id}
+                  provider={provider}
+                  credentialRevision={credentialRevision}
+                  onEdit={() => setEditing(provider)}
+                  onEditKey={
+                    provider.management === 'login' && provider.canManageKey ? () => setEditingKey(provider) : null
+                  }
+                  onRemove={() => remove(provider)}
+                  onRemoveAccount={(account) => removeLoginAccount(provider, account)}
+                  onStartWeeklyUsage={startWeeklyUsage}
+                  onUseManualReset={useManualReset}
+                  onToggleActive={(account) => toggleActive(provider, account)}
+                  updatingActive={
+                    updatingActive ||
+                    refreshing ||
+                    loadingProviders.size > 0 ||
+                    Boolean(removingAccount) ||
+                    startingUsage.size > 0 ||
+                    resettingUsage.size > 0
+                  }
+                  removingAccount={removingAccount}
+                  startingUsage={startingUsage}
+                  resettingUsage={resettingUsage}
+                  loading={loadingProviders.has(provider.id)}
+                  loadError={providerErrors[provider.id]}
+                />
+              ))}
           </div>
         </>
       )}
@@ -246,6 +290,7 @@ function Summary({ label, value, color = 'var(--text)' }) {
 
 export function ProviderCard({
   provider,
+  credentialRevision = 0,
   onEdit,
   onEditKey,
   onRemove,
@@ -257,24 +302,32 @@ export function ProviderCard({
   resettingUsage,
   loading,
   loadError,
+  onToggleActive,
+  updatingActive,
 }) {
   const accountPages = usePagination(provider.accounts || [], { pageSize: 5, resetKey: provider.id });
-  const ready = provider.configured && provider.active > 0;
+  const ready =
+    provider.configured && provider.accounts.some((account) => account.active && (account.available ?? account.active));
   const signInRequired =
     LOGIN_PROVIDERS.has(provider.id) && provider.accounts.some((account) => account.statusKind === 'expired');
+  const apiCheckOnly = provider.id === 'deepseek';
   const status = loading
     ? 'Loading'
     : loadError
       ? 'Unavailable'
-      : signInRequired
-        ? 'Sign-in required'
-        : provider.limited
-          ? 'Limited'
-          : ready
-            ? 'Ready'
-            : provider.configured
-              ? 'Needs attention'
-              : 'Not configured';
+      : apiCheckOnly && provider.configured
+        ? 'Key configured'
+        : provider.configured && provider.active === 0 && provider.accounts.length > 0
+          ? 'Inactive'
+          : signInRequired
+            ? 'Sign-in required'
+            : provider.limited
+              ? 'Limited'
+              : ready
+                ? 'Ready'
+                : provider.configured
+                  ? 'Needs attention'
+                  : 'Not configured';
   const statusColor =
     loading || loadError || provider.limited || (provider.configured && !ready)
       ? 'var(--pend)'
@@ -287,7 +340,7 @@ export function ProviderCard({
         <div style={{ minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
             <ProviderMark provider={provider.id} />
-            <h2 style={{ fontSize: 18, margin: 0 }}>{provider.label}</h2>
+            <h2 style={{ fontSize: 18, margin: 0 }}>{PROVIDER_LABELS[provider.id] || provider.label}</h2>
           </div>
           <div style={{ color: 'var(--text-2)', fontSize: 12.5, lineHeight: 1.45, marginTop: 9 }}>
             {provider.description}
@@ -315,10 +368,14 @@ export function ProviderCard({
             <div style={{ fontWeight: 500 }}>Could not load {provider.label} accounts</div>
             <div style={{ color: 'var(--text-2)', fontSize: 12, marginTop: 4 }}>{loadError}</div>
           </div>
+        ) : apiCheckOnly ? (
+          <DeepSeekApiCheck key={`${provider.configured}:${credentialRevision}`} configured={provider.configured} />
         ) : (provider.configured || signInRequired) && provider.accounts.length ? (
           accountPages.pageItems.map((account, index) => (
             <AccountDetail
               key={`${account.path || account.label}-${accountPages.startIndex + index}`}
+              onToggleActive={() => onToggleActive?.(account)}
+              updatingActive={updatingActive}
               providerId={provider.id}
               account={account}
               onRemove={() => onRemoveAccount(account)}
@@ -457,7 +514,7 @@ export function removeProviderFromOverview(overview, providerId) {
 }
 
 function ProviderMark({ provider }) {
-  const label = provider === 'codex' ? 'CX' : provider === 'claude' ? 'CL' : provider === 'xai' ? 'XA' : 'OR';
+  const label = { codex: 'CX', claude: 'CL', xai: 'XA', openrouter: 'OR', deepseek: 'DS' }[provider] || provider;
   return <span className={`mono account-provider-mark account-provider-mark-${provider}`}>{label}</span>;
 }
 
@@ -470,10 +527,13 @@ function AccountDetail({
   removing,
   startingUsage,
   resettingUsage,
+  onToggleActive,
+  updatingActive,
 }) {
   const weeklyUsage = providerId === 'codex' ? codexWeeklyUsage(account) : null;
   const signInRequired = LOGIN_PROVIDERS.has(providerId) && account.statusKind === 'expired';
-  const showRateLimits = providerId !== 'claude' || account.active;
+  const available = account.available ?? account.active;
+  const showRateLimits = providerId !== 'claude' || available;
 
   return (
     <div className="account-detail">
@@ -492,6 +552,28 @@ function AccountDetail({
         <span className={`account-kind account-kind-${account.statusKind}`}>{account.status}</span>
       </div>
 
+      {account.activityId && (
+        <div style={{ marginTop: 12 }}>
+          <label style={{ display: 'flex', gap: 8, alignItems: 'center', cursor: updatingActive ? 'wait' : 'pointer' }}>
+            <input
+              type="checkbox"
+              role="switch"
+              aria-label={`Active: ${account.label}`}
+              checked={account.active}
+              disabled={updatingActive}
+              onChange={onToggleActive}
+            />
+            Active
+          </label>
+          <div style={{ color: 'var(--text-2)', fontSize: 11.5, marginTop: 4 }}>
+            {account.active
+              ? 'Can receive new assignments.'
+              : 'Inactive. Activate this account to use it for new assignments.'}{' '}
+            Calls already assigned may finish.
+          </div>
+        </div>
+      )}
+
       {account.plan && (
         <div style={{ fontSize: 12, color: 'var(--text-2)', marginTop: 10 }}>
           Plan: {account.plan}
@@ -506,7 +588,7 @@ function AccountDetail({
       {weeklyUsage && (
         <CodexWeeklyUsage
           usage={weeklyUsage}
-          onStart={onStartWeeklyUsage}
+          onStart={account.active && available ? onStartWeeklyUsage : null}
           onReset={onUseManualReset}
           starting={startingUsage}
           resetting={resettingUsage}
@@ -530,7 +612,7 @@ function AccountDetail({
       )}
 
       {showRateLimits && (
-        <AccountRateLimits providerId={providerId} rateLimits={account.rateLimits} authenticated={account.active} />
+        <AccountRateLimits providerId={providerId} rateLimits={account.rateLimits} authenticated={available} />
       )}
 
       {account.canRemove && (
@@ -662,7 +744,13 @@ export function codexWeeklyUsage(account, now = Date.now()) {
         .filter((credit) => Number.isFinite(new Date(credit.expiresAt).getTime()))
     : [];
   return {
-    notStarted: Boolean(account?.active && usedPercent !== null && usedPercent <= 0 && resetIsFullWindowAway),
+    notStarted: Boolean(
+      account?.active &&
+      (account.available ?? account.active) &&
+      usedPercent !== null &&
+      usedPercent <= 0 &&
+      resetIsFullWindowAway
+    ),
     resetRemaining: formatResetRemaining(weeklyLimit.resetsAt, now),
     manualResetsAvailable: finiteNumber(account?.rateLimits?.manualResetCredits?.availableCount),
     manualResetsApplicable: finiteNumber(account?.rateLimits?.manualResetCredits?.applicableAvailableCount),
@@ -1139,4 +1227,17 @@ function formatUsd(value) {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(amount);
+}
+
+export function applyAccountActivity(overview, providerId, saved) {
+  const provider = overview?.providers.find((item) => item.id === providerId);
+  if (!provider || typeof saved?.active !== 'boolean') return overview;
+  const accounts = provider.accounts.map((account) =>
+    account.activityId === saved.activityId ? { ...account, active: saved.active } : account
+  );
+  return replaceAccountProvider(overview, {
+    ...provider,
+    accounts,
+    active: accounts.filter((account) => account.active).length,
+  });
 }

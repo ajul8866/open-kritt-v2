@@ -105,15 +105,12 @@ jobs:
         working-directory: engine
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.11'
-      - run: pip install ruff
-      # Advisory until the one-time lint/format cleanup PR lands.
+      - run: pip install ruff==0.16.6
       - run: ruff check .
-        continue-on-error: true
       - run: ruff format --check .
-        continue-on-error: true
       - name: Build the engine image
         run: docker build --tag open-kritt-engine-ci .
       # TODO: re-enable the test suite. Several tests currently assume a writable
