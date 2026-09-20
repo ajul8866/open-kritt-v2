@@ -1,5 +1,6 @@
 import hashlib
 import json
+import logging
 import os
 import re
 import shutil
@@ -20,6 +21,8 @@ from .provider_credentials import provider_environment
 from .resource_diagnostics import local_resource_failure_message
 from .runtime_config import runtime_float, runtime_int
 from .schema import EXTRACTOR_HELPER_FIELD
+
+LOGGER = logging.getLogger(__name__)
 
 NON_RETRYABLE_HARNESS_FAILURES = frozenset(
     {
@@ -745,6 +748,36 @@ def _classify_harness_output(output: str, *, provider: str | None = None) -> str
     return "harness_failed"
 
 
+def classify_harness_failure(output: str, *, provider: str | None = None) -> str:
+    """Classify a harness failure, with an optional semantic pass over leftover prose.
+
+    `_classify_harness_output` stays pure and deterministic. This wrapper only adds
+    work when that pass found nothing decisive, so a documented signal — an error code,
+    an HTTP status, a known `error.type` — is never second-guessed and never costs a
+    model call.
+
+    When nothing deterministic matched, provider prose is offered to the semantic
+    classifier, which is itself confidence gated and returns nothing when unsure. The
+    fallback is always `harness_failed`, so a judgment service that is down or absent
+    leaves behaviour exactly as it was.
+    """
+
+    code = _classify_harness_output(output, provider=provider)
+    if code != "harness_failed":
+        return code
+
+    # Imported lazily: this module is imported by the worker on every job, and the
+    # semantic path must not add import weight to scans that never use it.
+    from .failure_judgment import classify_failure_semantically
+
+    try:
+        rescued = classify_failure_semantically(output, provider=provider)
+    except Exception:  # noqa: BLE001 - an optional judgment must never fail a scan
+        LOGGER.warning("Semantic failure classification raised; keeping the deterministic result", exc_info=True)
+        return code
+    return rescued[0] if rescued else code
+
+
 def _has_provider_error_event(output: str) -> bool:
     """Detect structured provider failures without exposing their arbitrary text."""
     for line in (output or "").splitlines():
@@ -798,7 +831,7 @@ def _classified_harness_error(
     output_artifact: HarnessOutput | None = None,
     provider: str | None = None,
 ) -> HarnessError:
-    code = _classify_harness_output(output, provider=provider)
+    code = classify_harness_failure(output, provider=provider)
     if code == "harness_failed":
         code = default_code
     return HarnessError(
@@ -1342,37 +1375,142 @@ def _balanced_json_objects(text: str):
                 start = None
 
 
-def _last_structured_json_object(text: str, schema: dict[str, Any] | None = None) -> dict[str, Any] | None:
-    """Find the terminal schema-valid object even after malformed prose.
+# Values an agent writes when it is quoting the requested output format rather than
+# reporting a result. A candidate made only of these is an example, not an answer.
+PLACEHOLDER_VALUE_RE = re.compile(
+    r"""^\s*[<\[{(]*\s*(
+        your\s+finding\s+here | replace[_\s-]?me | todo | tbd | example | sample
+        | placeholder | n/?a | none | unspecified | \.{3}
+    )\s*[>\]})]*\s*$""",
+    re.IGNORECASE | re.VERBOSE,
+)
+TEMPLATE_REFERENCE_RE = re.compile(r"^\s*\{\{.*\}\}\s*$")
+# A value wrapped in angle brackets is a template slot, not a reported value:
+# <summary>, <vulnerability type>, <path/to/file>.
+ANGLE_TEMPLATE_RE = re.compile(r"^\s*<[^<>]{1,80}>\s*$")
 
-    Agent transcripts can contain unmatched braces in shell snippets or
-    explanatory text before the final answer. A forward balanced-brace scan
-    then treats the final JSON as part of one invalid outer fragment. Decode
-    from each opening brace in reverse order so the last complete structured
-    answer wins without requiring the preceding transcript to be balanced.
+
+def _looks_like_placeholder(value: Any) -> bool:
+    """Whether a scalar is a stand-in for a value rather than a value.
+
+    Deliberately narrow: it matches the whole string, so prose that merely mentions
+    the word "example" is still a real answer.
+    """
+
+    if not isinstance(value, str):
+        return False
+    text = value.strip()
+    if not text:
+        return True
+    return bool(PLACEHOLDER_VALUE_RE.match(text) or TEMPLATE_REFERENCE_RE.match(text) or ANGLE_TEMPLATE_RE.match(text))
+
+
+def _count_placeholders(value: Any, depth: int = 0) -> int:
+    """Count placeholder-looking scalars anywhere inside a candidate.
+
+    Recursion matters because the production schema wraps the payload:
+    ``{results: [{...fields}]}``. A top-level-only scan sees the ``results`` array and
+    scores both the real answer and a quoted template the same, which is exactly the
+    case this exists to separate.
+    """
+
+    if depth > 6:
+        return 0
+    if isinstance(value, str):
+        return 1 if _looks_like_placeholder(value) else 0
+    if isinstance(value, dict):
+        return sum(_count_placeholders(item, depth + 1) for item in value.values())
+    if isinstance(value, list):
+        return sum(_count_placeholders(item, depth + 1) for item in value)
+    return 0
+
+
+def _candidate_placeholder_score(payload: dict[str, Any], schema: dict[str, Any] | None) -> int:
+    """Count placeholder-looking scalars in a candidate, so the caller can rank them.
+
+    A candidate with a higher score is more likely a quoted example than a result.
+    """
+
+    properties = (schema or {}).get("properties")
+    scope = {key: payload.get(key) for key in properties} if isinstance(properties, dict) and properties else payload
+    return _count_placeholders(scope)
+
+
+def _structured_json_objects(text: str, schema: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+    """Every schema-valid object in the transcript, in the order they appear.
+
+    Decode from each opening brace in reverse order so the last complete structured
+    answer is found even when the preceding transcript is unbalanced, but keep going
+    instead of stopping at the first hit: an agent commonly writes its answer and then
+    quotes the requested format, and both satisfy the schema.
     """
 
     decoder = json.JSONDecoder()
+    found: list[dict[str, Any]] = []
+    seen_spans: set[tuple[int, int]] = set()
     for index in range(len(text) - 1, -1, -1):
         if text[index] != "{":
             continue
         try:
-            parsed, _end = decoder.raw_decode(text, index)
+            parsed, end = decoder.raw_decode(text, index)
         except json.JSONDecodeError:
             continue
+        if (index, end) in seen_spans:
+            continue
+        seen_spans.add((index, end))
         structured = _structured_output_candidate(parsed, schema)
         if structured is not None:
-            return structured
-    return None
+            found.append(structured)
+    found.reverse()
+    return found
+
+
+def _last_structured_json_object(text: str, schema: dict[str, Any] | None = None) -> dict[str, Any] | None:
+    """Find the terminal schema-valid object even after malformed prose."""
+
+    objects = _structured_json_objects(text, schema)
+    return objects[-1] if objects else None
+
+
+def _select_structured_candidate(
+    candidates: list[dict[str, Any]],
+    schema: dict[str, Any] | None,
+    text: str,
+) -> dict[str, Any]:
+    """Pick the candidate that is most likely the agent's real answer.
+
+    Two heuristics used to fight here: a reverse scan preferred the last schema-valid
+    object, while this function's tail preferred the first. An agent that writes its
+    answer and then quotes the requested format satisfies the schema twice, so the
+    winner depended on ordering rather than on content.
+
+    Content decides instead. Candidates are ranked by how many placeholder-looking
+    values they carry, and the *least* placeholder-like candidate wins — not a candidate
+    scoring exactly zero, because a legitimate answer can still hold one empty string.
+    Ties go to the later candidate: an agent's final statement is its conclusion.
+    """
+
+    if len(candidates) == 1:
+        return candidates[0]
+
+    scored = [
+        (_candidate_placeholder_score(payload, schema), index, payload) for index, payload in enumerate(candidates)
+    ]
+    best_score = min(score for score, _index, _payload in scored)
+    finalists = [(index, payload) for score, index, payload in scored if score == best_score]
+
+    # Every candidate is equally placeholder-like: keep the terminal one rather than
+    # fail, so the caller still sees the step's output and can decide what to do.
+    return finalists[-1][1]
 
 
 def _parse_json_text(text: str, schema: dict[str, Any] | None = None) -> dict[str, Any]:
     stripped = text.strip()
     if not stripped:
         raise json.JSONDecodeError("Expecting value", text, 0)
-    terminal = _last_structured_json_object(text, schema)
-    if terminal is not None:
-        return terminal
+    terminal = _structured_json_objects(text, schema)
+    if terminal:
+        return _select_structured_candidate(terminal, schema, text)
     candidates = [stripped]
     candidates.extend(match.strip() for match in FENCED_JSON_RE.findall(text) if match.strip())
     candidates.extend(_balanced_json_objects(text))
@@ -1391,16 +1529,8 @@ def _parse_json_text(text: str, schema: dict[str, Any] | None = None) -> dict[st
         structured = _structured_output_candidate(parsed, schema)
         if structured is not None:
             parsed_structured.append(structured)
-    if schema is not None and parsed_structured:
-        return parsed_structured[0]
-    for parsed in parsed_structured:
-        if parsed.get(EXTRACTOR_HELPER_FIELD) is True:
-            return parsed
-    for parsed in parsed_structured:
-        if EXTRACTOR_HELPER_FIELD not in parsed:
-            return _with_extractor_marker(parsed)
     if parsed_structured:
-        return parsed_structured[0]
+        return _select_structured_candidate(parsed_structured, schema, text)
     if last_error is not None:
         raise last_error
     raise HarnessError("harness did not return the required JSON object")

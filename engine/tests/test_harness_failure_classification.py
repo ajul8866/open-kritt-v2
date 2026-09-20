@@ -224,3 +224,77 @@ def test_deterministic_classification_needs_no_model_credentials(monkeypatch):
         == "provider_unavailable"
     )
     assert classify("OAuth token has expired.", "claude") == "auth_failed"
+
+
+# --------------------------------------------------------------------------
+# Optional semantic pass: only leftover prose, only when confident
+# --------------------------------------------------------------------------
+
+
+def _stub_judgment(monkeypatch, choice, confidence):
+    from open_kritt_engine import failure_judgment, judgment
+
+    monkeypatch.setenv("TYPESAFE_API_KEY", "test-key")
+    monkeypatch.setattr(
+        judgment,
+        "choice",
+        lambda **kwargs: judgment.Judgment(choice=choice, confidence=confidence, probabilities={choice: confidence}),
+    )
+    return failure_judgment
+
+
+def test_semantic_pass_never_runs_when_the_deterministic_pass_matched(monkeypatch):
+    """A documented structured signal is decisive; no call is spent on it."""
+
+    calls = []
+    from open_kritt_engine import failure_judgment, judgment
+
+    monkeypatch.setenv("TYPESAFE_API_KEY", "test-key")
+    monkeypatch.setattr(judgment, "choice", lambda **kwargs: calls.append(kwargs))
+    assert failure_judgment is not None
+    assert classify('{"error":{"type":"insufficient_quota"}}', "openai") == "quota_exceeded"
+    assert calls == []
+
+
+def test_semantic_pass_rescues_rewritten_provider_prose(monkeypatch):
+    """A provider that rewords its error must not fall through to harness_failed."""
+
+    from open_kritt_engine import harnesses
+
+    _stub_judgment(monkeypatch, "model_unavailable", 0.95)
+    assert (
+        harnesses.classify_harness_failure("That model is no longer served on this endpoint.", provider="claude")
+        == "model_unavailable"
+    )
+
+
+def test_semantic_pass_keeps_the_fallback_when_not_confident(monkeypatch):
+    from open_kritt_engine import harnesses
+
+    _stub_judgment(monkeypatch, "model_unavailable", 0.55)
+    assert (
+        harnesses.classify_harness_failure("Something odd happened with the endpoint.", provider="claude")
+        == "harness_failed"
+    )
+
+
+def test_semantic_pass_keeps_the_fallback_when_judgment_is_unavailable(monkeypatch):
+    from open_kritt_engine import harnesses
+
+    monkeypatch.delenv("TYPESAFE_API_KEY", raising=False)
+    assert (
+        harnesses.classify_harness_failure("Some unclassified provider prose.", provider="claude") == "harness_failed"
+    )
+
+
+def test_semantic_pass_never_fails_the_classification_on_service_error(monkeypatch):
+    import urllib.error
+
+    from open_kritt_engine import harnesses, judgment
+
+    def boom(**kwargs):
+        raise urllib.error.URLError("down")
+
+    monkeypatch.setenv("TYPESAFE_API_KEY", "test-key")
+    monkeypatch.setattr(judgment, "choice", boom)
+    assert harnesses.classify_harness_failure("Unclassified prose.", provider="claude") == "harness_failed"
