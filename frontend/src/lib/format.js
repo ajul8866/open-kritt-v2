@@ -1,5 +1,7 @@
 // Status + severity presentation helpers (ported from the design logic).
 
+import { severityColor } from './severity.js';
+
 export function rateLimitPresentation(reasoning) {
   if (reasoning?.limit_kind === 'runner_resource_limited') {
     return {
@@ -170,17 +172,7 @@ export function rateLimitRetryText(reasoning, now = Date.now()) {
 }
 
 export function sevColor(sev) {
-  const key = String(sev || '').toLowerCase();
-  return (
-    {
-      critical: 'var(--fail)',
-      high: 'var(--fail)',
-      medium: 'var(--pend)',
-      low: 'var(--run)',
-      informational: 'var(--text-3)',
-      info: 'var(--text-3)',
-    }[key] || 'var(--text-3)'
-  );
+  return severityColor(sev);
 }
 
 // Best-effort severity from a finding's post-script answer.

@@ -32,6 +32,49 @@ describe('postOutputSummary', () => {
       value: 'false',
     });
   });
+
+  // database/init/021_refresh_default_triage_artifacts.sql renamed the bundled
+  // post-script keys to their _chip_ forms, so the shipped output no longer
+  // contains "patched" or "ease_of_exploitability".
+  it('surfaces the shipped chip key instead of an incidental boolean', () => {
+    expect(
+      postOutputSummary({
+        postScriptAnswer: {
+          _chip_patched: false,
+          needs_manual_review: false,
+          confidence: 0.9,
+          summary_result: 'Behavior still present',
+        },
+      })
+    ).toEqual({ label: '_chip_patched', value: 'false' });
+  });
+
+  it('surfaces a shipped ease-of-exploitability chip', () => {
+    expect(postOutputSummary({ postScriptAnswer: { _chip_ease_of_exploitability: 8, reasoning: 'trivial' } })).toEqual({
+      label: '_chip_ease_of_exploitability',
+      value: '8',
+    });
+  });
+
+  it('never surfaces needs_manual_review as the summary, which reads inverted', () => {
+    const summary = postOutputSummary({
+      postScriptAnswer: {
+        needs_manual_review: false,
+        confidence: 0.9,
+        summary_result: 'Behavior still present',
+      },
+    });
+    expect(summary.label).not.toBe('needs_manual_review');
+  });
+
+  it('prefers a declared output format over insertion order', () => {
+    expect(
+      postOutputSummary({
+        postScriptAnswer: { reasoning: 'because', _chip_patched: true },
+        outputFormat: { _chip_patched: 'boolean', reasoning: 'string' },
+      })
+    ).toEqual({ label: '_chip_patched', value: 'true' });
+  });
 });
 
 describe('defaultRankerIds', () => {

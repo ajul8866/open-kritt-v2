@@ -1,3 +1,5 @@
+import { severityLevel, severityShareLabel } from './severity.js';
+
 export const SHARE_CARD_WIDTH = 1200;
 export const SHARE_CARD_HEIGHT = 630;
 export const SHARE_IMAGE_FILENAME = 'open-kritt-security-finding.png';
@@ -5,23 +7,17 @@ export const X_HANDLE = '@Kritt_AI';
 export const X_DESTINATION = 'https://kritt.ai/';
 export const GITHUB_DESTINATION = 'https://github.com/Kritt-ai/open-kritt';
 
-const SEVERITY_ORDER = ['critical', 'high', 'medium', 'low'];
-const SEVERITY_LABELS = Object.fromEntries(SEVERITY_ORDER.map((severity) => [severity, capitalize(severity)]));
-
-function capitalize(value) {
-  return value.charAt(0).toUpperCase() + value.slice(1);
-}
-
+// A share card publishes a claim about the world, so it only carries a severity
+// when one is genuinely stated and is one of the broadcastable levels.
 export function normalizeShareSeverity(value) {
-  if (typeof value !== 'string') return null;
-  const normalized = value.trim().toLowerCase();
-  return Object.hasOwn(SEVERITY_LABELS, normalized) ? normalized : null;
+  const level = severityLevel(value);
+  return severityShareLabel(level) ? level : null;
 }
 
 export function buildShareArtifact({ channel = 'elsewhere', includeSeverity = false, severity = null } = {}) {
   const safeChannel = channel === 'x' ? 'x' : 'elsewhere';
   const safeSeverity = includeSeverity ? normalizeShareSeverity(severity) : null;
-  const qualifier = safeSeverity ? `${SEVERITY_LABELS[safeSeverity]} ` : '';
+  const qualifier = safeSeverity ? `${severityShareLabel(safeSeverity)} ` : '';
   const cardText = `I found a ${qualifier}vulnerability using open·kritt.`;
   const caption =
     safeChannel === 'x'

@@ -26,19 +26,44 @@ function resultSources(vulnerability) {
   return sources;
 }
 
+// Keys whose value reads as a summary of the post-script's verdict. The bundled
+// triage artifacts emit the _chip_ forms (see 021_refresh_default_triage_artifacts.sql);
+// the bare names stay for older scans and custom post-scripts.
+const PREFERRED_OUTPUT_KEYS = [
+  '_chip_patched',
+  '_chip_ease_of_exploitability',
+  '_chip_severity',
+  'severity',
+  'patched',
+  'ease_of_exploitability',
+  'resource_exhaustion',
+];
+
+// These read inverted on a scan card: "needs_manual_review: false" next to a clean
+// finding looks like it was never reviewed. Only used when nothing better exists.
+const INVERTED_READING_KEYS = new Set(['needs_manual_review', 'missing_from_prompt']);
+
+function summarizableValue(value) {
+  return ['string', 'number', 'boolean'].includes(typeof value);
+}
+
 export function postOutputSummary(vulnerability) {
   const sources = resultSources(vulnerability);
-  const preferred = ['severity', 'ease_of_exploitability', 'patched', 'resource_exhaustion'];
-  for (const key of preferred) {
+  // A post-script that declares its output format gives the authoritative order.
+  const declared = Object.keys(vulnerability?.outputFormat || {});
+  const ordered = [...declared.filter((key) => PREFERRED_OUTPUT_KEYS.includes(key)), ...PREFERRED_OUTPUT_KEYS];
+
+  for (const key of ordered) {
     for (const result of sources) {
       const value = result[key];
-      if (['string', 'number', 'boolean'].includes(typeof value)) return { label: key, value: String(value) };
+      if (summarizableValue(value)) return { label: key, value: String(value) };
     }
   }
   for (const result of sources) {
     for (const [key, value] of Object.entries(result)) {
-      if (key.startsWith('_reserved_') || key.startsWith('_chip_')) continue;
-      if (['string', 'number', 'boolean'].includes(typeof value)) return { label: key, value: String(value) };
+      if (key.startsWith('_reserved_')) continue;
+      if (INVERTED_READING_KEYS.has(key)) continue;
+      if (summarizableValue(value)) return { label: key, value: String(value) };
     }
   }
   return sources.length

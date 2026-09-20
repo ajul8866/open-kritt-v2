@@ -37,9 +37,31 @@ describe('share artifact privacy', () => {
       repoFull: 'secret/repository',
       summary: 'private finding',
     });
-    expect(unsafe.cardText).toBe('I found a vulnerability using open·kritt.');
+    // The level is broadcast; the text it was embedded in never is. Every share
+    // label comes from a fixed list, so no input text can reach the card.
+    expect(unsafe.cardText).toBe('I found a Critical vulnerability using open·kritt.');
     expect(JSON.stringify(unsafe)).not.toContain('secret');
     expect(JSON.stringify(unsafe)).not.toContain('private');
+    expect(JSON.stringify(unsafe)).not.toContain('repository');
+    expect(JSON.stringify(unsafe)).not.toContain('src/auth.js');
+  });
+
+  it('never publishes text from a severity label, only a fixed level name', () => {
+    for (const label of [
+      'Critical — secret/repository src/auth.js',
+      'High severity, but only exploitable on testnet',
+      'Severity: Medium',
+      'CVSS 9.8 (Critical)',
+      'not exploitable — informational',
+    ]) {
+      const artifact = buildShareArtifact({ includeSeverity: true, severity: label });
+      // The published claim must be one of the fixed phrases, never a slice of input.
+      expect(artifact.cardText).toMatch(/^I found a (Critical|High|Medium|Low)? ?vulnerability using open·kritt\.$/);
+      expect(artifact.cardText).not.toContain('secret');
+      expect(artifact.cardText).not.toContain('testnet');
+      expect(artifact.cardText).not.toContain('CVSS');
+      expect(artifact.cardText).not.toContain('9.8');
+    }
   });
 
   it('builds a scan-free community artifact with channel-specific attribution', () => {
