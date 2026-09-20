@@ -499,8 +499,47 @@ def _retry_after_seconds(output: str) -> float | None:
     return max(0.0, (retry_at - datetime.now(timezone.utc)).total_seconds())
 
 
+# Provider error types that identify a failure on their own, independent of the
+# prose around them. Deliberately excludes generic types such as
+# `invalid_request_error`, which providers also use for billing and quota
+# failures, so those keep falling through to the wording checks below.
+STRUCTURED_ERROR_TYPES = {
+    "overloaded_error": "provider_unavailable",
+    "api_error": "provider_unavailable",
+    "authentication_error": "auth_failed",
+    "permission_error": "model_access_denied",
+    "insufficient_quota": "quota_exceeded",
+    "rate_limit_error": "rate_limited",
+    "not_found_error": "model_unavailable",
+    "request_too_large": "invalid_request",
+}
+# Matches `"type": "x"` and the single-quoted variant providers also emit.
+STRUCTURED_ERROR_TYPE_RE = re.compile(r"""["']type["']\s*:\s*["']([a-z][a-z0-9_]*)["']""")
+# `API Error: 500` and `stream error: unexpected status 503` carry a status
+# without a `status` key, so `_has_http_status` alone misses them.
+BARE_STATUS_RE = re.compile(r"\b(?:api\s+)?error\b[^0-9\n]{0,24}?\b([45]\d{2})\b")
+
+
+def _structured_error_code(normalized: str) -> str | None:
+    """Return the failure code named by a provider's own error type, if decisive."""
+    for match in STRUCTURED_ERROR_TYPE_RE.finditer(normalized):
+        code = STRUCTURED_ERROR_TYPES.get(match.group(1))
+        if code:
+            return code
+    return None
+
+
+def _bare_status_code(normalized: str) -> int | None:
+    """Return an HTTP status written after the word "error" without a `status` key."""
+    match = BARE_STATUS_RE.search(normalized)
+    return int(match.group(1)) if match else None
+
+
 def _classify_harness_output(output: str, *, provider: str | None = None) -> str:
     normalized = (output or "").lower()
+    structured = _structured_error_code(normalized)
+    if structured is not None:
+        return structured
     if any(
         value in normalized
         for value in (
@@ -520,19 +559,28 @@ def _classify_harness_output(output: str, *, provider: str | None = None) -> str
         )
     ):
         return "invalid_output_schema"
-    if any(
-        value in normalized
-        for value in (
-            "authentication_error",
-            "invalid_api_key",
-            "invalid api key",
-            "incorrect api key",
-            "not logged in",
-            "not signed in",
-            "login required",
-            "401 unauthorized",
+    if (
+        any(
+            value in normalized
+            for value in (
+                "authentication_error",
+                "invalid_api_key",
+                "invalid api key",
+                "incorrect api key",
+                "not logged in",
+                "not signed in",
+                "login required",
+                "401 unauthorized",
+                "token has expired",
+                "token expired",
+                "credentials have expired",
+                "api key is not valid",
+                "invalid bearer token",
+            )
         )
-    ) or _has_http_status(normalized, 401):
+        or _has_http_status(normalized, 401)
+        or _bare_status_code(normalized) == 401
+    ):
         return "auth_failed"
     if any(
         value in normalized
@@ -553,6 +601,10 @@ def _classify_harness_output(output: str, *, provider: str | None = None) -> str
             "unsupported model",
             "model does not exist",
             "model is unavailable",
+            "model has been retired",
+            "model was retired",
+            "no endpoints found",
+            "no longer available",
         )
     ):
         return "model_unavailable"
@@ -611,12 +663,46 @@ def _classify_harness_output(output: str, *, provider: str | None = None) -> str
             "quota exceeded",
             "quota has been exceeded",
             "quota temporarily exceeded",
+            "exceeded your current quota",
+            "run out of credits",
+            "out of credits",
         )
     )
+    # A rate-limit statement is about request volume and stays true even when the
+    # same message mentions credits as an upsell, so it wins over the quota signal.
+    # OpenRouter keeps its historical behaviour: its credit failures are treated as
+    # retryable here, and `tests/test_engine.py` locks that in deliberately. Note
+    # this contradicts `docs-site/ai-provider-setup/openrouter.mdx`, which states a
+    # 402 means insufficient credits; changing it is a maintainer policy decision.
     if rate_limit_signal or _has_http_status(normalized, 429) or (provider == "openrouter" and quota_signal):
         return "rate_limited"
     if quota_signal:
         return "quota_exceeded"
+    bare_status = _bare_status_code(normalized)
+    if bare_status is not None and 500 <= bare_status <= 599:
+        return "provider_unavailable"
+    if bare_status == 429:
+        return "rate_limited"
+    if any(
+        value in normalized
+        for value in (
+            "service unavailable",
+            "temporarily unavailable",
+            "temporarily overloaded",
+            "overloaded",
+            "experiencing high demand",
+            "high demand",
+            "server had an error",
+            "internal server error",
+            "server error",
+            "provider returned error",
+            "please try again later",
+            "try again later",
+            "retry your request",
+            "went wrong on our end",
+        )
+    ):
+        return "provider_unavailable"
     if any(
         value in normalized
         for value in (
@@ -624,6 +710,10 @@ def _classify_harness_output(output: str, *, provider: str | None = None) -> str
             "not allowed to use model",
             "permission to use this model",
             "403 forbidden",
+            "not authorized to use model",
+            "not authorized to access this model",
+            "no access to model",
+            "not permitted to use model",
         )
     ) or _has_http_status(normalized, 403):
         return "model_access_denied"
