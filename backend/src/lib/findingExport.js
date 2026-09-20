@@ -1,7 +1,8 @@
-// Severity is normalized through the same canonical module the UI and the share
-// card use, so a finding cannot show one level in the UI and another in the export.
-// scripts/ already imports from frontend/src/lib for the same reason.
-import { severityLevel } from '../../../frontend/src/lib/severity.js';
+// Severity is normalized through the backend's own copy of the canonical module, so a
+// finding cannot show one level in the UI and another in the export. The copy exists
+// because this process runs inside a container that mounts only ./backend; see the
+// header of ./severity.js and packageBoundary.test.js.
+import { severityLevel } from './severity.js';
 
 const REPORT_KEY = '_reserved_report';
 const POC_KEY = '_reserved_poc';
