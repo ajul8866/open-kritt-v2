@@ -77,6 +77,43 @@ test('login output parser recognizes the Claude callback step', () => {
   });
 });
 
+test('login output parser ignores a help link printed before the provider auth URL', () => {
+  const output = [
+    'Welcome to Codex CLI',
+    'Docs: https://example.com/help',
+    'Sign in at https://auth.openai.com/codex/device and enter code ABCD-12345',
+  ].join('\n');
+  assert.deepEqual(parseLoginInstructions('codex', output), {
+    authorizationUrl: 'https://auth.openai.com/codex/device',
+    deviceCode: 'ABCD-12345',
+    requiresInput: false,
+  });
+});
+
+test('login output parser prefers the provider auth URL over an earlier unrelated link', () => {
+  const output = [
+    'Terms of service: https://openai.com/policies/terms-of-use',
+    'Release notes: https://github.com/openai/codex/releases',
+    'Open https://auth.openai.com/codex/device to sign in',
+  ].join('\n');
+  assert.equal(parseLoginInstructions('codex', output).authorizationUrl, 'https://auth.openai.com/codex/device');
+});
+
+test('login output parser does not report a non-code token as the device code', () => {
+  const output = [
+    'Codex CLI v0.9.1 (build 2024-ABCD)',
+    'Open https://auth.openai.com/codex/device',
+    'Enter this one-time code',
+    'WXYZ-98765',
+  ].join('\n');
+  assert.equal(parseLoginInstructions('codex', output).deviceCode, 'WXYZ-98765');
+});
+
+test('login output parser returns no auth URL when the output carries no provider URL', () => {
+  const output = ['Please run codex login --device-auth in your terminal.'].join('\n');
+  assert.equal(parseLoginInstructions('codex', output).authorizationUrl, null);
+});
+
 test('Codex login is added to runtime homes atomically and idempotently', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'open-kritt-login-runtime-'));
   t.after(() => rm(directory, { recursive: true, force: true }));

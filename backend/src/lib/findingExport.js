@@ -1,3 +1,8 @@
+// Severity is normalized through the same canonical module the UI and the share
+// card use, so a finding cannot show one level in the UI and another in the export.
+// scripts/ already imports from frontend/src/lib for the same reason.
+import { severityLevel } from '../../../frontend/src/lib/severity.js';
+
 const REPORT_KEY = '_reserved_report';
 const POC_KEY = '_reserved_poc';
 const EXPORT_FORMAT_VERSION = 2;
@@ -189,13 +194,19 @@ export function exportSlug(value, fallback = 'export', maxLength = 80) {
   return slug || fallback;
 }
 
+// Walk the same precedence the UI uses, but normalize the winner to a canonical
+// level so the export and the UI agree. An unstated severity reads as 'Unrated'
+// rather than passing model prose straight into the package.
 function findingSeverity(vulnerability) {
-  if (typeof vulnerability.severity === 'string' && vulnerability.severity.trim()) return vulnerability.severity;
-  for (const source of findingPostScriptSources(vulnerability)) {
-    const severity = source.result?.severity;
-    if (typeof severity === 'string' && severity.trim()) return severity;
+  const candidates = [vulnerability.severity];
+  for (const source of findingPostScriptSources(vulnerability)) candidates.push(source.result?.severity);
+  candidates.push(vulnerability.bountyRank?.impactLevel);
+
+  for (const candidate of candidates) {
+    const level = severityLevel(candidate);
+    if (level) return level;
   }
-  return vulnerability.bountyRank?.impactLevel || vulnerability.jsonAnswer?.verdict_target_severity || 'Unrated';
+  return 'Unrated';
 }
 
 function shareSafeRepositoryDisplay(scan) {

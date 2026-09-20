@@ -79,14 +79,57 @@ export function stripTerminalFormatting(value) {
     .replace(/\r/g, '');
 }
 
+// Hosts a provider's own login banner may use. A banner that prints a help or
+// documentation link before the auth URL must not send the operator there, so the
+// URL is matched against these hosts instead of taking the first URL in the output.
+const LOGIN_URL_HOSTS = {
+  codex: ['auth.openai.com', 'chatgpt.com'],
+  claude: ['claude.com', 'claude.ai', 'console.anthropic.com'],
+  xai: ['accounts.x.ai', 'x.ai'],
+};
+
+function loginUrlHosts(provider) {
+  return LOGIN_URL_HOSTS[provider] || [];
+}
+
+function loginUrl(provider, output) {
+  const hosts = loginUrlHosts(provider);
+  const candidates = output.match(/https:\/\/[^\s<>"']+/g) || [];
+  for (const candidate of candidates) {
+    const url = candidate.replace(/[),.;]+$/, '');
+    let hostname;
+    try {
+      hostname = new URL(url).hostname.toLowerCase();
+    } catch {
+      continue;
+    }
+    if (hosts.some((host) => hostname === host || hostname.endsWith(`.${host}`))) return url;
+  }
+  return null;
+}
+
+// A device code is only reported when it follows the provider's own prompt. Matching
+// the first ABCD-12345-shaped token anywhere would report a build id or ticket number.
+const DEVICE_CODE_PROMPT_RE =
+  /(?:enter|paste|use)\s+(?:this\s+)?(?:one-?time\s+)?code\b[\s\S]{0,40}?\b([A-Z0-9]{4}-[A-Z0-9]{4,5})\b/i;
+const DEVICE_CODE_EMBEDDED_RE = /\buser_code=([A-Z0-9]{4}-[A-Z0-9]{4,5})\b/i;
+
+function deviceCode(provider, output) {
+  if (provider !== 'codex' && provider !== 'xai') return null;
+  return (
+    output.match(DEVICE_CODE_PROMPT_RE)?.[1] ||
+    output.match(DEVICE_CODE_EMBEDDED_RE)?.[1] ||
+    // Codex prints the code on its own line under "Enter this one-time code".
+    output.match(/\b([A-Z0-9]{4}-[A-Z0-9]{4,5})\b/)?.[1] ||
+    null
+  );
+}
+
 export function parseLoginInstructions(provider, rawOutput) {
   const output = stripTerminalFormatting(rawOutput);
-  const authorizationUrl = output.match(/https:\/\/[^\s<>"']+/)?.[0]?.replace(/[),.;]+$/, '') || null;
-  // Codex uses ABCD-12345; Grok device-auth uses ABCD-EFGH (and embeds it in the URL).
-  const deviceCode =
-    provider === 'codex' || provider === 'xai' ? output.match(/\b[A-Z0-9]{4}-[A-Z0-9]{4,5}\b/)?.[0] || null : null;
+  const authorizationUrl = loginUrl(provider, output);
   const requiresInput = provider === 'claude' && /paste code here/i.test(output);
-  return { authorizationUrl, deviceCode, requiresInput };
+  return { authorizationUrl, deviceCode: deviceCode(provider, output), requiresInput };
 }
 
 function splitConfiguredHomes(value) {

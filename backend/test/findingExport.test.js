@@ -210,6 +210,92 @@ test('share-safe metadata does not disclose local repository paths', () => {
   assert.doesNotMatch(files.get('README.md'), /Users|alice|customer-project/);
 });
 
+test('an unproduced verdict_target_severity key does not set the exported severity', () => {
+  const withStrayKey = {
+    ...finding,
+    severity: null,
+    postScriptAnswer: { _chip_is_in_scope: 'yes' },
+    bountyRank: null,
+    jsonAnswer: { ...finding.jsonAnswer, verdict_target_severity: 'Critical' },
+  };
+  const bundle = createFindingExport(scan, [withStrayKey]);
+  const files = new Map(bundle.files.map((file) => [file.path, file.content()]));
+  const manifest = JSON.parse(files.get('manifest.json'));
+
+  assert.equal(manifest.findings[0].severity, 'Unrated');
+});
+
+test('exported severity still reads bountyRank when no severity label is present', () => {
+  const ranked = {
+    ...finding,
+    severity: null,
+    postScriptAnswer: { _chip_is_in_scope: 'yes' },
+    jsonAnswer: { ...finding.jsonAnswer, verdict_target_severity: 'Critical' },
+  };
+  const bundle = createFindingExport(scan, [ranked]);
+  const files = new Map(bundle.files.map((file) => [file.path, file.content()]));
+  const manifest = JSON.parse(files.get('manifest.json'));
+
+  // The manifest carries the canonical level, not the ranker's display casing.
+  assert.equal(manifest.findings[0].severity, 'critical');
+});
+
+test('exported severity is normalized to a canonical level', () => {
+  const messy = {
+    ...finding,
+    severity: null,
+    postScriptAnswer: { severity: 'Critical ' },
+    bountyRank: null,
+  };
+  const bundle = createFindingExport(scan, [messy]);
+  const files = new Map(bundle.files.map((file) => [file.path, file.content()]));
+  const manifest = JSON.parse(files.get('manifest.json'));
+
+  assert.equal(manifest.findings[0].severity, 'critical');
+});
+
+test('exported severity keeps the informational level instead of discarding it', () => {
+  const informational = {
+    ...finding,
+    severity: null,
+    postScriptAnswer: { severity: 'Info' },
+    bountyRank: null,
+  };
+  const bundle = createFindingExport(scan, [informational]);
+  const files = new Map(bundle.files.map((file) => [file.path, file.content()]));
+  const manifest = JSON.parse(files.get('manifest.json'));
+
+  assert.equal(manifest.findings[0].severity, 'informational');
+});
+
+test('exported severity reads the level out of a label carrying extra text', () => {
+  const labelled = {
+    ...finding,
+    severity: null,
+    postScriptAnswer: { severity: 'CVSS 9.8 (Critical)' },
+    bountyRank: null,
+  };
+  const bundle = createFindingExport(scan, [labelled]);
+  const files = new Map(bundle.files.map((file) => [file.path, file.content()]));
+  const manifest = JSON.parse(files.get('manifest.json'));
+
+  assert.equal(manifest.findings[0].severity, 'critical');
+});
+
+test('exported severity falls back to Unrated when no severity is stated', () => {
+  const unstated = {
+    ...finding,
+    severity: null,
+    postScriptAnswer: { severity: 'unknown' },
+    bountyRank: null,
+  };
+  const bundle = createFindingExport(scan, [unstated]);
+  const files = new Map(bundle.files.map((file) => [file.path, file.content()]));
+  const manifest = JSON.parse(files.get('manifest.json'));
+
+  assert.equal(manifest.findings[0].severity, 'Unrated');
+});
+
 test('lazy file factories produce a valid ZIP archive', async () => {
   const bundle = createFindingExport(scan, [finding]);
   const archive = await renderZip(bundle);
