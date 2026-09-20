@@ -127,6 +127,11 @@ services:
       ENGINE_RETRY_COUNT: ${ENGINE_RETRY_COUNT:-2}
       ENGINE_CYBER_SAFETY_RETRY_COUNT: ${ENGINE_CYBER_SAFETY_RETRY_COUNT:-0}
       ENGINE_HARNESS_TIMEOUT_SECONDS: ${ENGINE_HARNESS_TIMEOUT_SECONDS:-7200}
+      # Optional semantic judgment. Empty keeps the engine fully deterministic and
+      # offline. The engine service lists its environment explicitly, so a value in
+      # .env only reaches the container when it is passed through here.
+      TYPESAFE_API_KEY: ${TYPESAFE_API_KEY:-}
+      TYPESAFE_MODEL: ${TYPESAFE_MODEL:-}
       ENGINE_MODEL_CATALOG_REFRESH_SECONDS: ${ENGINE_MODEL_CATALOG_REFRESH_SECONDS:-300}
       ENGINE_MODEL_CATALOG_TIMEOUT_SECONDS: ${ENGINE_MODEL_CATALOG_TIMEOUT_SECONDS:-10}
       ENGINE_CODEX_AUTO_UPDATE: ${ENGINE_CODEX_AUTO_UPDATE:-false}
