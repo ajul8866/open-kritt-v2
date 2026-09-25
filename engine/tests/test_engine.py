@@ -51,7 +51,6 @@ from open_kritt_engine.post_processing import (
     validate_dedupe_payload,
 )
 from open_kritt_engine.prompting import (
-    agent_skills_prompt,
     harness_prompt,
     native_agent_skills_prompt,
     render_prompt,
@@ -416,7 +415,9 @@ def test_ranker_prompt_applies_the_scan_severity_ranker_before_protocol_constrai
     assert "Treat the configured severity ranking rules below as authoritative" in prompt
     assert prompt.index(configured_rules) < prompt.index("Required ranking protocol:")
     assert "Return every target id exactly once" in prompt
-    assert "Return only minified JSON matching the provided schema" in prompt
+    # The JSON-output instruction is appended once downstream by append_schema_prompt,
+    # so build_ranker_prompt must not repeat it.
+    assert "Return only minified JSON" not in prompt
 
 
 def test_ranker_prompt_keeps_a_safe_fallback_for_legacy_scans_without_rules():
@@ -543,27 +544,6 @@ def test_repeat_append_prompt_requires_only_new_results_after_the_first_run():
     assert '"thing": "existing"' in prompt
     assert "return only genuinely new application records" in prompt
     assert "appended" in prompt and "earlier set automatically" in prompt
-
-
-def test_agent_skills_prompt_includes_skill_metadata_and_content():
-    prompt = agent_skills_prompt(
-        [
-            {
-                "slug": "audit-skill",
-                "name": "Audit skill",
-                "description": "Find concrete bugs.",
-                "content": "Trace attacker input to sinks.",
-                "source_url": "https://example.com/skill",
-                "license_spdx": "MIT",
-                "attribution": "Example",
-            }
-        ]
-    )
-
-    assert "Selected agent skills" in prompt
-    assert "## Audit skill" in prompt
-    assert "source: https://example.com/skill" in prompt
-    assert "Trace attacker input to sinks." in prompt
 
 
 def test_native_agent_skills_prompt_invokes_installed_bundle():
@@ -1347,7 +1327,8 @@ def test_codex_harness_resumes_corrupted_session_for_json(monkeypatch, tmp_path)
     assert "The exact JSON Schema" in prompts[1]
     assert "does not establish an actual bug" in prompts[1]
     assert "`stub: false` with an empty `results`" in prompts[1]
-    assert "Do not include markdown fences" in prompts[1]
+    assert "Return only the JSON object, with no markdown fences or commentary." in prompts[1]
+    assert "--output-schema" in calls[1]
 
 
 def test_claude_harness_uses_dangerous_permissions_and_default_tools(monkeypatch, tmp_path):

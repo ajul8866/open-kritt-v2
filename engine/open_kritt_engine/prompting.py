@@ -619,39 +619,6 @@ def _git_returncode(repo_dir: str, *args: str) -> int:
         return 1
 
 
-def agent_skills_prompt(agent_skills: list[dict[str, Any]] | None) -> str:
-    if not agent_skills:
-        return ""
-    blocks = [
-        "Selected agent skills for this scan:",
-        "Apply these reusable instructions when they are relevant to the current task. They complement the workflow prompt and do not replace the required output schema.",
-    ]
-    for skill in agent_skills:
-        metadata = []
-        if skill.get("slug"):
-            metadata.append(f"slug: {skill['slug']}")
-        if skill.get("source_url"):
-            metadata.append(f"source: {skill['source_url']}")
-        if skill.get("license_spdx"):
-            metadata.append(f"license: {skill['license_spdx']}")
-        if skill.get("attribution"):
-            metadata.append(f"attribution: {skill['attribution']}")
-        blocks.append(
-            "\n".join(
-                part
-                for part in [
-                    f"## {skill.get('name') or skill.get('slug') or 'Agent skill'}",
-                    skill.get("description") or "",
-                    "\n".join(metadata),
-                    "Instructions:",
-                    skill.get("content") or "",
-                ]
-                if part
-            )
-        )
-    return "\n\n".join(blocks)
-
-
 def native_agent_skills_prompt(agent_skills: list[dict[str, Any]] | None, harness_name: str | None) -> str:
     if not agent_skills:
         return ""

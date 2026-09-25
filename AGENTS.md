@@ -1,7 +1,7 @@
 # AGENTS.md
 
 Guidance for AI/code agents (and humans skimming for the essentials) working in the
-open·kritt repo. This is the canonical agent guide; `CLAUDE.md` points here.
+open·kritt repo. This is the canonical agent guide.
 
 Read [`CONTRIBUTING.md`](CONTRIBUTING.md) for the full contributor flow — this file is
 the fast, do/don't version.
@@ -13,9 +13,9 @@ monorepo** of cooperating services:
 
 | Path             | What                                          | Stack                         |
 | ---------------- | --------------------------------------------- | ----------------------------- |
-| `frontend/`      | Web UI                                        | React 18 + Vite (npm)         |
+| `frontend/`      | Web UI                                        | React 19 + Vite (npm)         |
 | `backend/`       | HTTP API                                      | Node + Express + Prisma (npm) |
-| `engine/`        | Scan worker running the AI harnesses          | Python 3.11+ (Ruff)           |
+| `engine/`        | Scan worker running the AI harnesses          | Python 3.12 (Ruff)            |
 | `database/`      | Postgres image + `init/*.sql` migrations      | Postgres 16                   |
 | `executor-view/` | Executor viewer                               | Python                        |
 | `scripts/`       | Repo tooling and CLI implementation           | Node                          |

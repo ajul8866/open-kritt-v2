@@ -1863,7 +1863,7 @@ def _resume_json_prompt(schema: dict[str, Any]) -> str:
         "If there are findings, set `stub` to false, set `stub_explanation` to an empty string, "
         "and put at least one record in `results`. Never return `stub: false` with an empty `results` "
         "array; that is invalid and fails the attempt.\n"
-        "Do not include markdown fences, commentary, XML/thinking tags, or any text outside the JSON object.\n\n"
+        "Return only the JSON object, with no markdown fences or commentary.\n\n"
         "The exact JSON Schema you must satisfy is:\n"
         "```json\n"
         f"{schema_json}\n"
@@ -2120,6 +2120,8 @@ class CodexHarness:
             "--dangerously-bypass-approvals-and-sandbox",
             "-c",
             f"agents.max_concurrent_threads_per_session={self.max_subagents}",
+            "--output-schema",
+            schema_path,
             "-o",
             output_path,
         ]

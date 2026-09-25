@@ -719,8 +719,6 @@ Post-script requirements:
 - `_chip_<label>` outputs render compact finding chips. Use at most three meaningful chip keys, and never use the empty `_chip_` key.
 - Introduce `{{{{extra.<key>}}}}` only when the requested post-script genuinely needs that per-scan input. The scan form derives and validates those requirements from selected post-script prompts.
 - Do not create, delete, or claim to execute anything. Do not include `outputFormat`; emit the requested output field list only.
-
-For example, a focused triage post-script can say: `Assess {{{{summary}}}} ({{{{vulnerability_type}}}}) at {{{{file_path}}}}:{{{{line}}}} using {{{{explanation}}}} and {{{{malicious_input_example}}}}. Return concise evidence and remediation priority.` Its output fields might include `_chip_severity: string`, `_chip_confidence: string`, and `_reserved_report: string` for a detailed Markdown report.
 """
 
 

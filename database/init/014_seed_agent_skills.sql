@@ -8,9 +8,9 @@ Use this optional external skill reference when a scan needs a broad, impact-foc
 
 Focus:
 - Find exploitable vulnerabilities with realistic attacker control and meaningful impact.
-- Map entry points before reporting findings.
+- Entry points, and the attacker control each one grants.
 - Trace data and control flow from attacker input to security-sensitive sinks or invariants.
-- Use subagents when useful for independent codebase exploration, lead validation, and false-positive reduction.
+- Delegate wide, independent investigations to subagents; keep a single-file review in the main loop.
 - Prefer concrete evidence over pattern-only findings.
 - Exclude theoretical concerns, accepted framework behavior, dead code, tests, examples, and issues without a reachable attack path.
 
@@ -56,7 +56,7 @@ Use this optional external skill reference for Solidity and EVM protocol audits.
 
 Focus:
 - Review production Solidity contracts, excluding tests, mocks, interfaces, and vendored libraries unless they are production dependencies.
-- Build an asset-flow and trust-boundary map before issue hunting.
+- Asset flows and trust boundaries across the protocol.
 - Prioritize missing authorization, broken accounting, oracle manipulation, rounding, reentrancy, unsafe external calls, upgrade and initializer mistakes, signature replay, and loss-of-funds sequences.
 - Validate each lead with an attacker transaction sequence and explain why modifiers, guards, or invariants do not prevent it.
 
@@ -283,7 +283,7 @@ SELECT
 Use this optional external skill reference when a scan targets Django or Django REST Framework authorization.
 
 Focus:
-- Build the codebase-specific authorization model before looking for bugs.
+- The codebase-specific authorization model: views, serializers, permission classes, decorators, middleware, base classes, custom managers, and get_queryset overrides.
 - Trace views, serializers, permission classes, decorators, middleware, base classes, custom managers, and get_queryset overrides.
 - Check whether one user, role, tenant, or organization can access or mutate another user's resources.
 - Report only confirmed authorization bypasses with reachable endpoint, required identity, missing object scope, and expected remediation.
@@ -306,7 +306,7 @@ SELECT
 Use this optional external skill reference when a scan should combine threat modeling with repository or PR security review.
 
 Focus:
-- Build or consult a threat model before scanning for specific vulnerabilities.
+- A threat model, when the scan has one, before scanning for specific vulnerabilities.
 - Review changed files and full repository context for STRIDE categories and known vulnerability patterns.
 - Validate findings for exploitability before producing downstream reports or patches.
 - Prefer structured findings that include affected component, attack path, severity, evidence, and suggested fix.
@@ -444,7 +444,7 @@ SELECT
 Use this optional external skill reference when a scan needs deeper architectural understanding before reporting bugs.
 
 Focus:
-- Analyze important functions, modules, and flows bottom-up before judging vulnerability likelihood.
+- The invariants, assumptions, and trust boundaries inside important functions and flows.
 - Capture invariants, assumptions, trust boundaries, data ownership, state transitions, and reasoning hazards.
 - Link low-level observations to system-wide security properties.
 - Use the resulting context to reduce hallucinated findings and guide later vulnerability hunting.

@@ -210,7 +210,6 @@ def build_dedupe_prompt(scan: dict[str, Any], anchors: list[dict[str, Any]], tar
         "- Include an anchor id in a cluster only when one or more target findings duplicate that anchor.\n"
         "- Do not cluster findings only because they share a vulnerability class.\n"
         "- Prefer clustering only when one fix would address the same root cause and location/entrypoint.\n\n"
-        "Return only minified JSON matching the provided schema.\n\n"
         f"Canonical anchors JSON:\n{json.dumps(anchor_items, ensure_ascii=False, separators=(',', ':'))}\n\n"
         f"Target findings JSON:\n{json.dumps(target_items, ensure_ascii=False, separators=(',', ':'))}"
     )
@@ -238,7 +237,6 @@ def build_ranker_prompt(scan: dict[str, Any], anchors: list[dict[str, Any]], tar
         "- In append mode, `rank` is an insertion position on the existing anchor scale: use decimals to place targets between anchors.\n"
         "- In full rerank mode, use unique consecutive ranks 1..N for the target findings.\n"
         "- If a finding is likely duplicate, non-payable, out of scope, or weakly evidenced, reflect that in impact and reward.\n\n"
-        "Return only minified JSON matching the provided schema.\n\n"
         f"Scan context JSON:\n{json.dumps(scan_context(scan), ensure_ascii=False, separators=(',', ':'))}\n\n"
         f"Ranked anchors JSON:\n{json.dumps([_vuln_item(row, include_rank=True) for row in anchors], ensure_ascii=False, separators=(',', ':'))}\n\n"
         f"Target findings JSON:\n{json.dumps([_vuln_item(row, include_rank=True) for row in targets], ensure_ascii=False, separators=(',', ':'))}"
