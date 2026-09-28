@@ -320,7 +320,10 @@ def test_generation_environment_contains_only_selected_provider_credentials():
         "HOME": "/root",
         "ENGINE_CODEX_HOME": "/codex-a,/codex-b",
         "OPENAI_API_KEY": "openai-secret",
+        "ENGINE_CLAUDE_HOME": "/claude-a,/claude-b",
         "ANTHROPIC_API_KEY": "anthropic-secret",
+        "ANTHROPIC_AUTH_TOKEN": "anthropic-token",
+        "ANTHROPIC_BASE_URL": "https://example.test/anthropic",
         "DEEPSEEK_API_KEY": "deepseek-secret",
         "OPENROUTER_API_KEY": "openrouter-secret",
         "XAI_API_KEY": "xai-secret",
@@ -329,6 +332,7 @@ def test_generation_environment_contains_only_selected_provider_credentials():
     }
 
     codex_env = generation_environment("codex", source)
+    claude_env = generation_environment("claude", source)
     openrouter_env = generation_environment("openrouter", source)
     deepseek_env = generation_environment("deepseek", source)
     xai_env = generation_environment("xai", source)
@@ -337,11 +341,17 @@ def test_generation_environment_contains_only_selected_provider_credentials():
     assert codex_env["CODEX_HOME"] == "/codex-a"
     assert "ANTHROPIC_API_KEY" not in codex_env
     assert "OPENROUTER_API_KEY" not in codex_env
+    assert claude_env["ANTHROPIC_API_KEY"] == "anthropic-secret"
+    assert claude_env["ANTHROPIC_AUTH_TOKEN"] == "anthropic-token"
+    assert claude_env["ANTHROPIC_BASE_URL"] == "https://example.test/anthropic"
+    assert claude_env["CLAUDE_HOME"] == "/claude-a"
+    assert claude_env["CLAUDE_CONFIG_DIR"] == "/claude-a"
+    assert "OPENROUTER_API_KEY" not in claude_env
     assert openrouter_env["OPENROUTER_API_KEY"] == "openrouter-secret"
     assert deepseek_env["DEEPSEEK_API_KEY"] == "deepseek-secret"
     assert xai_env["XAI_API_KEY"] == "xai-secret"
     assert "OPENROUTER_API_KEY" not in xai_env
-    for env in (codex_env, openrouter_env, deepseek_env, xai_env):
+    for env in (codex_env, claude_env, openrouter_env, deepseek_env, xai_env):
         assert "GITHUB_TOKEN" not in env
         assert "DATABASE_URL" not in env
 
@@ -365,6 +375,24 @@ def test_generation_environment_prefers_live_grok_home():
 
     assert env["GROK_HOME"] == "/runtime-grok"
     assert env["XAI_API_KEY"] == "xai-secret"
+
+
+def test_generation_environment_prefers_live_claude_home():
+    env = generation_environment(
+        "claude",
+        {
+            "ANTHROPIC_API_KEY": "anthropic-secret",
+            "ANTHROPIC_AUTH_TOKEN": "anthropic-token",
+            "ENGINE_CLAUDE_HOME": "/also-stale",
+            "CLAUDE_HOME": "/startup-home",
+        },
+        claude_home="/runtime-claude",
+    )
+
+    assert env["CLAUDE_HOME"] == "/runtime-claude"
+    assert env["CLAUDE_CONFIG_DIR"] == "/runtime-claude"
+    assert env["ANTHROPIC_API_KEY"] == "anthropic-secret"
+    assert env["ANTHROPIC_AUTH_TOKEN"] == "anthropic-token"
 
 
 def test_generation_runner_retries_validation_with_feedback_and_no_tools(monkeypatch, tmp_path):
@@ -428,6 +456,41 @@ def test_generation_runner_persists_codex_refresh_and_restores_private_mode(monk
 
     assert auth_path.read_text(encoding="utf-8") == '{"tokens":{"access_token":"refreshed"}}'
     assert stat.S_IMODE(auth_path.stat().st_mode) == 0o600
+
+
+def test_generation_runner_selects_claude_account_and_keeps_its_credentials(monkeypatch, tmp_path):
+    class FakeHarness:
+        def __init__(self):
+            self.calls = []
+
+        def run(self, **kwargs):
+            self.calls.append(kwargs)
+            return HarnessResult(payload=marked({"results": [raw_workflow()]}))
+
+    fake_harness = FakeHarness()
+    monkeypatch.setattr(generation_module, "harness_for", lambda *_args, **_kwargs: fake_harness)
+    monkeypatch.setattr(generation_module, "provider_home_for_job", lambda *_args, **_kwargs: "/runtime-claude")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "anthropic-secret")
+    monkeypatch.setenv("ANTHROPIC_AUTH_TOKEN", "anthropic-token")
+    monkeypatch.setenv("ANTHROPIC_BASE_URL", "https://example.test/anthropic")
+    monkeypatch.setenv("GITHUB_TOKEN", "github-secret")
+
+    GenerationRunner(SimpleNamespace(data_dir=str(tmp_path))).generate(
+        {
+            **generation_job(),
+            "model": "claude-test",
+            "model_provider": "claude",
+            "harness": "claude-code",
+        }
+    )
+
+    env = fake_harness.calls[0]["env"]
+    assert env["CLAUDE_HOME"] == "/runtime-claude"
+    assert env["CLAUDE_CONFIG_DIR"] == "/runtime-claude"
+    assert env["ANTHROPIC_API_KEY"] == "anthropic-secret"
+    assert env["ANTHROPIC_AUTH_TOKEN"] == "anthropic-token"
+    assert env["ANTHROPIC_BASE_URL"] == "https://example.test/anthropic"
+    assert "GITHUB_TOKEN" not in env
 
 
 def test_generation_runner_has_independent_timeout_and_retry_bounds(monkeypatch, tmp_path):

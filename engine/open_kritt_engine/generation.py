@@ -20,7 +20,7 @@ from .prompting import append_schema_prompt
 from .provider_credentials import provider_environment
 from .runtime_config import runtime_int
 from .schema import EXTRACTOR_HELPER_FIELD
-from .workspace import codex_home_for_job, grok_home_for_job, provider_account_lease
+from .workspace import codex_home_for_job, grok_home_for_job, provider_account_lease, provider_home_for_job
 
 BUILTIN_KEYS = (
     "repo_full",
@@ -104,7 +104,9 @@ GENERATION_COMMON_ENV_KEYS = frozenset(
 )
 GENERATION_PROVIDER_ENV_KEYS = {
     "codex": frozenset({"CODEX_API_KEY", "OPENAI_API_KEY", "CODEX_HOME"}),
-    "claude": frozenset({"ANTHROPIC_API_KEY"}),
+    "claude": frozenset(
+        {"ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL", "CLAUDE_HOME", "CLAUDE_CONFIG_DIR"}
+    ),
     "openrouter": frozenset({"OPENROUTER_API_KEY"}),
     "xai": frozenset({"XAI_API_KEY", "GROK_BIN", "GROK_HOME"}),
     "deepseek": frozenset({"DEEPSEEK_API_KEY"}),
@@ -259,6 +261,7 @@ def generation_environment(
     *,
     codex_home: str | None = None,
     grok_home: str | None = None,
+    claude_home: str | None = None,
 ) -> dict[str, str]:
     """Return only the execution settings and credential for the selected provider."""
 
@@ -276,6 +279,16 @@ def generation_environment(
             configured_home = (source_env.get("ENGINE_CODEX_HOME") or "").split(",", 1)[0].strip()
             if configured_home:
                 env["CODEX_HOME"] = configured_home
+    if provider == "claude":
+        if claude_home:
+            env["CLAUDE_HOME"] = claude_home
+            env["CLAUDE_CONFIG_DIR"] = claude_home
+        elif not env.get("CLAUDE_HOME"):
+            configured_home = (source_env.get("ENGINE_CLAUDE_HOME") or "").split(",", 1)[0].strip()
+            if configured_home:
+                env["CLAUDE_HOME"] = configured_home
+        if env.get("CLAUDE_HOME") and not env.get("CLAUDE_CONFIG_DIR"):
+            env["CLAUDE_CONFIG_DIR"] = env["CLAUDE_HOME"]
     if provider == "xai":
         if grok_home:
             env["GROK_HOME"] = grok_home
@@ -794,6 +807,11 @@ class GenerationRunner:
             if request["model_provider"] == "codex"
             else None
         )
+        selected_claude_home = (
+            provider_home_for_job("claude", 0, data_dir=getattr(self.config, "data_dir", None))
+            if request["model_provider"] == "claude"
+            else None
+        )
         selected_grok_home = (
             grok_home_for_job(0, data_dir=getattr(self.config, "data_dir", None))
             if request["model_provider"] == "xai"
@@ -801,12 +819,15 @@ class GenerationRunner:
         )
         if selected_codex_home == "":
             selected_codex_home = empty_home
+        if selected_claude_home == "":
+            selected_claude_home = empty_home
         if selected_grok_home == "":
             selected_grok_home = empty_home
         env = generation_environment(
             request["model_provider"],
             codex_home=selected_codex_home,
             grok_home=selected_grok_home,
+            claude_home=selected_claude_home,
         )
         last_error: Exception | None = None
         feedback = ""
@@ -815,7 +836,7 @@ class GenerationRunner:
             try:
                 with provider_account_lease(
                     request["model_provider"],
-                    selected_codex_home or selected_grok_home,
+                    selected_codex_home or selected_claude_home or selected_grok_home,
                     data_dir=getattr(self.config, "data_dir", None),
                     env=env,
                 ):
