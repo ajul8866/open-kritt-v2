@@ -2832,6 +2832,90 @@ def test_worker_moves_finished_workflow_into_post_processing(monkeypatch, tmp_pa
     assert all(kwargs["codex_fast_mode"] is False for _name, kwargs in harness_calls)
 
 
+def test_worker_still_finishes_when_skip_attempted_hides_failed_lineages(monkeypatch, tmp_path):
+    runtime_path = tmp_path / "engine-runtime.env"
+    runtime_path.write_text("ENGINE_WORKER_COUNT=1\nENGINE_CODEX_HOME=/root/.codex\n", encoding="utf-8")
+    monkeypatch.setenv("ENGINE_RUNTIME_CONFIG_PATH", str(runtime_path))
+
+    completed = {(1, 0, None, 1), (2, 10, "workflows.step_results", 1)}
+    failed = (2, 11, "workflows.step_results", 1)
+    current_scan = {
+        **scan({"skip_attempted_step_ids": [2]}),
+        "status": "running",
+        "model_provider": "openrouter",
+    }
+
+    class FakeStatusDb:
+        def __init__(self):
+            self.status = "running"
+            self.statuses = []
+
+        @contextmanager
+        def connect(self):
+            yield FakeConn()
+
+        def load_workflow(self, _conn, workflow_id):
+            return Workflow(id=workflow_id, name="wf", steps=(step(1, 0, multi=True), step(2, 1, is_last=True)))
+
+        def load_scan(self, _conn, _scan_id):
+            return {**current_scan, "status": self.status}
+
+        def load_completed_metadata(self, *_args):
+            return set(completed)
+
+        def load_claimed_metadata(self, *_args):
+            return set(completed)
+
+        def load_attempted_metadata(self, *_args):
+            return set(completed) | {failed}
+
+        def load_step_results(self, *_args):
+            return {
+                (1, 0, None, 1): [
+                    StepResultRow(
+                        id=10,
+                        step_id=1,
+                        prev_id=0,
+                        prev_table=None,
+                        repeat_run=1,
+                        json_answer={"item": 10},
+                    ),
+                    StepResultRow(
+                        id=11,
+                        step_id=1,
+                        prev_id=0,
+                        prev_table=None,
+                        repeat_run=1,
+                        json_answer={"item": 11},
+                    ),
+                ]
+            }
+
+        def set_scan_status_if_current(self, _conn, _scan_id, current_status, status):
+            if self.status != current_status:
+                return False
+            self.status = status
+            self.statuses.append(status)
+            return True
+
+    fake_db = FakeStatusDb()
+    worker = Worker(
+        SimpleNamespace(
+            harness_timeout_seconds=5,
+            codex_model_provider=None,
+            poll_seconds=0,
+            retry_count=0,
+            data_dir="/tmp",
+        ),
+        db=fake_db,
+    )
+    monkeypatch.setattr(worker, "_ensure_scan_cache_prewarmed", lambda *_args, **_kwargs: False)
+    worker.post_processor = SimpleNamespace(process_once=lambda *_args, **_kwargs: True)
+
+    assert worker.process_scan(current_scan) is True
+    assert fake_db.statuses == ["post_processing"]
+
+
 def test_worker_retries_strict_validation_then_writes_results(monkeypatch, tmp_path):
     root = tmp_path / "job"
     root.mkdir()
