@@ -50,11 +50,14 @@ MODEL_NOTES = {
     "claude-fable-5": "Cyber requests may route to Opus 4.8.",
 }
 CLAUDE_MODEL_THINKING_EFFORTS = {
+    "claude-fable-5-1": ("low", "medium", "high", "xhigh", "max"),
     "claude-fable-5": ("low", "medium", "high", "xhigh", "max"),
+    "claude-opus-5-5": ("low", "medium", "high", "xhigh", "max"),
     "claude-opus-5": ("low", "medium", "high", "xhigh", "max"),
     "claude-opus-4-8": ("low", "medium", "high", "xhigh", "max"),
     "claude-opus-4-7": ("low", "medium", "high", "xhigh", "max"),
     "claude-opus-4-6": ("low", "medium", "high", "max"),
+    "claude-sonnet-5-5": ("low", "medium", "high", "xhigh", "max"),
     "claude-sonnet-5": ("low", "medium", "high", "xhigh", "max"),
     "claude-sonnet-4-6": ("low", "medium", "high", "max"),
 }
