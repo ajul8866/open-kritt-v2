@@ -32,7 +32,7 @@ Score:
 - network_scale: 1 = one node/user, 2 = several nodes/users, 3 = broad network participation or many victims.
 - mainnet_impact: 0 = no meaningful mainnet impact, 1 = limited, 2 = material but not catastrophic, 3 = severe chain-wide or high-value impact.
 
-Be conservative. If evidence is ambiguous, set _chip_resource_exhaustion=false and explain what is missing.
+If evidence is ambiguous, set _chip_resource_exhaustion=false and explain what is missing.
 $script$,
     '{"_chip_resource_exhaustion":"boolean","attack_reliability":"number","network_scale":"number","mainnet_impact":"number","resource_exhaustion_reason":"string","attack_reliability_reason":"string","network_scale_reason":"string","mainnet_impact_reason":"string"}'
 WHERE NOT EXISTS (SELECT 1 FROM public.post_scripts WHERE name = 'Resource exhaustion');
