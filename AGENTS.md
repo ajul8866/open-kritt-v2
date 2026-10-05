@@ -164,11 +164,12 @@ the project under the GNU AGPL v3.0. This summary does not replace reading the t
 
 ## CI / merge flow
 
-- **CI** runs on PRs to `main` (`frontend`, `backend`, `engine`, `database`, and version
-  sync). It's a required check — `main` only receives CI-passing code.
+- **CI** runs on PRs to `main` (`versions`, `cli`, `docs`, `frontend`, `backend`, `engine`,
+  `database`). It's a required check — `main` only receives CI-passing code.
 - **Release** runs on push to `main` via release-please (see [`RELEASE.md`](RELEASE.md)).
-- Lint/format steps are currently `continue-on-error` until a one-time cleanup PR; keep
-  new code clean so they can become hard gates.
+- Engine lint/format are already hard gates; frontend and backend lint/format are still
+  `continue-on-error` until a one-time cleanup PR. Keep new code clean so they can become
+  hard gates too.
 
 ## Where to look
 
