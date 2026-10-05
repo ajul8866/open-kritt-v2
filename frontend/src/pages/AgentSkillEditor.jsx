@@ -21,7 +21,7 @@ function newAgentSkillForm() {
     slug: 'new-agent-skill',
     description: '',
     content:
-      'Use this skill when a scan needs focused security-review guidance.\n\nProcess:\n- Map reachable attacker input.\n- Trace to sensitive sinks or invariants.\n- Report only concrete, production-reachable vulnerabilities.',
+      'Use this skill when a scan needs focused security-review guidance.\n\nProcess:\n- Map reachable attacker input.\n- Trace to sensitive sinks or invariants.\n- Report vulnerabilities that are production-reachable, including uncertain ones; downstream ranking filters them.',
     sourceUrl: '',
     licenseSpdx: '',
     attribution: '',

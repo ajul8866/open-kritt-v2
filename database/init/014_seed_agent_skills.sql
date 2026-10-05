@@ -12,7 +12,7 @@ Focus:
 - Trace data and control flow from attacker input to security-sensitive sinks or invariants.
 - Delegate wide, independent investigations to subagents; keep a single-file review in the main loop.
 - Prefer concrete evidence over pattern-only findings.
-- Exclude theoretical concerns, accepted framework behavior, dead code, tests, examples, and issues without a reachable attack path.
+- Exclude dead code, tests, examples, accepted framework behavior, and issues without a reachable attack path; report uncertain issues and let downstream ranking filter them.
 
 Source/license:
 - Upstream source is Cloudflare's security-audit skill.
@@ -35,7 +35,7 @@ Focus:
 - Inspect injection risks, authentication and authorization logic, secrets exposure, weak cryptography, insecure dependencies, and business-logic abuse.
 - Follow source-to-sink flows instead of relying only on grep-style indicators.
 - Verify component interactions, framework middleware, route registration, background jobs, and dependency boundaries.
-- Report only issues with a plausible exploit path, affected code anchors, and concrete remediation.
+- Report issues with a plausible exploit path, affected code anchors, and concrete remediation, including ones you cannot fully confirm; downstream ranking filters them.
 
 Source/license:
 - Upstream source is GitHub's awesome-copilot security-review skill.
@@ -286,7 +286,7 @@ Focus:
 - The codebase-specific authorization model: views, serializers, permission classes, decorators, middleware, base classes, custom managers, and get_queryset overrides.
 - Trace views, serializers, permission classes, decorators, middleware, base classes, custom managers, and get_queryset overrides.
 - Check whether one user, role, tenant, or organization can access or mutate another user's resources.
-- Report only confirmed authorization bypasses with reachable endpoint, required identity, missing object scope, and expected remediation.
+- Report authorization bypasses with a reachable endpoint, required identity, missing object scope, and expected remediation, including ones you cannot fully confirm.
 
 Source/license:
 - Upstream source is Sentry's django-access-review skill.
