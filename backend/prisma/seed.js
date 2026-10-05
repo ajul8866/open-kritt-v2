@@ -358,7 +358,7 @@ const SCANS = [
   {
     repo: 'supabase/supabase',
     workflow: 'deep-taint-v3',
-    model: 'claude-opus-4',
+    model: 'claude-opus-4-8',
     harness: 'claude-code',
     commit: '7b1e004',
     status: 'running',
@@ -380,7 +380,7 @@ const SCANS = [
   {
     repo: 'denoland/deno',
     workflow: 'deep-taint-v3',
-    model: 'claude-sonnet-4',
+    model: 'claude-sonnet-5',
     harness: 'claude-code',
     commit: '0e7a55b',
     status: 'completed',
@@ -402,7 +402,7 @@ const SCANS = [
   {
     repo: 'prisma/prisma',
     workflow: 'authz-sweep',
-    model: 'claude-opus-4',
+    model: 'claude-opus-4-8',
     harness: 'claude-code',
     commit: 'b2c8e91',
     status: 'stopped',
@@ -424,7 +424,7 @@ const SCANS = [
   {
     repo: 'expressjs/express',
     workflow: 'authz-sweep',
-    model: 'claude-sonnet-4',
+    model: 'claude-sonnet-5',
     harness: 'claude-code',
     commit: '9ab3f70',
     status: 'completed',
