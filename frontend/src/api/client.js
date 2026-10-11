@@ -149,6 +149,18 @@ export const api = {
   },
   scan: (id) => request(`/scans/${id}`),
   scanVulnerabilities: (id) => request(`/scans/${id}/vulnerabilities`),
+  selfImprovementForScan: (id) => request(`/self-improvement/scans/${id}/loop`),
+  selfImprovementLoop: (id) => request(`/self-improvement/loops/${id}`),
+  enableSelfImprovement: (id, config) =>
+    request(`/self-improvement/scans/${id}/loop`, { method: 'POST', body: { config } }),
+  approveSelfImprovement: (id, body) => request(`/self-improvement/loops/${id}/approval`, { method: 'POST', body }),
+  reviewSelfImprovement: (id, scanId, feedback) =>
+    request(`/self-improvement/loops/${id}/reviews`, { method: 'POST', body: { scan_id: scanId, feedback } }),
+  cancelSelfImprovement: (id, reason) =>
+    request(`/self-improvement/loops/${id}/cancel`, { method: 'POST', body: { reason } }),
+  recoverSelfImprovement: (id, remoteId) =>
+    request(`/self-improvement/loops/${id}/recover`, { method: 'POST', body: { remote_id: remoteId } }),
+  selfImprovementAudit: (id) => request(`/self-improvement/loops/${id}/audit`),
   supplementalPostScriptRuns: (id) => request(`/scans/${id}/supplemental-post-script-runs`),
   createSupplementalPostScriptRun: (id, body) =>
     request(`/scans/${id}/supplemental-post-script-runs`, { method: 'POST', body }),

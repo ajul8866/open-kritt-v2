@@ -32,6 +32,7 @@ import { usePagination } from '../lib/usePagination.js';
 import Pagination from '../components/Pagination.jsx';
 import { saveBrowserDownload } from '../lib/download.js';
 import { extractExtraKeys } from '../lib/keys.js';
+import SelfImprovementPanel from '../components/self-improvement/SelfImprovementPanel.jsx';
 
 const SUPPLEMENTAL_POST_SCRIPT_SCAN_STATUSES = new Set(['paused', 'completed', 'stopped', 'failed']);
 
@@ -681,6 +682,8 @@ export default function ScanDetail() {
         />
 
         <ScanStatusPanel scan={scan} />
+
+        <SelfImprovementPanel key={id} scan={scan} references={modelReferences} />
 
         {agentSkills.length > 0 && <ConfiguredAgentSkills agentSkills={agentSkills} />}
 

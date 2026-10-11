@@ -1,0 +1,135 @@
+.sil-panel {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  padding: 16px;
+  margin-bottom: 24px;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.sil-panel h2 {
+  font-size: 15px;
+  margin: 0 0 12px;
+}
+.sil-panel h3 {
+  font-size: 13px;
+  margin: 16px 0 10px;
+}
+.sil-panel p {
+  margin: 12px 0;
+  line-height: 1.6;
+}
+.sil-panel a {
+  color: var(--text);
+  text-decoration: underline;
+}
+.sil-panel fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.sil-panel label {
+  display: block;
+  margin-bottom: 12px;
+  color: var(--text-2);
+}
+.sil-panel input:not([type='checkbox']),
+.sil-panel select,
+.sil-panel textarea {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  padding: 10px 12px;
+  font: inherit;
+  min-height: 40px;
+}
+.sil-panel button {
+  white-space: normal !important;
+  height: auto !important;
+  min-height: 36px;
+  padding-block: 8px !important;
+}
+.sil-panel textarea {
+  resize: vertical;
+}
+.sil-panel :focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+.sil-panel :disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.sil-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: 12px;
+}
+.sil-muted {
+  color: var(--text-2);
+}
+.sil-error {
+  color: var(--text);
+  border-left: 3px solid var(--fail);
+  padding-left: 12px;
+}
+[data-theme='light'] .sil-panel {
+  --accent-fg: var(--text);
+}
+.sil-review,
+.sil-finding {
+  border-top: 1px solid var(--border);
+  padding: 12px 0;
+  margin-top: 12px;
+}
+.sil-panel summary {
+  cursor: pointer;
+  font-weight: 600;
+  padding: 6px 0;
+}
+.sil-code {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  overflow: auto;
+  max-height: 480px;
+  padding: 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 11px;
+}
+.sil-panel .sil-checkbox {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  line-height: 1.6;
+}
+.sil-checkbox input {
+  margin-top: 4px;
+}
+.sil-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 12px 0;
+}
+.sil-table-wrap {
+  overflow-x: auto;
+}
+.sil-table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 12px;
+}
+.sil-table th,
+.sil-table td {
+  text-align: left;
+  padding: 10px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}

@@ -63,6 +63,21 @@ class Journal:
         require(row is not None, "Loop not found")
         return json.loads(row[0])
 
+    def for_scan(self, api, scan_id):
+        row = self.db.execute(
+            "SELECT state_json FROM loops WHERE api = ? AND root_scan_id = ?", (api, scan_id)
+        ).fetchone()
+        return json.loads(row[0]) if row else None
+
+    def active_ids(self):
+        return [
+            row[0]
+            for row in self.db.execute(
+                "SELECT id FROM loops WHERE json_extract(state_json, '$.state') NOT IN "
+                "('completed', 'failed', 'cancelled', 'submission_unknown', 'awaiting_approval')"
+            )
+        ]
+
     def save(self, state, kind, payload=None):
         with self.db:
             self.db.execute("UPDATE loops SET state_json = ? WHERE id = ?", (canonical(state), state["id"]))

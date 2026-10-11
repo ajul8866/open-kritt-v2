@@ -55,6 +55,8 @@ services:
       OPEN_KRITT_ENV_FILE_PATH: /project-config/.env
       EXECUTOR_VIEW_URL: http://executor-view:8090
       EXECUTOR_VIEW_INTERNAL_TOKEN_FILE: /executor-auth/internal-token
+      SELF_IMPROVEMENT_CONTROLLER_URL: http://self-improvement:8091
+      SELF_IMPROVEMENT_TOKEN_FILE: /self-improvement-auth/token
       # Where local repos live INSIDE the container (the host dir is bind-mounted here).
       LOCAL_REPOS_PATH: /local_repos
     depends_on:
@@ -82,9 +84,35 @@ services:
       # project environment file while secrets remain absent from API responses.
       - ./.env:/project-config/.env:z
       - ${EXECUTOR_VIEW_AUTH_HOST:-./.data/engine/executor-auth}:/executor-auth:ro
+      - self-improvement-auth:/self-improvement-auth:ro
       # Local repositories: host LOCAL_REPOS_PATH -> /local_repos (read-only here;
       # the backend only lists/reads them). Adding a folder on the host appears live.
       - ${LOCAL_REPOS_PATH:-./local_repos}:/local_repos:ro
+
+  self-improvement:
+    image: open-kritt-self-improvement:local
+    build:
+      context: ./engine
+      dockerfile: Dockerfile.self-improvement
+    environment:
+      SELF_IMPROVEMENT_API_URL: http://backend:3002/api
+    depends_on:
+      - backend
+    restart: unless-stopped
+    volumes:
+      - self-improvement-state:/state
+      - self-improvement-auth:/auth
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'python',
+          '-c',
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8091/health', timeout=2).read()",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
   engine:
     build:
@@ -265,3 +293,5 @@ services:
 
 volumes:
   engine-checkout-cache:
+  self-improvement-state:
+  self-improvement-auth:
