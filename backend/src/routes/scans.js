@@ -20,6 +20,7 @@ import { lockWorkflowForScan } from '../lib/workflowLocks.js';
 import { lockPostScriptForScan } from '../lib/postScriptLocks.js';
 import { lockAgentSkillForScan } from '../lib/agentSkillLocks.js';
 import { lockScanForMutation } from '../lib/scanLocks.js';
+import { assertApprovedWorkflow } from '../lib/improvementEvidence.js';
 import {
   createFindingExport,
   createFindingExportLimiter,
@@ -1059,6 +1060,12 @@ router.post('/', async (req, res, next) => {
       const wfSteps = workflow.stepIds?.length
         ? await tx.step.findMany({ where: { id: { in: workflow.stepIds } }, select: { content: true, depth: true } })
         : [];
+      // Compare under the same workflow lock used to create the scan, closing the
+      // gap between a human reviewing a draft and another client editing it.
+      if (req.body.expectedWorkflowDigest !== undefined) {
+        const approvedSteps = await tx.step.findMany({ where: { id: { in: workflow.stepIds } } });
+        assertApprovedWorkflow(req.body.expectedWorkflowDigest, workflow, approvedSteps);
+      }
       validateModelOverrides(valid.modelOverrides, { allowedDepths: wfSteps.map((step) => step.depth) });
       await assertModelOverridesAvailable(valid.modelOverrides, transactionModelAvailabilityChecker(tx));
       const selectedPostScripts = queryPostScriptIds.map((id) => postScriptMap.get(id));

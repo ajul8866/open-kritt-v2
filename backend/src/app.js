@@ -16,6 +16,7 @@ import localReposRouter from './routes/localRepos.js';
 import modelCatalogRouter from './routes/modelCatalog.js';
 import modelProvidersRouter from './routes/modelProviders.js';
 import generationsRouter from './routes/generations.js';
+import selfImprovementRouter from './routes/selfImprovement.js';
 import accountsRouter from './routes/accounts.js';
 import settingsRouter from './routes/settings.js';
 import { ValidationError } from './lib/validation.js';
@@ -96,6 +97,7 @@ export function createApp({ env = process.env } = {}) {
   app.use('/api/model-providers', modelProvidersRouter);
   app.use('/api/model-catalog', modelCatalogRouter);
   app.use('/api/generations', generationsRouter);
+  app.use('/api/self-improvement', selfImprovementRouter);
   app.use('/api/accounts', accountsRouter);
   app.use('/api/settings', settingsRouter);
 
