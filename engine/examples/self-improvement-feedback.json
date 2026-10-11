@@ -1,0 +1,15 @@
+{
+  "reviewer": "REPLACE_WITH_REVIEWER_NAME",
+  "target_fingerprint": "git:0000000000000000000000000000000000000000",
+  "findings": [
+    {
+      "id": "42",
+      "verdict": "validated",
+      "severity": "high",
+      "confidence": 0.95,
+      "case_key": "REPLACE_WITH_STABLE_ROOT_CAUSE_KEY",
+      "evidence": "REPLACE: independent reproduction, exact commands, actual impact and controls. Use real finding IDs and the actual reviewed source fingerprint."
+    }
+  ],
+  "known_misses": []
+}

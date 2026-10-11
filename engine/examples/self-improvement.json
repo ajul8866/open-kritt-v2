@@ -1,0 +1,12 @@
+{
+  "max_loops": 3,
+  "improvement_model": {
+    "model": "YOUR_CONFIGURED_MODEL_ID",
+    "model_provider": "openrouter",
+    "harness": "codex",
+    "thinking_effort": "high"
+  },
+  "metric": "validated_high_critical",
+  "min_improvement": 1,
+  "target_class": "bounty"
+}
