@@ -5,6 +5,7 @@ import hashlib
 import json
 import math
 import re
+from decimal import Decimal
 from pathlib import Path
 
 from ..generation import validate_generated_artifact, validate_generation_job
@@ -165,6 +166,7 @@ def feedback_from(value, findings):
         "Supply the Git or complete local-source SHA-256 fingerprint actually reviewed",
     )
     require(isinstance(value["findings"], list) and isinstance(value["known_misses"], list), "Invalid feedback lists")
+    value = copy.deepcopy(value)
     expected = {identifier(f["id"]) for f in findings}
     seen, validated_keys = set(), set()
     for item in value["findings"]:
@@ -192,6 +194,7 @@ def feedback_from(value, findings):
         )
         for key in ("case_key", "evidence"):
             require(isinstance(item[key], str) and item[key].strip(), f"{key} is required")
+        item["case_key"] = item["case_key"].strip()
         if item["verdict"] == "validated":
             require(item["case_key"] not in validated_keys, "Use one validated finding per root cause")
             validated_keys.add(item["case_key"])
@@ -200,24 +203,31 @@ def feedback_from(value, findings):
     for item in value["known_misses"]:
         require(isinstance(item, dict) and set(item) == {"case_key", "evidence"}, "Invalid known miss")
         require(all(isinstance(v, str) and v.strip() for v in item.values()), "Known misses need evidence")
+        item["case_key"] = item["case_key"].strip()
         require(item["case_key"] not in validated_keys | missed, "Contradictory or duplicate known miss")
         missed.add(item["case_key"])
-    return copy.deepcopy(value)
+    return value
 
 
 def evaluate(before, after, config):
+    before = feedback_from(before, before["findings"])
+    after = feedback_from(after, after["findings"])
+
     def metrics(review):
         valid = [f for f in review["findings"] if f["verdict"] == "validated"]
         return {
             "validated_high_critical": sum(f["severity"] in {"high", "critical"} for f in valid),
-            "confidence": sum(f["confidence"] for f in valid),
+            "confidence": sum((Decimal(str(f["confidence"])) for f in valid), Decimal(0)),
             "validated_cases": sorted(f["case_key"] for f in valid),
             "false_positives": sum(f["verdict"] == "false_positive" for f in review["findings"]),
             "known_misses": sorted(f["case_key"] for f in review["known_misses"]),
         }
 
     old, new = metrics(before), metrics(after)
-    delta = new[config["metric"]] - old[config["metric"]]
+    old_score = Decimal(str(old[config["metric"]]))
+    new_score = Decimal(str(new[config["metric"]]))
+    decimal_delta = new_score - old_score
+    delta = float(decimal_delta) if config["metric"] == "confidence" else int(decimal_delta)
     reasons = []
     if before["target_fingerprint"] != after["target_fingerprint"]:
         reasons.append("Target source fingerprint differs; results are not comparable")
@@ -225,8 +235,10 @@ def evaluate(before, after, config):
         reasons.append("Previously validated cases were lost")
     if new["false_positives"] > old["false_positives"]:
         reasons.append("False positives increased")
-    if not delta >= config["min_improvement"]:
+    if decimal_delta < Decimal(str(config["min_improvement"])):
         reasons.append("Metric improvement is below the configured threshold")
+    old["confidence"] = float(old["confidence"])
+    new["confidence"] = float(new["confidence"])
     return {
         "better": not reasons,
         "metric": config["metric"],

@@ -35,6 +35,12 @@ export default function LoopProgress({ loop, busy, onApprove, onReview, onCancel
           {loop.error}
         </p>
       )}
+      {loop.read_retry && (
+        <p className="sil-muted" role="status">
+          Backend read temporarily unavailable. Retrying automatically without creating another job.{' '}
+          {loop.read_retry.error}
+        </p>
+      )}
       <p>
         Best workflow: <Link to={`/workflows/${loop.best_workflow_id}`}>#{loop.best_workflow_id}</Link> · Best scan:{' '}
         <Link to={`/scans/${loop.best_scan_id}`}>#{loop.best_scan_id}</Link>

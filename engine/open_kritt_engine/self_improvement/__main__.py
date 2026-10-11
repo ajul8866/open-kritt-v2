@@ -90,6 +90,7 @@ def summary(state):
         "loop_id": state["id"],
         "state": state["state"],
         "error": state.get("error"),
+        "read_retry": state.get("read_retry"),
         "iterations": len(state["runs"]),
         "max_loops": state["config"]["max_loops"],
         "best_scan_id": state["best_scan_id"],

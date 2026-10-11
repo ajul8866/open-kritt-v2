@@ -49,6 +49,7 @@ def web_view(state):
         "root_scan_id": state["root_scan_id"],
         "state": state["state"],
         "error": state.get("error"),
+        "read_retry": state.get("read_retry"),
         "config": state["config"],
         "best_scan_id": state["best_scan_id"],
         "best_workflow_id": state["best_workflow_id"],

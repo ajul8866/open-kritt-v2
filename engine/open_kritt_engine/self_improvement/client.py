@@ -1,4 +1,5 @@
 import json
+from http.client import IncompleteRead
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
@@ -8,6 +9,10 @@ from .contracts import ImprovementError, require
 
 class SubmissionUnknown(ImprovementError):
     """A non-idempotent POST may have succeeded; never automatically retry it."""
+
+
+class TransientReadError(ImprovementError):
+    """A failed GET can be retried without repeating a creation request."""
 
 
 class NoRedirect(HTTPRedirectHandler):
@@ -44,8 +49,14 @@ class KrittClient:
         except HTTPError as error:
             if method == "POST" and error.code >= 500:
                 raise SubmissionUnknown(f"POST {path} returned HTTP {error.code}; reconcile before retrying") from error
+            if method == "GET" and error.code in {408, 429, 500, 502, 503, 504}:
+                raise TransientReadError(f"GET {path} returned HTTP {error.code}") from error
             raise ImprovementError(f"{method} {path} returned HTTP {error.code}") from error
-        except (URLError, TimeoutError, OSError, ValueError) as error:
+        except (URLError, TimeoutError, OSError, IncompleteRead) as error:
+            if method == "POST":
+                raise SubmissionUnknown(f"POST {path} outcome is unknown; reconcile before retrying") from error
+            raise TransientReadError(f"Cannot read {path}: {type(error).__name__}") from error
+        except ValueError as error:
             if method == "POST":
                 raise SubmissionUnknown(f"POST {path} outcome is unknown; reconcile before retrying") from error
             raise ImprovementError(f"Cannot read {path}: {type(error).__name__}") from error

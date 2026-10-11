@@ -1,9 +1,10 @@
 import copy
 import difflib
 import json
+import time
 import uuid
 
-from .client import SubmissionUnknown
+from .client import SubmissionUnknown, TransientReadError
 from .contracts import (
     ImprovementError,
     config_from,
@@ -147,6 +148,7 @@ class SelfImprovementLoop:
         with self.journal.locked():
             state = self._load(loop_id)
             state["state"] = "cancelled"
+            state.pop("read_retry", None)
             self.journal.save(
                 state,
                 "cancelled",
@@ -248,14 +250,31 @@ class SelfImprovementLoop:
                 return state
             if state["state"] in FINAL_STATES | {"submission_unknown", "awaiting_approval"}:
                 return state
+            retry = state.get("read_retry")
+            if retry and time.time() < retry["next_at"]:
+                return state
             try:
                 self._tick(state)
+            except TransientReadError as error:
+                # Reload the last committed checkpoint, discarding partial captures.
+                state = self._load(loop_id)
+                attempts = state.get("read_retry", {}).get("attempts", 0) + 1
+                state["read_retry"] = {
+                    "attempts": attempts,
+                    "next_at": time.time() + min(60, 5 * 2 ** min(attempts - 1, 4)),
+                    "error": str(error),
+                }
+                self.journal.save(state, "read_retry_scheduled", state["read_retry"])
             except (ImprovementError, ValueError, KeyError, TypeError) as error:
                 # Invalid proposals and changed targets fail closed. Full raw drafts
                 # are logged before validation, while exceptions expose no credentials.
                 state["state"] = "failed"
+                state.pop("read_retry", None)
                 state["error"] = str(error)
                 self.journal.save(state, "failed", {"error": str(error)})
+            else:
+                if state.pop("read_retry", None) is not None:
+                    self.journal.save(state, "read_recovered")
             return state
 
     def _tick(self, state):

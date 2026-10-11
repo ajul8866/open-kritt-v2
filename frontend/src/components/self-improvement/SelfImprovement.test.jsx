@@ -84,4 +84,17 @@ describe('workflow improvement web controls', () => {
     expect(rendered).toContain('/workflows/1');
     expect(rendered).not.toContain('Approve this version and queue rerun');
   });
+
+  it('shows automatic recovery from a temporary API read failure', () => {
+    const rendered = html(LoopProgress, {
+      loop: {
+        ...loop,
+        state: 'waiting_generation',
+        read_retry: { attempts: 1, error: 'GET /generations/1 returned HTTP 503' },
+      },
+      busy: false,
+    });
+    expect(rendered).toContain('Retrying automatically without creating another job');
+    expect(rendered).toContain('HTTP 503');
+  });
 });
