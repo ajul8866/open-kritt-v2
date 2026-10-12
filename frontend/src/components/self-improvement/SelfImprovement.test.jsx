@@ -97,4 +97,22 @@ describe('workflow improvement web controls', () => {
     expect(rendered).toContain('Retrying automatically without creating another job');
     expect(rendered).toContain('HTTP 503');
   });
+
+  it('shows rejected input contracts and explains why the model must revise the workflow', () => {
+    const issue = {
+      field: 'levels[depth=1].steps[0].content',
+      message: 'Missing {{model_invariant_id}} value placeholder.',
+    };
+    const rendered = html(LoopProgress, {
+      loop: {
+        ...loop,
+        proposal_validation_errors: [issue],
+        runs: [{ iteration: 1, failure: { kind: 'invalid_handoff', validation_errors: [issue] } }],
+      },
+      busy: false,
+    });
+    expect(rendered).toContain('This version cannot be approved or promoted');
+    expect(rendered).toContain('Missing {{model_invariant_id}}');
+    expect(rendered).toContain('rejected and returned to the model');
+  });
 });

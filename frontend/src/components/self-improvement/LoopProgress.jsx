@@ -41,6 +41,16 @@ export default function LoopProgress({ loop, busy, onApprove, onReview, onCancel
           {loop.read_retry.error}
         </p>
       )}
+      {loop.proposal_validation_errors?.length > 0 && (
+        <div className="sil-error" role="alert">
+          <strong>Workflow input handoff is invalid. This version cannot be approved or promoted.</strong>
+          <ul>
+            {loop.proposal_validation_errors.map((issue, index) => (
+              <li key={index}>{issue.message}</li>
+            ))}
+          </ul>
+        </div>
+      )}
       <p>
         Best workflow: <Link to={`/workflows/${loop.best_workflow_id}`}>#{loop.best_workflow_id}</Link> · Best scan:{' '}
         <Link to={`/scans/${loop.best_scan_id}`}>#{loop.best_scan_id}</Link>
@@ -87,7 +97,12 @@ export default function LoopProgress({ loop, busy, onApprove, onReview, onCancel
                 I reviewed this workflow diff and target settings, and approve this rerun.
               </label>
               <Button
-                disabled={busy || !reviewer.trim() || reviewedDigest !== loop.approval_digest}
+                disabled={
+                  busy ||
+                  loop.proposal_validation_errors?.length > 0 ||
+                  !reviewer.trim() ||
+                  reviewedDigest !== loop.approval_digest
+                }
                 onClick={() => onApprove({ reviewer, digest: loop.approval_digest, reviewed: true })}
               >
                 Approve this version and queue rerun
@@ -134,7 +149,9 @@ export default function LoopProgress({ loop, busy, onApprove, onReview, onCancel
                           ? run.evaluation.better
                             ? 'Kept improved version'
                             : run.evaluation.reasons.join('; ')
-                          : 'Run failed; previous best kept'}
+                          : run.failure?.kind === 'invalid_handoff'
+                            ? 'Invalid input handoff; rejected and returned to the model'
+                            : 'Run failed; previous best kept'}
                       </td>
                     </tr>
                   ))}

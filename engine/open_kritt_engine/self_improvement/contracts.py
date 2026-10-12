@@ -9,6 +9,7 @@ from decimal import Decimal
 from pathlib import Path
 
 from ..generation import validate_generated_artifact, validate_generation_job
+from .handoffs import HandoffValidationError, handoff_contracts, validate_handoffs
 
 
 class ImprovementError(ValueError):
@@ -106,7 +107,7 @@ def validate_proposal(value, available_extra):
             require(set(refs) <= set(available_extra), "Proposal requires extra inputs absent from the original scan")
     require(step_count <= 64, "Proposal exceeds 64 steps")
     require(len(canonical(value).encode()) <= 2 * 1024 * 1024, "Proposal exceeds portable workflow size")
-    return validate_generated_artifact("workflow", value)
+    return validate_handoffs(validate_generated_artifact("workflow", value))
 
 
 def scan_template(scan, evidence):
@@ -251,6 +252,24 @@ def evaluate(before, after, config):
 
 def prompt_for(workflow, evidence, previous):
     template = Path(__file__).with_name("analyze_improve.txt").read_text()
+    contracts = handoff_contracts(workflow)
+    try:
+        validate_handoffs(workflow)
+        handoff_errors = []
+    except HandoffValidationError as error:
+        handoff_errors = [{"field": item["field"], "message": item["message"][:320]} for item in error.errors]
+    history = []
+    for attempt in previous[-3:]:
+        failure = json.dumps(attempt.get("failure"), ensure_ascii=True)
+        evaluation = attempt.get("evaluation") or {}
+        history.append(
+            {
+                "iteration": attempt["iteration"],
+                "evaluation": {key: evaluation.get(key) for key in ("better", "metric", "delta")},
+                "failure_excerpt": failure[:500],
+                "failure_truncated": len(failure) > 500,
+            }
+        )
     replacements = {}
     outline = copy.deepcopy(workflow)
     previews = []
@@ -261,7 +280,7 @@ def prompt_for(workflow, evidence, previous):
             replacements[marker] = content
             step["content"] = marker
             previews.append({"marker": marker, "name": step["name"], "content": content})
-    for size in (1200, 600, 200, 0):
+    for size, evidence_limit in ((1200, 5000), (600, 3500), (200, 2000), (0, 1000)):
         excerpted = []
         for entry in previews:
             content = entry["content"]
@@ -275,13 +294,15 @@ def prompt_for(workflow, evidence, previous):
             excerpted.append({**entry, "content": excerpt, "truncated": len(content) > size})
         # Evidence is bounded separately; its truncation is explicit, never silently dropped.
         serialized = json.dumps(evidence, ensure_ascii=True)
-        evidence_text = serialized[:5000]
+        evidence_text = serialized[:evidence_limit]
         data = {
             "workflow": outline,
+            "handoff_requirements": contracts,
+            "baseline_handoff_errors": handoff_errors,
             "prompt_previews": excerpted,
             "scan_evidence_text": evidence_text,
-            "evidence_truncated": len(serialized) > 5000,
-            "previous_attempts": previous[-3:],
+            "evidence_truncated": len(serialized) > evidence_limit,
+            "previous_attempts": history,
         }
         request = template + "\nUNTRUSTED_INPUT_JSON:\n" + json.dumps(data, ensure_ascii=True)
         if len(request.encode("utf-16-le")) // 2 <= 19_800:

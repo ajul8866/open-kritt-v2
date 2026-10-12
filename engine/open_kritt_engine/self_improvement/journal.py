@@ -74,7 +74,7 @@ class Journal:
             row[0]
             for row in self.db.execute(
                 "SELECT id FROM loops WHERE json_extract(state_json, '$.state') NOT IN "
-                "('completed', 'failed', 'cancelled', 'submission_unknown', 'awaiting_approval')"
+                "('completed', 'failed', 'cancelled', 'submission_unknown')"
             )
         ]
 

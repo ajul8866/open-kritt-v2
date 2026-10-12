@@ -16,8 +16,10 @@ from .contracts import (
     prompt_for,
     require,
     scan_template,
+    validate_proposal,
     workflow_snapshot,
 )
+from .handoffs import HandoffValidationError, validate_handoffs
 
 FINAL_STATES = {"completed", "failed", "cancelled"}
 
@@ -102,6 +104,7 @@ class SelfImprovementLoop:
             require(state["state"] == "awaiting_approval", "No proposal is awaiting approval")
             require(isinstance(reviewer, str) and reviewer.strip(), "Human reviewer identity is required")
             expected = digest(self._approved_material(state))
+            validate_proposal(state["runs"][-1]["proposal"], state["template"]["extra"])
             require(
                 approval_digest == expected, "Approval digest does not match the current workflow and target settings"
             )
@@ -241,6 +244,13 @@ class SelfImprovementLoop:
             {"iteration": len(state["runs"]), "best_workflow_id": state["best_workflow_id"], "state": state["state"]},
         )
 
+    def _reject_handoff(self, state, error):
+        state.pop("read_retry", None)
+        run = state["runs"][-1]
+        run["failure"] = {"kind": "invalid_handoff", "validation_errors": error.errors}
+        self.journal.save(state, "handoff_rejected", {"iteration": run["iteration"], **run["failure"]})
+        self._finish_iteration(state)
+
     def tick(self, loop_id):
         with self.journal.locked():
             state = self._load(loop_id)
@@ -248,13 +258,15 @@ class SelfImprovementLoop:
                 state["state"] = "submission_unknown"
                 self.journal.save(state, "interrupted_submission", state["pending"])
                 return state
-            if state["state"] in FINAL_STATES | {"submission_unknown", "awaiting_approval"}:
+            if state["state"] in FINAL_STATES | {"submission_unknown"}:
                 return state
             retry = state.get("read_retry")
             if retry and time.time() < retry["next_at"]:
                 return state
             try:
                 self._tick(state)
+            except HandoffValidationError as error:
+                self._reject_handoff(state, error)
             except TransientReadError as error:
                 # Reload the last committed checkpoint, discarding partial captures.
                 state = self._load(loop_id)
@@ -344,6 +356,9 @@ class SelfImprovementLoop:
             return
 
         run = state["runs"][-1]
+        if state["state"] == "awaiting_approval":
+            validate_proposal(run["proposal"], state["template"]["extra"])
+            return
         if state["state"] == "waiting_generation":
             generation = self.client.get(f"/generations/{run['generation_id']}")
             if generation["status"] == "failed":
@@ -398,6 +413,7 @@ class SelfImprovementLoop:
             return
 
         if state["state"] in {"approved", "workflow_ready"}:
+            validate_proposal(run["proposal"], state["template"]["extra"])
             require(run.get("approval") is not None, "Human approval is required before any rerun")
             require(run["approval"]["digest"] == digest(self._approved_material(state)), "Approval became stale")
             self._check_resources(state)
@@ -429,6 +445,7 @@ class SelfImprovementLoop:
             return
 
         if state["state"] == "awaiting_evaluation":
+            validate_handoffs(run["candidate"]["workflow"])
             before_id = str(run["baseline"]["scan"]["id"])
             before = state["reviews"].get(before_id)
             after = state["reviews"].get(run["scan_id"])

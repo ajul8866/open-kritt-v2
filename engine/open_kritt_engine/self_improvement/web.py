@@ -13,6 +13,7 @@ from pathlib import Path
 
 from .client import KrittClient
 from .contracts import ImprovementError, identifier, require
+from .handoffs import HandoffValidationError, validate_handoffs
 from .journal import Journal
 from .loop import SelfImprovementLoop
 
@@ -22,6 +23,12 @@ UUID_PATTERN = r"[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}"
 
 def web_view(state):
     run = state["runs"][-1] if state["runs"] else {}
+    proposal_errors = []
+    if run.get("proposal"):
+        try:
+            validate_handoffs(run["proposal"])
+        except HandoffValidationError as error:
+            proposal_errors = error.errors
     snapshots = {}
     for snapshot in [state.get("best"), run.get("baseline"), run.get("candidate")]:
         if snapshot:
@@ -62,6 +69,7 @@ def web_view(state):
             for attempt in state["runs"]
         ],
         "proposal": run.get("proposal"),
+        "proposal_validation_errors": proposal_errors,
         "diff": run.get("diff"),
         "scan_request": run.get("scan_request"),
         "approval_digest": run.get("approval_digest") if state["state"] == "awaiting_approval" else None,
