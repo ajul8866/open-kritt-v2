@@ -107,7 +107,12 @@ def validate_proposal(value, available_extra):
             require(set(refs) <= set(available_extra), "Proposal requires extra inputs absent from the original scan")
     require(step_count <= 64, "Proposal exceeds 64 steps")
     require(len(canonical(value).encode()) <= 2 * 1024 * 1024, "Proposal exceeds portable workflow size")
-    return validate_handoffs(validate_generated_artifact("workflow", value))
+    artifact = validate_generated_artifact("workflow", value)
+    # The workflow API trims step names on save; the approved snapshot must match what it stores.
+    for level in artifact["levels"]:
+        for step in level["steps"]:
+            step["name"] = step["name"].strip()
+    return validate_handoffs(artifact)
 
 
 def scan_template(scan, evidence):

@@ -150,6 +150,7 @@ class SelfImprovementLoop:
     def cancel(self, loop_id, reason):
         with self.journal.locked():
             state = self._load(loop_id)
+            require(state["state"] not in FINAL_STATES, "This loop is closed")
             state["state"] = "cancelled"
             state.pop("read_retry", None)
             self.journal.save(

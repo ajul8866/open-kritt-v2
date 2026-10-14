@@ -1,11 +1,13 @@
 import copy
+import os
+import stat
 from contextlib import nullcontext
 from http.client import IncompleteRead
 from types import SimpleNamespace
 from urllib.error import HTTPError, URLError
 
 import pytest
-from test_self_improvement import CONFIG, FakeAPI, feedback, launch
+from test_self_improvement import CONFIG, FakeAPI, feedback, launch, propose, workflow
 
 from open_kritt_engine.self_improvement import SelfImprovementLoop
 from open_kritt_engine.self_improvement import loop as loop_module
@@ -251,3 +253,55 @@ def test_multi_finding_confidence_totals_are_compared_without_float_rounding():
     assert result["delta"] == 0.01
     assert result["baseline"]["confidence"] == 1.73
     assert result["candidate"]["confidence"] == 1.74
+
+
+class TrimmingAPI(FakeAPI):
+    def post(self, path, body):
+        if path == "/workflows":
+            body = copy.deepcopy(body)
+            for level in body["levels"]:
+                for step in level["steps"]:
+                    step["name"] = step["name"].strip()
+        return super().post(path, body)
+
+
+def test_padded_step_names_match_the_saved_workflow_and_rerun(tmp_path):
+    api = TrimmingAPI()
+    journal = Journal(tmp_path / "journal.sqlite3")
+    controller = SelfImprovementLoop(api, journal)
+    lid = controller.enable("10", CONFIG)["id"]
+    try:
+        controller.tick(lid)
+        proposal = workflow()
+        proposal["levels"][0]["steps"][0]["name"] = " Investigate "
+        proposal["levels"][0]["steps"][0]["content"] += "\nCheck authorization boundaries."
+        api.generations["1"].update(status="completed", result=proposal)
+        state = controller.tick(lid)
+        assert state["runs"][0]["proposal"]["levels"][0]["steps"][0]["name"] == "Investigate"
+        controller.approve(lid, state["runs"][0]["approval_digest"], "operator")
+        assert controller.tick(lid)["state"] == "workflow_ready"
+        assert controller.tick(lid)["state"] == "waiting_candidate"
+    finally:
+        journal.close()
+
+
+def test_terminal_loops_cannot_be_relabelled_as_cancelled(tmp_path):
+    api = FakeAPI()
+    journal = Journal(tmp_path / "journal.sqlite3")
+    controller = SelfImprovementLoop(api, journal)
+    lid = controller.enable("10", CONFIG)["id"]
+    try:
+        assert propose(controller, api, lid, modified=False)["state"] == "completed"
+        with pytest.raises(ImprovementError, match="closed"):
+            controller.cancel(lid, "Late cancellation")
+        assert controller.inspect(lid)["state"] == "completed"
+    finally:
+        journal.close()
+
+
+def test_existing_journal_permissions_are_made_private(tmp_path):
+    path = tmp_path / "journal.sqlite3"
+    path.touch()
+    os.chmod(path, 0o644)
+    Journal(path).close()
+    assert stat.S_IMODE(path.stat().st_mode) == 0o600

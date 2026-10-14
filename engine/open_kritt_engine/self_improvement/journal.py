@@ -16,7 +16,10 @@ class Journal:
         self.path = Path(path).expanduser().resolve()
         self.path.parent.mkdir(parents=True, exist_ok=True)
         descriptor = os.open(self.path, os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
-        os.close(descriptor)
+        try:
+            os.fchmod(descriptor, 0o600)
+        finally:
+            os.close(descriptor)
         self.db = sqlite3.connect(self.path, timeout=5)
         self.db.execute("PRAGMA foreign_keys = ON")
         self.db.executescript("""
