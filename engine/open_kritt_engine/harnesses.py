@@ -748,22 +748,26 @@ def _classify_harness_output(output: str, *, provider: str | None = None) -> str
     return "harness_failed"
 
 
-def classify_harness_failure(output: str, *, provider: str | None = None) -> str:
-    """Classify a harness failure, with an optional semantic pass over leftover prose.
+def classify_harness_failure(output: str, *, provider: str | None = None, diagnostic_text: str | None = None) -> str:
+    """Classify a harness failure, with an optional semantic pass over provider error text.
 
     `_classify_harness_output` stays pure and deterministic. This wrapper only adds
     work when that pass found nothing decisive, so a documented signal — an error code,
     an HTTP status, a known `error.type` — is never second-guessed and never costs a
     model call.
 
-    When nothing deterministic matched, provider prose is offered to the semantic
-    classifier, which is itself confidence gated and returns nothing when unsure. The
-    fallback is always `harness_failed`, so a judgment service that is down or absent
-    leaves behaviour exactly as it was.
+    `output` is read only by the local deterministic pass, so it may be raw process
+    output. The semantic pass sends its text to a third party, so it reads only
+    `diagnostic_text`: provider error text the caller extracted without repository
+    content, agent prose, or tool output. Without it, nothing leaves the process.
+
+    The semantic classifier is itself confidence gated and returns nothing when unsure.
+    The fallback is always `harness_failed`, so a judgment service that is down or
+    absent leaves behaviour exactly as it was.
     """
 
     code = _classify_harness_output(output, provider=provider)
-    if code != "harness_failed":
+    if code != "harness_failed" or not (diagnostic_text or "").strip():
         return code
 
     # Imported lazily: this module is imported by the worker on every job, and the
@@ -771,7 +775,7 @@ def classify_harness_failure(output: str, *, provider: str | None = None) -> str
     from .failure_judgment import classify_failure_semantically
 
     try:
-        rescued = classify_failure_semantically(output, provider=provider)
+        rescued = classify_failure_semantically(diagnostic_text, provider=provider)
     except Exception:  # noqa: BLE001 - an optional judgment must never fail a scan
         LOGGER.warning("Semantic failure classification raised; keeping the deterministic result", exc_info=True)
         return code
@@ -830,8 +834,9 @@ def _classified_harness_error(
     default_code: str = "model_process_error",
     output_artifact: HarnessOutput | None = None,
     provider: str | None = None,
+    diagnostic_text: str | None = None,
 ) -> HarnessError:
-    code = classify_harness_failure(output, provider=provider)
+    code = classify_harness_failure(output, provider=provider, diagnostic_text=diagnostic_text)
     if code == "harness_failed":
         code = default_code
     return HarnessError(
@@ -927,6 +932,7 @@ def _run_process(cmd, prompt, cwd, timeout, env=None):
             exit_code=proc.returncode,
             output_artifact=_process_output(proc),
             provider="openrouter" if _uses_openrouter(cmd, process_env) else None,
+            diagnostic_text=_provider_error_diagnostic_text(harness, proc.stdout or "", proc.stderr or ""),
         )
     return proc
 
@@ -1386,8 +1392,10 @@ PLACEHOLDER_VALUE_RE = re.compile(
 )
 TEMPLATE_REFERENCE_RE = re.compile(r"^\s*\{\{.*\}\}\s*$")
 # A value wrapped in angle brackets is a template slot, not a reported value:
-# <summary>, <vulnerability type>, <path/to/file>.
-ANGLE_TEMPLATE_RE = re.compile(r"^\s*<[^<>]{1,80}>\s*$")
+# <summary>, <vulnerability type>, <path/to/file>. Payloads, URLs, and addresses are
+# also bracketed (<svg/onload=alert(1)>, <https://host/>, <user@host>, <?php ...?>),
+# so a slot starts with a word character and holds none of the characters they need.
+ANGLE_TEMPLATE_RE = re.compile(r"""^\s*<(?=\s*\w)[^<>="'`;:$@]{1,80}>\s*$""")
 
 
 def _looks_like_placeholder(value: Any) -> bool:
@@ -1626,6 +1634,7 @@ def _extract_json_from_claude_stream(
             harness="claude-code",
             default_code="provider_unavailable",
             provider=provider,
+            diagnostic_text=_claude_error_diagnostic_text(stdout),
         )
 
     last_error = None
@@ -1804,6 +1813,47 @@ def _codex_error_diagnostic_text(stdout: str, stderr: str) -> str:
         ):
             diagnostics.append(line)
     return "\n".join(diagnostics)
+
+
+CLAUDE_API_ERROR_FIELDS = ("api_error_status", "api_error_code", "api_error", "result")
+
+
+def _claude_error_diagnostic_text(stdout: str) -> str:
+    """Keep only the API-error fields of Claude Code result events.
+
+    Claude Code sets `is_error` on a `success` result only when its last message is a
+    synthesized API error, and `result` then holds that error's text. Assistant text,
+    tool output, and the `errors` of the other result subtypes can quote the
+    repository, so they are never included.
+    """
+
+    try:
+        events = [json.loads(stdout)]
+    except (TypeError, ValueError):
+        events = []
+        for line in (stdout or "").splitlines():
+            try:
+                events.append(json.loads(line))
+            except ValueError:
+                continue
+    diagnostics = []
+    for event in events:
+        if not isinstance(event, dict) or event.get("is_error") is not True or event.get("subtype") != "success":
+            continue
+        fields = {key: event[key] for key in CLAUDE_API_ERROR_FIELDS if event.get(key) not in (None, "")}
+        if fields:
+            diagnostics.append(json.dumps(fields, ensure_ascii=False, sort_keys=True))
+    return "\n".join(diagnostics)
+
+
+def _provider_error_diagnostic_text(harness: str, stdout: str, stderr: str) -> str:
+    """Return the provider error text a harness exposes, or nothing when it has no such channel."""
+
+    if harness == "codex":
+        return _codex_error_diagnostic_text(stdout, stderr)
+    if harness == "claude-code":
+        return _claude_error_diagnostic_text(stdout)
+    return ""
 
 
 def _jsonl_result(stdout: str, schema: dict[str, Any] | None = None) -> CodexJsonlResult:
@@ -2084,8 +2134,9 @@ class CodexHarness:
                             else resume_error
                         )
             if parsed_payload is None:
+                diagnostics = _codex_error_diagnostic_text(proc.stdout, proc.stderr)
                 raise _classified_harness_error(
-                    _codex_error_diagnostic_text(proc.stdout, proc.stderr),
+                    diagnostics,
                     harness="codex",
                     default_code="invalid_output",
                     output_artifact=process_output,
@@ -2094,6 +2145,7 @@ class CodexHarness:
                         if normalize_model_provider(self.model_provider) in {"openrouter", "deepseek"}
                         else None
                     ),
+                    diagnostic_text=diagnostics,
                 ) from payload_error
             return HarnessResult(payload=parsed_payload, usage=usage, codex_session_id=thread_id, output=process_output)
 
@@ -2176,8 +2228,9 @@ class CodexHarness:
                     source_name = f"session-{Path(session_result.source_file or 'codex-session.jsonl').name}"
                     process_output = _add_output_file(process_output, source_name, session_result.source_text)
         if parsed_payload is None:
+            diagnostics = _codex_error_diagnostic_text(proc.stdout, proc.stderr)
             raise _classified_harness_error(
-                _codex_error_diagnostic_text(proc.stdout, proc.stderr),
+                diagnostics,
                 harness="codex",
                 default_code="invalid_output",
                 output_artifact=process_output,
@@ -2186,6 +2239,7 @@ class CodexHarness:
                     if normalize_model_provider(self.model_provider) in {"openrouter", "deepseek"}
                     else None
                 ),
+                diagnostic_text=diagnostics,
             ) from payload_error
         return HarnessResult(
             payload=parsed_payload, usage=usage, codex_session_id=thread_id or session_id, output=process_output
@@ -2304,6 +2358,7 @@ class ClaudeHarness:
                 proc.stdout,
                 harness="claude-code",
                 output_artifact=process_output,
+                diagnostic_text=_claude_error_diagnostic_text(proc.stdout),
             )
         try:
             payload = _extract_json(wrapper)

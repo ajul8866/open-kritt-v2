@@ -10,8 +10,9 @@ Three rules make this safe to leave enabled:
 
 * Deterministic first. A caller only reaches here when the keyword pass found nothing.
 * Confidence gated. A low-confidence answer keeps the deterministic result.
-* Prose only, and only a bounded slice. Harness output carries the agent's prose about
-  the repository under test, so nothing here should receive a whole transcript.
+* Provider error text only, and only a bounded slice. Harness output carries the agent's
+  prose and tool output about the repository under test, so callers pass only the
+  `diagnostic_text` they extracted from a provider error channel, never raw output.
 """
 
 from __future__ import annotations
@@ -100,7 +101,7 @@ def classify_failure_semantically(
     provider: str | None = None,
     max_chars: int = 4000,
 ) -> tuple[str, float] | None:
-    """Classify leftover error prose. Returns (code, confidence), or None.
+    """Classify provider error text the deterministic pass left open. Returns (code, confidence), or None.
 
     None means "keep the deterministic answer": either judgment is not configured, the
     service failed, or the model was not confident enough to override it.

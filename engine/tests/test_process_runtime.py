@@ -59,6 +59,54 @@ def test_parser_rejects_placeholder_values(placeholder):
     assert harnesses._parse_json_text(text, DOCUMENT_SCHEMA) == REAL_DOCUMENT
 
 
+PAYLOAD_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "malicious_input_example": {"type": "string"},
+        "trigger_flow": {"type": "array", "items": {"type": "string"}},
+        "count": {"type": "integer"},
+    },
+    "required": ["malicious_input_example", "trigger_flow", "count"],
+    "additionalProperties": False,
+}
+QUOTED_PAYLOAD_TEMPLATE = {"malicious_input_example": "<payload>", "trigger_flow": ["<step>"], "count": 0}
+
+
+@pytest.mark.parametrize("template_first", [False, True])
+def test_angle_bracketed_payloads_outrank_a_quoted_template(template_first):
+    """Real injection payloads are whole-tag strings, but they are values, not template slots."""
+
+    real = {
+        "malicious_input_example": "<svg/onload=alert(1)>",
+        "trigger_flow": ["<img src=x onerror=alert(document.cookie)>"],
+        "count": 3,
+    }
+    template = json.dumps(QUOTED_PAYLOAD_TEMPLATE)
+    text = f"{template}\n\n{json.dumps(real)}" if template_first else f"{json.dumps(real)}\n\n{template}"
+    assert harnesses._parse_json_text(text, PAYLOAD_SCHEMA) == real
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "<svg/onload=alert(1)>",
+        "<a href=javascript:alert(1)>",
+        "<http://169.254.169.254/latest/meta-data/>",
+        "<attacker@evil.example>",
+        '<%= system("id") %>',
+        "<!ENTITY xxe SYSTEM 'file:///etc/passwd'>",
+        "<?php system($_GET['c']); ?>",
+    ],
+)
+def test_markup_urls_and_addresses_are_not_template_slots(value):
+    assert harnesses._looks_like_placeholder(value) is False
+
+
+@pytest.mark.parametrize("slot", ["<summary>", "<vulnerability type>", "<path/to/file>", "<payload>", "<1-10>"])
+def test_template_slots_are_still_placeholders(slot):
+    assert harnesses._looks_like_placeholder(slot) is True
+
+
 def test_parser_keeps_a_real_answer_that_merely_mentions_a_placeholder_word():
     real = {"message": "Report contains the literal text EXAMPLE in the PoC", "count": 2}
     assert harnesses._parse_json_text(json.dumps(real), DOCUMENT_SCHEMA) == real

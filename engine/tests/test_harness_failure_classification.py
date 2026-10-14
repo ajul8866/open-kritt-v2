@@ -10,6 +10,10 @@ Anthropic (platform.claude.com/docs/en/api/errors), OpenAI quota messages,
 OpenRouter error bodies, and xAI capacity messages.
 """
 
+import json
+import subprocess
+from types import SimpleNamespace
+
 import pytest
 
 from open_kritt_engine.harnesses import _classify_harness_output
@@ -262,29 +266,24 @@ def test_semantic_pass_rescues_rewritten_provider_prose(monkeypatch):
     from open_kritt_engine import harnesses
 
     _stub_judgment(monkeypatch, "model_unavailable", 0.95)
-    assert (
-        harnesses.classify_harness_failure("That model is no longer served on this endpoint.", provider="claude")
-        == "model_unavailable"
-    )
+    error = "That model is no longer served on this endpoint."
+    assert harnesses.classify_harness_failure(error, provider="claude", diagnostic_text=error) == "model_unavailable"
 
 
 def test_semantic_pass_keeps_the_fallback_when_not_confident(monkeypatch):
     from open_kritt_engine import harnesses
 
     _stub_judgment(monkeypatch, "model_unavailable", 0.55)
-    assert (
-        harnesses.classify_harness_failure("Something odd happened with the endpoint.", provider="claude")
-        == "harness_failed"
-    )
+    error = "Something odd happened with the endpoint."
+    assert harnesses.classify_harness_failure(error, provider="claude", diagnostic_text=error) == "harness_failed"
 
 
 def test_semantic_pass_keeps_the_fallback_when_judgment_is_unavailable(monkeypatch):
     from open_kritt_engine import harnesses
 
     monkeypatch.delenv("TYPESAFE_API_KEY", raising=False)
-    assert (
-        harnesses.classify_harness_failure("Some unclassified provider prose.", provider="claude") == "harness_failed"
-    )
+    error = "Some unclassified provider prose."
+    assert harnesses.classify_harness_failure(error, provider="claude", diagnostic_text=error) == "harness_failed"
 
 
 def test_semantic_pass_never_fails_the_classification_on_service_error(monkeypatch):
@@ -297,4 +296,199 @@ def test_semantic_pass_never_fails_the_classification_on_service_error(monkeypat
 
     monkeypatch.setenv("TYPESAFE_API_KEY", "test-key")
     monkeypatch.setattr(judgment, "choice", boom)
-    assert harnesses.classify_harness_failure("Unclassified prose.", provider="claude") == "harness_failed"
+    error = "Unclassified prose."
+    assert harnesses.classify_harness_failure(error, provider="claude", diagnostic_text=error) == "harness_failed"
+
+
+# --------------------------------------------------------------------------
+# Data egress: the semantic pass may only see provider error text
+# --------------------------------------------------------------------------
+
+REPOSITORY_SECRET = "sk-live-9f8e7d6c5b4a3210"
+
+
+def _capture_semantic_requests(monkeypatch):
+    from open_kritt_engine import judgment
+
+    sent = []
+
+    def fake_choice(*, state, instructions, criteria, question_id="answer"):
+        sent.append(state["error_text"])
+        return None
+
+    monkeypatch.setenv("TYPESAFE_API_KEY", "test-key")
+    monkeypatch.setattr(judgment, "choice", fake_choice)
+    return sent
+
+
+def _claude_schema():
+    from open_kritt_engine.schema import output_schema
+
+    return output_schema('{"thing":"string"}', multi_output=False)
+
+
+def test_raw_output_without_diagnostic_text_never_reaches_the_semantic_pass(monkeypatch):
+    from open_kritt_engine import harnesses
+
+    sent = _capture_semantic_requests(monkeypatch)
+    output = f"Agent quoted billing.js: API_KEY = '{REPOSITORY_SECRET}'"
+
+    assert harnesses.classify_harness_failure(output, provider="claude") == "harness_failed"
+    assert sent == []
+
+
+@pytest.mark.parametrize(
+    "subtype", ["error_max_turns", "error_during_execution", "error_max_structured_output_retries"]
+)
+def test_claude_error_result_does_not_forward_model_or_tool_text(monkeypatch, tmp_path, subtype):
+    from open_kritt_engine import harnesses
+
+    sent = _capture_semantic_requests(monkeypatch)
+    stdout = json.dumps(
+        {
+            "type": "result",
+            "subtype": subtype,
+            "is_error": True,
+            "result": f"Literal API_KEY in billing.js:1 is '{REPOSITORY_SECRET}'",
+            "errors": [f"Stopped after the agent printed {REPOSITORY_SECRET}"],
+        }
+    )
+    monkeypatch.setattr(
+        harnesses, "_run_process", lambda *_args, **_kwargs: SimpleNamespace(stdout=stdout, stderr="", returncode=0)
+    )
+    monkeypatch.setattr(harnesses, "claude_oauth_timeout_seconds", lambda *_args: 5)
+
+    with pytest.raises(harnesses.HarnessError):
+        harnesses.ClaudeHarness(timeout_seconds=5, model_provider="claude").run(
+            prompt="prompt",
+            schema=_claude_schema(),
+            repo_dir=str(tmp_path),
+            model="claude-sonnet-4-5",
+            env={"HOME": str(tmp_path / "home")},
+            allow_tools=False,
+        )
+    assert not any(REPOSITORY_SECRET in text for text in sent)
+
+
+def test_claude_api_error_text_still_reaches_the_semantic_pass(monkeypatch, tmp_path):
+    """Claude Code marks a success result as an error only for its synthesized API error."""
+
+    from open_kritt_engine import harnesses, judgment
+
+    sent = []
+
+    def fake_choice(*, state, instructions, criteria, question_id="answer"):
+        sent.append(state["error_text"])
+        return judgment.Judgment(choice="model_unavailable", confidence=0.95, probabilities={"model_unavailable": 0.95})
+
+    monkeypatch.setenv("TYPESAFE_API_KEY", "test-key")
+    monkeypatch.setattr(judgment, "choice", fake_choice)
+    stdout = json.dumps(
+        {
+            "type": "result",
+            "subtype": "success",
+            "is_error": True,
+            "api_error_status": None,
+            "result": "API Error: the requested deployment was decommissioned",
+        }
+    )
+    monkeypatch.setattr(
+        harnesses, "_run_process", lambda *_args, **_kwargs: SimpleNamespace(stdout=stdout, stderr="", returncode=0)
+    )
+    monkeypatch.setattr(harnesses, "claude_oauth_timeout_seconds", lambda *_args: 5)
+
+    with pytest.raises(harnesses.HarnessError) as raised:
+        harnesses.ClaudeHarness(timeout_seconds=5, model_provider="claude").run(
+            prompt="prompt",
+            schema=_claude_schema(),
+            repo_dir=str(tmp_path),
+            model="claude-sonnet-4-5",
+            env={"HOME": str(tmp_path / "home")},
+            allow_tools=False,
+        )
+    assert raised.value.code == "model_unavailable"
+    assert len(sent) == 1
+    assert "the requested deployment was decommissioned" in sent[0]
+
+
+def test_claude_stream_error_does_not_forward_model_or_tool_text(monkeypatch, tmp_path):
+    from open_kritt_engine import harnesses
+
+    sent = _capture_semantic_requests(monkeypatch)
+    stdout = "\n".join(
+        [
+            json.dumps(
+                {
+                    "type": "assistant",
+                    "message": {"content": [{"type": "text", "text": f"billing.js holds {REPOSITORY_SECRET}"}]},
+                }
+            ),
+            json.dumps(
+                {
+                    "type": "result",
+                    "subtype": "error_during_execution",
+                    "is_error": True,
+                    "errors": [f"Tool failed after printing {REPOSITORY_SECRET}"],
+                }
+            ),
+        ]
+    )
+    monkeypatch.setattr(
+        harnesses, "_run_process", lambda *_args, **_kwargs: SimpleNamespace(stdout=stdout, stderr="", returncode=0)
+    )
+
+    with pytest.raises(harnesses.HarnessError):
+        harnesses.ClaudeHarness(timeout_seconds=5, model_provider="openrouter").run(
+            prompt="prompt",
+            schema=_claude_schema(),
+            repo_dir=str(tmp_path),
+            model="glm-5.2",
+            env={"HOME": str(tmp_path / "home"), "OPENROUTER_API_KEY": "or-key"},
+            allow_tools=False,
+        )
+    assert not any(REPOSITORY_SECRET in text for text in sent)
+
+
+def _failing_process(monkeypatch, *, stdout, stderr):
+    from open_kritt_engine import harnesses
+
+    def run(command, **kwargs):
+        kwargs["stdout"].write(stdout)
+        kwargs["stderr"].write(stderr)
+        return subprocess.CompletedProcess(command, 1, None, None)
+
+    monkeypatch.setattr(harnesses.subprocess, "run", run)
+
+
+def test_failed_codex_process_forwards_only_its_provider_diagnostics(monkeypatch, tmp_path):
+    from open_kritt_engine import harnesses
+
+    sent = _capture_semantic_requests(monkeypatch)
+    command_output = {"type": "item.completed", "item": {"type": "command_execution", "output": REPOSITORY_SECRET}}
+    _failing_process(
+        monkeypatch,
+        stdout=json.dumps(command_output) + "\n",
+        stderr="Error: the upstream gateway hung up unexpectedly\n",
+    )
+
+    with pytest.raises(harnesses.HarnessError):
+        harnesses._run_process(["codex", "exec", "--json"], "", str(tmp_path), 5, env={})
+    assert len(sent) == 1
+    assert "the upstream gateway hung up unexpectedly" in sent[0]
+    assert REPOSITORY_SECRET not in sent[0]
+
+
+@pytest.mark.parametrize("command", [["claude", "-p"], ["grok"], ["cursor-agent", "-p"]])
+def test_failed_process_without_a_provider_error_channel_forwards_nothing(monkeypatch, tmp_path, command):
+    from open_kritt_engine import harnesses
+
+    sent = _capture_semantic_requests(monkeypatch)
+    _failing_process(
+        monkeypatch,
+        stdout=f"The agent read billing.js and found {REPOSITORY_SECRET}\n",
+        stderr=f"tool output: {REPOSITORY_SECRET}\n",
+    )
+
+    with pytest.raises(harnesses.HarnessError):
+        harnesses._run_process(command, "", str(tmp_path), 5, env={})
+    assert sent == []

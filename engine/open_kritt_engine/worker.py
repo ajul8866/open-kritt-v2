@@ -1378,11 +1378,7 @@ class Worker:
                     skip_attempted_step_ids = configured_step_ids(current, "skip_attempted_step_ids")
                     if skip_attempted_step_ids:
                         attempted = self.db.load_attempted_metadata(conn, scan_id)
-                        skipped = {
-                            key
-                            for key in attempted
-                            if key[0] in skip_attempted_step_ids and key not in claimed
-                        }
+                        skipped = {key for key in attempted if key[0] in skip_attempted_step_ids and key not in claimed}
                         claimed |= skipped
                         completed |= skipped
                     step_results = self.db.load_step_results(conn, scan_id)
