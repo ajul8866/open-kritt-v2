@@ -64,7 +64,16 @@ def web_view(state):
         "runs": [
             {
                 k: attempt.get(k)
-                for k in ("iteration", "generation_id", "workflow_id", "scan_id", "evaluation", "failure", "approval")
+                for k in (
+                    "iteration",
+                    "generation_id",
+                    "workflow_id",
+                    "scan_id",
+                    "evaluation",
+                    "failure",
+                    "approval",
+                    "no_change_reason",
+                )
             }
             for attempt in state["runs"]
         ],
@@ -84,21 +93,32 @@ class ControllerServer(ThreadingHTTPServer):
     def __init__(self, address, *, api_url, journal_path, token, poll_seconds=5):
         self.api_url, self.journal_path, self.token = api_url, journal_path, token
         self.poll_seconds = poll_seconds
+        self.lock = threading.Lock()
         self.stopping = threading.Event()
         super().__init__(address, ControllerHandler)
 
     def poll(self):
         while not self.stopping.is_set():
             try:
-                with JournalSession(self) as (controller, journal):
-                    for loop_id in journal.active_ids():
-                        if self.stopping.is_set():
-                            break
-                        try:
+                if self.lock.acquire(blocking=False):
+                    try:
+                        with JournalSession(self) as (_, journal):
+                            loop_ids = journal.active_ids()
+                    finally:
+                        self.lock.release()
+                else:
+                    loop_ids = []
+                for loop_id in loop_ids:
+                    if self.stopping.is_set() or not self.lock.acquire(blocking=False):
+                        break
+                    try:
+                        with JournalSession(self) as (controller, _):
                             controller.tick(loop_id)
-                        except ImprovementError:
-                            # A simultaneous browser action owns the journal lock.
-                            continue
+                    except ImprovementError:
+                        # An external CLI controller owns the journal lock.
+                        continue
+                    finally:
+                        self.lock.release()
             except Exception:
                 LOGGER.exception("Self-improvement controller poll failed")
             self.stopping.wait(self.poll_seconds)
@@ -156,7 +176,7 @@ class ControllerHandler(BaseHTTPRequestHandler):
                 self.connection.settimeout(10)
                 body = json.loads(self.rfile.read(length))
                 require(isinstance(body, dict), "Expected a JSON object")
-            with JournalSession(self.server) as (controller, journal):
+            with self.server.lock, JournalSession(self.server) as (controller, journal):
                 scan_match = re.fullmatch(r"/scans/([1-9][0-9]*)/loop", self.path)
                 loop_match = re.fullmatch(
                     rf"/loops/({UUID_PATTERN})(?:/(approval|reviews|cancel|recover|audit))?", self.path
@@ -192,6 +212,13 @@ class ControllerHandler(BaseHTTPRequestHandler):
                 elif action == "reviews":
                     require(set(body) == {"scan_id", "feedback"}, "Invalid review fields")
                     state = controller.review(loop_id, body["scan_id"], body["feedback"])
+                    if state["state"] == "awaiting_evaluation":
+                        run = state["runs"][-1]
+                        if (
+                            str(run["baseline"]["scan"]["id"]) in state["reviews"]
+                            and run["scan_id"] in state["reviews"]
+                        ):
+                            state = controller.tick(loop_id)
                 elif action == "cancel":
                     require(
                         set(body) == {"reason"} and isinstance(body["reason"], str) and body["reason"].strip(),

@@ -30,6 +30,7 @@ export default function LoopProgress({ loop, busy, onApprove, onReview, onCancel
       <p role="status">
         <strong>{LABELS[loop.state] || loop.state}</strong> · Iteration {loop.iterations}/{loop.config.max_loops}
       </p>
+      {latest?.no_change_reason && <p role="status">{latest.no_change_reason}</p>}
       {loop.error && (
         <p className="sil-error" role="alert">
           {loop.error}

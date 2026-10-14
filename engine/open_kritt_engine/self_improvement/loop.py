@@ -40,6 +40,11 @@ class SelfImprovementLoop:
         config = config_from(config)
         scan = self.client.get(f"/scans/{scan_id}")
         require(scan["status"] not in {"failed", "stopped"}, "Choose a completed or still-running baseline scan")
+        workflow_snapshot(self.client.get(f"/workflows/{identifier(scan['workflowId'])}"))
+        if scan["status"] == "completed":
+            scan_template(scan, self.client.get(f"/self-improvement/scans/{scan_id}/evidence"))
+        else:
+            scan_template({**scan, "commitSha": "a" * 40}, {"jobs": []})
         state = {
             "id": str(uuid.uuid4()),
             "api": self.client.base_url,
@@ -375,6 +380,7 @@ class SelfImprovementLoop:
                 )
                 proposal = expand_proposal(generation["result"], run["markers"], state["template"]["extra"])
                 if proposal["levels"] == run["baseline"]["workflow"]["levels"]:
+                    run["no_change_reason"] = proposal["description"]
                     state["state"] = "completed"
                     self.journal.save(state, "no_workflow_change", {"analysis": proposal["description"]})
                     return

@@ -115,4 +115,18 @@ describe('workflow improvement web controls', () => {
     expect(rendered).toContain('Missing {{model_invariant_id}}');
     expect(rendered).toContain('rejected and returned to the model');
   });
+
+  it('displays the model explanation when a loop finishes with no workflow change', () => {
+    const rendered = html(LoopProgress, {
+      loop: {
+        ...loop,
+        state: 'completed',
+        proposal: null,
+        reviews: [],
+        runs: [{ iteration: 1, no_change_reason: 'Baseline coverage already checks all entrypoints.' }],
+      },
+      busy: false,
+    });
+    expect(rendered).toContain('Baseline coverage already checks all entrypoints.');
+  });
 });

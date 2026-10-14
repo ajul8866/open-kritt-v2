@@ -4,7 +4,7 @@ from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 import pytest
-from test_self_improvement import CONFIG, FakeAPI, feedback, propose
+from test_self_improvement import CONFIG, FakeAPI, feedback, propose, workflow
 
 from open_kritt_engine.self_improvement import web
 from open_kritt_engine.self_improvement.journal import Journal
@@ -122,3 +122,61 @@ def test_controller_token_is_private_and_stable(tmp_path):
     assert len(first) == 64
     assert web.token_from_file(path) == first
     assert path.stat().st_mode & 0o777 == 0o600
+
+
+def test_browser_actions_wait_for_active_poll_and_evaluate_completed_reviews_immediately(web_controller):
+    server, api, request, path = web_controller
+    lid = request("/scans/10/loop", {"config": CONFIG})[1]["loop"]["id"]
+    entered_post = threading.Event()
+    release_post = threading.Event()
+    original_post = api.post
+
+    def slow_post(route, body):
+        if route == "/generations":
+            entered_post.set()
+            release_post.wait(timeout=3)
+        return original_post(route, body)
+
+    api.post = slow_post
+    worker = threading.Thread(target=server.poll, daemon=True)
+    worker.start()
+    try:
+        assert entered_post.wait(timeout=3)
+        result_holder = []
+        review_thread = threading.Thread(
+            target=lambda: result_holder.append(
+                request(f"/loops/{lid}/reviews", {"scan_id": "10", "feedback": feedback()})
+            )
+        )
+        review_thread.start()
+        release_post.set()
+        review_thread.join(timeout=3)
+        assert result_holder and result_holder[0][0] == 200
+        server.stopping.set()
+        worker.join(timeout=3)
+
+        journal = Journal(path)
+        try:
+            controller = SelfImprovementLoop(api, journal)
+            proposal = workflow()
+            proposal["levels"][0]["steps"][0]["content"] += "\nCheck authorization boundaries."
+            api.generations["1"].update(status="completed", result=proposal)
+            state = controller.tick(lid)
+            controller.approve(lid, state["runs"][-1]["approval_digest"], "operator")
+            controller.tick(lid)
+            candidate_id = controller.tick(lid)["runs"][-1]["scan_id"]
+            api.scans[candidate_id]["status"] = "completed"
+            assert controller.tick(lid)["state"] == "awaiting_evaluation"
+        finally:
+            journal.close()
+
+        status, evaluated = request(
+            f"/loops/{lid}/reviews", {"scan_id": candidate_id, "feedback": feedback(("1", "2"))}
+        )
+        assert status == 200
+        assert evaluated["loop"]["state"] == "completed"
+        assert evaluated["loop"]["best_workflow_id"] == "2"
+    finally:
+        release_post.set()
+        server.stopping.set()
+        worker.join(timeout=3)

@@ -305,3 +305,53 @@ def test_existing_journal_permissions_are_made_private(tmp_path):
     os.chmod(path, 0o644)
     Journal(path).close()
     assert stat.S_IMODE(path.stat().st_mode) == 0o600
+
+
+def test_enable_rejects_incompatible_baseline_before_persisting_loop(tmp_path):
+    api = FakeAPI()
+    journal = Journal(tmp_path / "journal.sqlite3")
+    controller = SelfImprovementLoop(api, journal)
+    try:
+        api.scans["10"]["modelOverrides"] = {"0": {"model": "other"}}
+        with pytest.raises(ImprovementError, match="model overrides"):
+            controller.enable("10", CONFIG)
+        api.scans["10"]["modelOverrides"] = {}
+        api.scans["10"]["dependencies"] = [{"kind": "remote", "repoFull": "example/dep", "commitSha": "main"}]
+        with pytest.raises(ImprovementError, match="Pin dependency revisions"):
+            controller.enable("10", CONFIG)
+        api.scans["10"]["dependencies"] = []
+        api.workflows["1"] = {
+            "name": "Bound",
+            "description": "",
+            "steps": [
+                {
+                    "id": "1",
+                    "depth": 0,
+                    "name": "Step",
+                    "content": "Inspect {{repo_full}}",
+                    "multiOutput": True,
+                    "consumesAll": False,
+                    "outputFormat": {"summary": "string"},
+                    "boundSourceStepId": "99",
+                }
+            ],
+        }
+        with pytest.raises(ImprovementError, match="Bound routing"):
+            controller.enable("10", CONFIG)
+        assert journal.for_scan(api.base_url, "10") is None
+    finally:
+        journal.close()
+
+
+def test_no_workflow_change_exposes_model_analysis_in_web_view(tmp_path):
+    api = FakeAPI()
+    journal = Journal(tmp_path / "journal.sqlite3")
+    controller = SelfImprovementLoop(api, journal)
+    lid = controller.enable("10", CONFIG)["id"]
+    try:
+        state = propose(controller, api, lid, modified=False)
+        view = web_view(state)
+        assert view["state"] == "completed"
+        assert "alternate entrypoints" in view["runs"][0]["no_change_reason"]
+    finally:
+        journal.close()
