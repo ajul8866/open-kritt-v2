@@ -373,7 +373,7 @@ test('every summarized session path is accepted by resolveArchiveFile', async ()
   }
 });
 
-test('failed archive streams return sanitized JSON errors', async () => {
+test('failed archive streams return sanitized JSON errors', { timeout: 5000 }, async () => {
   const env = { OPEN_KRITT_ENGINE_DATA_DIR: await makeArchiveRoot() };
   const previous = process.env.OPEN_KRITT_ENGINE_DATA_DIR;
   const entryId = 'metadata-3-20261021T090000Z';
@@ -397,6 +397,12 @@ test('failed archive streams return sanitized JSON errors', async () => {
       { details: { status: 412 }, status: 412, message: 'Precondition failed.' },
       {
         details: { status: 416, headers: { 'Content-Range': 'bytes */13' } },
+        status: 416,
+        message: 'Requested range not satisfiable.',
+        contentRange: 'bytes */13',
+      },
+      {
+        details: { status: 416, headers: { 'content-range': 'bytes */13' } },
         status: 416,
         message: 'Requested range not satisfiable.',
         contentRange: 'bytes */13',
@@ -426,7 +432,11 @@ test('failed archive streams return sanitized JSON errors', async () => {
       process.nextTick(() => stream.destroy(Object.assign(new Error('Request aborted'), { code: 'ECONNABORTED' })));
       return stream;
     };
-    await assert.rejects(fetch(url));
+    await assert.rejects(fetch(url), (error) => {
+      assert.equal(error?.name, 'TypeError');
+      assert.ok(error?.cause, 'expected a network-level cause');
+      return true;
+    });
   } finally {
     fs.createReadStream = originalCreateReadStream;
     if (server) await server.close();
@@ -461,6 +471,39 @@ test('unsatisfiable archive ranges return 416 with Content-Range', async () => {
     assert.equal(response.headers.get('content-disposition'), null);
     assert.match(response.headers.get('content-range'), /^bytes \*\//);
     assert.equal((await response.json()).error, 'Requested range not satisfiable.');
+  } finally {
+    if (server) await server.close();
+    if (previous === undefined) delete process.env.OPEN_KRITT_ENGINE_DATA_DIR;
+    else process.env.OPEN_KRITT_ENGINE_DATA_DIR = previous;
+    await rm(env.OPEN_KRITT_ENGINE_DATA_DIR, { recursive: true, force: true });
+  }
+});
+
+test('failed archive preconditions return 412 JSON', async () => {
+  const env = { OPEN_KRITT_ENGINE_DATA_DIR: await makeArchiveRoot() };
+  const previous = process.env.OPEN_KRITT_ENGINE_DATA_DIR;
+  const entryId = 'metadata-5-20261021T090000Z';
+  let server;
+  try {
+    process.env.OPEN_KRITT_ENGINE_DATA_DIR = env.OPEN_KRITT_ENGINE_DATA_DIR;
+    await writeArchive(
+      env.OPEN_KRITT_ENGINE_DATA_DIR,
+      381,
+      entryId,
+      { scan_id: 381, archived_at: '2026-10-21T09:00:00Z' },
+      { 'workspace.tar.gz': 'tarball-bytes' }
+    );
+    server = await startServer(env);
+
+    const response = await fetch(`${server.origin}/api/scans/381/archives/${entryId}/file?path=workspace.tar.gz`, {
+      headers: { 'If-Match': '"bogus"' },
+    });
+
+    assert.equal(response.status, 412);
+    assert.equal(response.headers.get('content-type'), 'application/json; charset=utf-8');
+    assert.equal(response.headers.get('content-disposition'), null);
+    assert.equal(response.headers.get('content-range'), null);
+    assert.equal((await response.json()).error, 'Precondition failed.');
   } finally {
     if (server) await server.close();
     if (previous === undefined) delete process.env.OPEN_KRITT_ENGINE_DATA_DIR;

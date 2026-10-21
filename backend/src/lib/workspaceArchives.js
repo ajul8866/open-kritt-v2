@@ -14,6 +14,9 @@ const ARCHIVE_ENTRY_TIMESTAMP_PATTERN = /^metadata-\d+-(\d{8}T\d{6}Z)/;
 const LEGACY_SESSION_PREFIXES = ['.codex/sessions/', '.claude/projects/', '.grok/sessions/'];
 const SAFE_SEGMENT_PATTERN = /^[A-Za-z0-9._-]+$/;
 const MAX_SEGMENT_BYTES = 255;
+// Relative to the entry directory. A hand-crafted manifest can still exceed the
+// host PATH_MAX once the entry prefix is added; engine-written manifests cannot,
+// because the transcript copy would have failed with ENAMETOOLONG first.
 const MAX_RELATIVE_PATH_BYTES = 4096;
 const ROOT_FILES = new Map([
   ['workspace.tar.gz', 'application/gzip'],
