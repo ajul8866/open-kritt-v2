@@ -1438,7 +1438,7 @@ def test_claude_harness_can_route_glm_through_openrouter(monkeypatch, tmp_path):
 
     assert result.payload == marked({"stub": True, "stub_explanation": "No matching records.", "results": []})
     assert captured["cmd"][captured["cmd"].index("--model") + 1] == "z-ai/glm-5.2"
-    assert captured["env"]["ANTHROPIC_BASE_URL"] == "http://176.97.117.239:20128/v1"
+    assert captured["env"]["ANTHROPIC_BASE_URL"] == "http://176.97.117.239:3425/v1"
     assert captured["env"]["ANTHROPIC_AUTH_TOKEN"] == "or-key"
     assert captured["env"]["ANTHROPIC_API_KEY"] == ""
     for key in harnesses.CLAUDE_OPENROUTER_MODEL_ENV_KEYS:
