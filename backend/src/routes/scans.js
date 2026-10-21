@@ -976,6 +976,8 @@ router.get('/:id/archives/:entryId/file', async (req, res, next) => {
     res.sendFile(file.path, { dotfiles: 'allow' }, (error) => {
       if (!error) return;
       if (error.code === 'ENOENT' && !res.headersSent) {
+        res.removeHeader('Content-Disposition');
+        res.setHeader('Content-Type', 'application/json; charset=utf-8');
         return res.status(404).json({ error: 'Archive file not found.' });
       }
       if (!res.headersSent) next(error);

@@ -191,7 +191,6 @@ def archive_job_directory(
     post_script_id: int | None = None,
     post_script_name: str | None = None,
     status: str | None = None,
-    workspace_mode: str | None = None,
     checked_out_commit: str | None = None,
     model: str | None = None,
     harness: str | None = None,
@@ -223,7 +222,7 @@ def archive_job_directory(
         post_script_id=post_script_id,
         post_script_name=post_script_name,
         status=status,
-        workspace_mode=workspace_mode,
+        workspace_mode=None,
         checked_out_commit=checked_out_commit,
         model=model,
         harness=harness,
@@ -428,6 +427,17 @@ def _copy_session_transcripts(home: Path, target_root: Path, *, max_session_byte
 
 
 def _readme_text(manifest: dict[str, Any]) -> str:
+    if manifest.get("workspace_mode") == "image":
+        workspace_note = (
+            "workspace.tar.gz contains the wrapper workspace only. Agent-written\n"
+            "files remain in the disposable runner image and are not included.\n"
+            "Dependency and build directories are excluded:\n"
+        )
+    else:
+        workspace_note = (
+            "workspace.tar.gz contains the job repository copy, including PoC files\n"
+            "written by the agent. Dependency and build directories are excluded:\n"
+        )
     return (
         "open-kritt job evidence archive\n"
         "\n"
@@ -438,8 +448,7 @@ def _readme_text(manifest: dict[str, Any]) -> str:
         f"Vulnerability: {manifest['vulnerability_id']}\n"
         f"Post script: {manifest['post_script_name']}\n"
         "\n"
-        "workspace.tar.gz contains the job repository copy, including PoC files\n"
-        "written by the agent. Dependency and build directories are excluded:\n"
+        f"{workspace_note}"
         f"{', '.join(manifest['excluded_dir_names'])}\n"
         "\n"
         "sessions/ contains harness transcript files (.jsonl). Credential files\n"

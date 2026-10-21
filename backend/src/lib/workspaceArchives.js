@@ -85,7 +85,8 @@ function archiveEntryTimestamp(name) {
 }
 
 // Older engine builds recorded transcript paths relative to HOME without the
-// sessions/ prefix. Accept and normalize those only for known harness roots.
+// sessions/ prefix. Accept and normalize those only for known harness roots,
+// then re-validate the prefixed path with the same rules as the download route.
 function normalizeSessionFile(value) {
   if (typeof value !== 'string') return null;
   try {
@@ -98,7 +99,11 @@ function normalizeSessionFile(value) {
       value.endsWith('.jsonl') &&
       LEGACY_SESSION_PREFIXES.some((prefix) => value.startsWith(prefix))
     ) {
-      return `sessions/${value}`;
+      try {
+        return normalizeArchiveRelativePath(`sessions/${value}`);
+      } catch {
+        return null;
+      }
     }
     return null;
   }

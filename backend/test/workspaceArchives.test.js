@@ -128,6 +128,8 @@ test('listScanArchives returns sorted manifests and ignores partial or malformed
       capped.map((entry) => entry.id),
       ['metadata-2433-20261021T100000Z', 'metadata-2435-20261021T120000Z']
     );
+    assert.deepEqual(await listScanArchives(381, { env, maxEntries: 0 }), []);
+    assert.deepEqual(await listScanArchives(381, { env, maxEntries: -1 }), []);
   } finally {
     await rm(env.OPEN_KRITT_ENGINE_DATA_DIR, { recursive: true, force: true });
   }
@@ -140,6 +142,9 @@ test('summarizeArchiveEntry normalizes legacy transcript paths and drops unsafe 
       session_files: [
         '.codex/sessions/2026/rollout.jsonl',
         'sessions/.claude/projects/session.jsonl',
+        '.codex/sessions/good/rollout.jsonl',
+        '.codex/sessions/../../etc/passwd.jsonl',
+        '.codex/sessions/has space.jsonl',
         '../escape.jsonl',
         '.codex/auth.json',
         42,
@@ -151,6 +156,7 @@ test('summarizeArchiveEntry normalizes legacy transcript paths and drops unsafe 
   assert.deepEqual(summary.sessionFiles, [
     'sessions/.codex/sessions/2026/rollout.jsonl',
     'sessions/.claude/projects/session.jsonl',
+    'sessions/.codex/sessions/good/rollout.jsonl',
   ]);
 });
 
@@ -236,6 +242,11 @@ test('resolveArchiveFile rejects symlinked scan and entry directories', async ()
     await symlink(outside, path.join(archiveBase, 'scan-382'));
     await mkdir(path.join(archiveBase, 'scan-383'), { recursive: true });
     await symlink(outside, path.join(archiveBase, 'scan-383', 'metadata-1-20261021T090000Z'));
+    const realEntry = path.join(archiveBase, 'scan-384', 'metadata-1-20261021T090000Z');
+    await mkdir(realEntry, { recursive: true });
+    await writeFile(path.join(realEntry, 'workspace.tar.gz'), 'real bytes', 'utf8');
+    await writeFile(path.join(outside, 'escape.jsonl'), '{"line":1}\n', 'utf8');
+    await symlink(outside, path.join(realEntry, 'sessions'));
 
     await assert.rejects(
       resolveArchiveFile(382, 'metadata-1-20261021T090000Z', undefined, { env }),
@@ -244,6 +255,10 @@ test('resolveArchiveFile rejects symlinked scan and entry directories', async ()
     await assert.rejects(
       resolveArchiveFile(383, 'metadata-1-20261021T090000Z', undefined, { env }),
       ArchiveNotFoundError
+    );
+    await assert.rejects(
+      resolveArchiveFile(384, 'metadata-1-20261021T090000Z', 'sessions/escape.jsonl', { env }),
+      ArchivePathError
     );
   } finally {
     await rm(env.OPEN_KRITT_ENGINE_DATA_DIR, { recursive: true, force: true });

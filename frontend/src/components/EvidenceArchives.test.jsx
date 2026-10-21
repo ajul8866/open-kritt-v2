@@ -8,6 +8,7 @@ describe('EvidenceArchives', () => {
     const html = renderToStaticMarkup(<EvidenceArchives scanId="381" title="PoC evidence archives" />);
 
     expect(html).toContain('PoC evidence archives');
+    expect(html).toContain('<h3');
     expect(html).toContain('Loading archives');
     expect(html).toContain('Refresh');
   });

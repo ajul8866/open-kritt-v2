@@ -195,26 +195,46 @@ def test_cleanup_workspace_archives_is_noop_when_disabled(tmp_path):
     assert expired.exists()
 
 
-def test_archive_retention_defaults_to_five_hours(tmp_path, monkeypatch):
+def test_archive_retention_defaults_to_five_hours(monkeypatch):
     monkeypatch.delenv("ENGINE_WORKSPACE_ARCHIVE_RETENTION_HOURS", raising=False)
     monkeypatch.delenv("ENGINE_RUNTIME_CONFIG_PATH", raising=False)
 
-    assert workspace_archive_retention_hours(str(tmp_path)) == 5.0
+    assert workspace_archive_retention_hours(None) == 5.0
 
 
-def test_archive_workspace_skips_empty_root(tmp_path):
-    workspace = JobWorkspace(root_dir="", repo_base_dir=str(tmp_path), env={})
+def test_archive_workspace_skips_empty_or_relative_root(tmp_path):
+    for root_dir in ("", "relative/path"):
+        workspace = JobWorkspace(root_dir=root_dir, repo_base_dir=str(tmp_path), env={})
+
+        archive = archive_workspace(
+            workspace,
+            data_dir=str(tmp_path / "data"),
+            metadata_id=42,
+            kind="step",
+            retention_hours=5,
+        )
+
+        assert archive is None
+    assert not (tmp_path / "data" / "workspace-archives").exists()
+
+
+def test_archive_readme_describes_image_mode(tmp_path):
+    workspace, data_dir, _root = _build_job_workspace(tmp_path)
 
     archive = archive_workspace(
         workspace,
-        data_dir=str(tmp_path / "data"),
+        data_dir=str(data_dir),
         metadata_id=42,
         kind="step",
+        workspace_mode="image",
         retention_hours=5,
     )
 
-    assert archive is None
-    assert not (tmp_path / "data" / "workspace-archives").exists()
+    assert archive is not None
+    readme = (archive / "README.txt").read_text(encoding="utf-8")
+    assert "wrapper workspace only" in readme
+    assert "disposable runner image" in readme
+    assert "including PoC files" not in readme
 
 
 def test_archive_aborts_instead_of_publishing_a_corrupt_tarball(tmp_path, monkeypatch):

@@ -3173,6 +3173,7 @@ def test_worker_archives_workspace_before_cleanup(monkeypatch, tmp_path):
     assert len(archives) == 1
     manifest = json.loads((archives[0].parent / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["kind"] == "step"
+    assert manifest["workspace_mode"] == "copy"
     assert manifest["scan_id"] == 7
     assert manifest["workflow_id"] == 3
     assert manifest["step_id"] == 1
@@ -3463,6 +3464,7 @@ def test_post_processing_archives_workspace_before_cleanup(monkeypatch, tmp_path
     assert len(archives) == 1
     manifest = json.loads((archives[0].parent / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["kind"] == "post_script"
+    assert manifest["workspace_mode"] == "copy"
     assert manifest["scan_id"] == 7
     assert manifest["metadata_id"] == 9
     assert manifest["vulnerability_id"] == 829
@@ -3475,7 +3477,8 @@ def test_post_processing_archives_workspace_before_cleanup(monkeypatch, tmp_path
     assert not root.exists()
 
 
-def test_post_processing_skips_workspace_archive_for_dedupe(monkeypatch, tmp_path):
+@pytest.mark.parametrize("kind", ["dedupe", "ranker"])
+def test_post_processing_skips_workspace_archive_for_dedupe_and_ranker(monkeypatch, tmp_path, kind):
     runtime_path = tmp_path / "engine-runtime.env"
     runtime_path.write_text("ENGINE_WORKSPACE_ARCHIVE_RETENTION_HOURS=5\n", encoding="utf-8")
     monkeypatch.setenv("ENGINE_RUNTIME_CONFIG_PATH", str(runtime_path))
@@ -3516,7 +3519,7 @@ def test_post_processing_skips_workspace_archive_for_dedupe(monkeypatch, tmp_pat
         prompt="Dedupe findings.",
         schema={},
         validator=lambda _payload: None,
-        kind="dedupe",
+        kind=kind,
     )
 
     assert not (tmp_path / "workspace-archives").exists()
