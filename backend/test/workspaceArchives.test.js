@@ -71,10 +71,22 @@ test('normalizeArchiveRelativePath allows only evidence files and session transc
     'sessions\\.codex\\rollout.jsonl',
     'notes.txt',
     ['workspace.tar.gz'],
-    `sessions/${'a'.repeat(256)}.jsonl`,
   ]) {
     assert.throws(() => normalizeArchiveRelativePath(value), ArchivePathError, String(value));
   }
+
+  const segment255 = `${'a'.repeat(249)}.jsonl`;
+  const segment254 = `${'a'.repeat(248)}.jsonl`;
+  const segment256 = `${'a'.repeat(250)}.jsonl`;
+  assert.equal(normalizeArchiveRelativePath(`sessions/${segment255}`), `sessions/${segment255}`);
+  assert.throws(() => normalizeArchiveRelativePath(`sessions/${segment256}`), ArchivePathError);
+
+  const path4096 = `sessions/${[...Array(8).fill(segment255), ...Array(8).fill(segment254)].join('/')}`;
+  const path4097 = `sessions/${[...Array(9).fill(segment255), ...Array(7).fill(segment254)].join('/')}`;
+  assert.equal(Buffer.byteLength(path4096, 'utf8'), 4096);
+  assert.equal(Buffer.byteLength(path4097, 'utf8'), 4097);
+  assert.equal(normalizeArchiveRelativePath(path4096), path4096);
+  assert.throws(() => normalizeArchiveRelativePath(path4097), ArchivePathError);
 });
 
 test('listScanArchives returns sorted manifests and ignores partial or malformed entries', async () => {
@@ -342,6 +354,7 @@ test('every summarized session path is accepted by resolveArchiveFile', async ()
         '.codex/sessions/2026/rollout.jsonl',
         'sessions/.claude/projects/session.jsonl',
         '.codex/sessions/../../etc/passwd.jsonl',
+        `.codex/sessions/${'a'.repeat(250)}.jsonl`,
       ],
     };
     await writeArchive(env.OPEN_KRITT_ENGINE_DATA_DIR, 381, entryId, manifest, {
@@ -360,42 +373,96 @@ test('every summarized session path is accepted by resolveArchiveFile', async ()
   }
 });
 
-test('failed archive streams return JSON errors without download headers', async () => {
+test('failed archive streams return sanitized JSON errors', async () => {
   const env = { OPEN_KRITT_ENGINE_DATA_DIR: await makeArchiveRoot() };
   const previous = process.env.OPEN_KRITT_ENGINE_DATA_DIR;
-  process.env.OPEN_KRITT_ENGINE_DATA_DIR = env.OPEN_KRITT_ENGINE_DATA_DIR;
   const entryId = 'metadata-3-20261021T090000Z';
-  await writeArchive(
-    env.OPEN_KRITT_ENGINE_DATA_DIR,
-    381,
-    entryId,
-    { scan_id: 381, archived_at: '2026-10-21T09:00:00Z' },
-    { 'workspace.tar.gz': 'tarball-bytes' }
-  );
-  const server = await startServer(env);
   const originalCreateReadStream = fs.createReadStream;
+  let server;
   try {
-    for (const [code, expectedStatus] of [
-      ['ENOENT', 404],
-      ['EACCES', 500],
-    ]) {
+    process.env.OPEN_KRITT_ENGINE_DATA_DIR = env.OPEN_KRITT_ENGINE_DATA_DIR;
+    await writeArchive(
+      env.OPEN_KRITT_ENGINE_DATA_DIR,
+      381,
+      entryId,
+      { scan_id: 381, archived_at: '2026-10-21T09:00:00Z' },
+      { 'workspace.tar.gz': 'tarball-bytes' }
+    );
+    server = await startServer(env);
+    const url = `${server.origin}/api/scans/381/archives/${entryId}/file?path=workspace.tar.gz`;
+    const cases = [
+      { details: { code: 'ENOENT' }, status: 404, message: 'Archive file not found.' },
+      { details: { code: 'EACCES' }, status: 500, message: 'Internal server error.' },
+      { details: { status: 404 }, status: 404, message: 'Archive file not found.' },
+      { details: { status: 412 }, status: 412, message: 'Precondition failed.' },
+      {
+        details: { status: 416, headers: { 'Content-Range': 'bytes */13' } },
+        status: 416,
+        message: 'Requested range not satisfiable.',
+        contentRange: 'bytes */13',
+      },
+    ];
+
+    for (const testCase of cases) {
       fs.createReadStream = () => {
         const stream = new Readable({ read() {} });
-        process.nextTick(() => stream.destroy(Object.assign(new Error('stream failed'), { code })));
+        process.nextTick(() => stream.destroy(Object.assign(new Error('stream failed'), testCase.details)));
         return stream;
       };
-      const response = await fetch(`${server.origin}/api/scans/381/archives/${entryId}/file?path=workspace.tar.gz`);
-      assert.equal(response.status, expectedStatus);
+      const response = await fetch(url, { headers: { Range: 'bytes=0-3' } });
+      assert.equal(response.status, testCase.status, JSON.stringify(testCase.details));
       assert.equal(response.headers.get('content-type'), 'application/json; charset=utf-8');
       assert.equal(response.headers.get('content-disposition'), null);
       assert.equal(response.headers.get('accept-ranges'), null);
       assert.equal(response.headers.get('last-modified'), null);
-      const payload = await response.json();
-      assert.equal(typeof payload.error, 'string');
+      assert.equal(response.headers.get('content-range'), testCase.contentRange ?? null);
+      const text = await response.text();
+      assert.equal(Number(response.headers.get('content-length')), Buffer.byteLength(text));
+      assert.equal(JSON.parse(text).error, testCase.message);
     }
+
+    fs.createReadStream = () => {
+      const stream = new Readable({ read() {} });
+      process.nextTick(() => stream.destroy(Object.assign(new Error('Request aborted'), { code: 'ECONNABORTED' })));
+      return stream;
+    };
+    await assert.rejects(fetch(url));
   } finally {
     fs.createReadStream = originalCreateReadStream;
-    await server.close();
+    if (server) await server.close();
+    if (previous === undefined) delete process.env.OPEN_KRITT_ENGINE_DATA_DIR;
+    else process.env.OPEN_KRITT_ENGINE_DATA_DIR = previous;
+    await rm(env.OPEN_KRITT_ENGINE_DATA_DIR, { recursive: true, force: true });
+  }
+});
+
+test('unsatisfiable archive ranges return 416 with Content-Range', async () => {
+  const env = { OPEN_KRITT_ENGINE_DATA_DIR: await makeArchiveRoot() };
+  const previous = process.env.OPEN_KRITT_ENGINE_DATA_DIR;
+  const entryId = 'metadata-4-20261021T090000Z';
+  let server;
+  try {
+    process.env.OPEN_KRITT_ENGINE_DATA_DIR = env.OPEN_KRITT_ENGINE_DATA_DIR;
+    await writeArchive(
+      env.OPEN_KRITT_ENGINE_DATA_DIR,
+      381,
+      entryId,
+      { scan_id: 381, archived_at: '2026-10-21T09:00:00Z' },
+      { 'workspace.tar.gz': 'tarball-bytes' }
+    );
+    server = await startServer(env);
+
+    const response = await fetch(`${server.origin}/api/scans/381/archives/${entryId}/file?path=workspace.tar.gz`, {
+      headers: { Range: 'bytes=999999-' },
+    });
+
+    assert.equal(response.status, 416);
+    assert.equal(response.headers.get('content-type'), 'application/json; charset=utf-8');
+    assert.equal(response.headers.get('content-disposition'), null);
+    assert.match(response.headers.get('content-range'), /^bytes \*\//);
+    assert.equal((await response.json()).error, 'Requested range not satisfiable.');
+  } finally {
+    if (server) await server.close();
     if (previous === undefined) delete process.env.OPEN_KRITT_ENGINE_DATA_DIR;
     else process.env.OPEN_KRITT_ENGINE_DATA_DIR = previous;
     await rm(env.OPEN_KRITT_ENGINE_DATA_DIR, { recursive: true, force: true });

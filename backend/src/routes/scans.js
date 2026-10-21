@@ -981,6 +981,19 @@ function resetDownloadResponseHeaders(res) {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
 }
 
+function failedDownloadStatus(error) {
+  if (error?.code === 'ENOENT') return 404;
+  if (Number.isInteger(error?.status) && error.status >= 400 && error.status < 500) return error.status;
+  return null;
+}
+
+function failedDownloadMessage(status) {
+  if (status === 404) return 'Archive file not found.';
+  if (status === 412) return 'Precondition failed.';
+  if (status === 416) return 'Requested range not satisfiable.';
+  return 'The archive download could not be served.';
+}
+
 // GET /api/scans/:id/archives/:entryId/file?path=workspace.tar.gz — download one archived file.
 router.get('/:id/archives/:entryId/file', async (req, res, next) => {
   try {
@@ -990,19 +1003,28 @@ router.get('/:id/archives/:entryId/file', async (req, res, next) => {
     res.setHeader('Cache-Control', 'no-store');
     res.sendFile(file.path, { dotfiles: 'allow' }, (error) => {
       if (!error) return;
+      if (error.code === 'ECONNABORTED') {
+        if (!res.destroyed) res.destroy();
+        return;
+      }
       if (res.headersSent) {
         res.destroy(error);
         return;
       }
+      const contentRange =
+        error.headers?.['Content-Range'] || error.headers?.['content-range'] || res.getHeader('Content-Range');
       resetDownloadResponseHeaders(res);
-      if (error.code === 'ENOENT' || error.status === 404) {
-        return res.status(404).json({ error: 'Archive file not found.' });
+      const status = failedDownloadStatus(error);
+      if (status !== null) {
+        if (status === 416 && contentRange) res.setHeader('Content-Range', contentRange);
+        return res.status(status).json({ error: failedDownloadMessage(status) });
       }
       next(error);
     });
   } catch (e) {
     if (e instanceof ArchiveNotFoundError) return res.status(404).json({ error: e.message });
     if (e instanceof ArchivePathError) return res.status(400).json({ error: e.message });
+    if (!res.headersSent) resetDownloadResponseHeaders(res);
     next(e);
   }
 });
