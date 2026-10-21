@@ -37,6 +37,15 @@ import EvidenceArchives from '../components/EvidenceArchives.jsx';
 
 const SUPPLEMENTAL_POST_SCRIPT_SCAN_STATUSES = new Set(['paused', 'completed', 'stopped', 'failed']);
 
+// Sibling panels must not share a key. A bare scan id previously collided with
+// SelfImprovementPanel and made React duplicate the archive panel on every poll.
+export function scanPanelKeys(scanId) {
+  return {
+    evidenceArchives: `evidence-archives-${scanId}`,
+    selfImprovement: `self-improvement-${scanId}`,
+  };
+}
+
 export function scanActions(status) {
   const active = ['prewarming_cache', 'running', 'post_processing'].includes(status);
   return {
@@ -127,6 +136,7 @@ export async function loadModelReferences(fetchProviders, fetchCatalog) {
 
 export default function ScanDetail() {
   const { id } = useParams();
+  const panelKeys = scanPanelKeys(id);
   const navigate = useNavigate();
   const [busy, setBusy] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -670,7 +680,7 @@ export default function ScanDetail() {
           />
         </div>
 
-        <EvidenceArchives key={id} scanId={id} />
+        <EvidenceArchives key={panelKeys.evidenceArchives} scanId={id} />
 
         {postScripts.length > 0 && <ConfiguredPostScripts postScripts={postScripts} />}
 
@@ -686,7 +696,7 @@ export default function ScanDetail() {
 
         <ScanStatusPanel scan={scan} />
 
-        <SelfImprovementPanel key={id} scan={scan} references={modelReferences} />
+        <SelfImprovementPanel key={panelKeys.selfImprovement} scan={scan} references={modelReferences} />
 
         {agentSkills.length > 0 && <ConfiguredAgentSkills agentSkills={agentSkills} />}
 

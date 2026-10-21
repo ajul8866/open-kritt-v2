@@ -14,6 +14,7 @@ import {
   runSettingsPayload,
   scanActions,
   scanFindingExportAvailability,
+  scanPanelKeys,
   supplementalFindingRunSummary,
   supplementalPostScriptAvailability,
   supplementalRunModelConfiguration,
@@ -42,6 +43,16 @@ const supplementalModel = {
   harness: 'codex',
   thinking_effort: 'high',
 };
+
+describe('scan panel keys', () => {
+  it('namespaces sibling panels so React keys stay unique', () => {
+    const keys = scanPanelKeys('383');
+
+    expect(keys.evidenceArchives).toBe('evidence-archives-383');
+    expect(keys.selfImprovement).toBe('self-improvement-383');
+    expect(new Set(Object.values(keys)).size).toBe(2);
+  });
+});
 
 describe('supplemental post-script runs', () => {
   it('is available only for non-running scans with findings', () => {
