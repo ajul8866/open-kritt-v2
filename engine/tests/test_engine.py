@@ -2,6 +2,7 @@ import errno
 import json
 import shutil
 import subprocess
+import tarfile
 import threading
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
@@ -3130,6 +3131,57 @@ def test_worker_records_and_rotates_last_five_model_error_outputs(monkeypatch, t
     assert not root.exists()
 
 
+def test_worker_archives_workspace_before_cleanup(monkeypatch, tmp_path):
+    runtime_path = tmp_path / "engine-runtime.env"
+    runtime_path.write_text("ENGINE_WORKSPACE_ARCHIVE_RETENTION_HOURS=5\n", encoding="utf-8")
+    monkeypatch.setenv("ENGINE_RUNTIME_CONFIG_PATH", str(runtime_path))
+    root = tmp_path / "job"
+    repo = root / "workspace"
+    (repo / "test").mkdir(parents=True)
+    (repo / "test" / "PoC.t.sol").write_text("contract PoC {}\n", encoding="utf-8")
+    home = root / "home"
+    session = home / ".codex" / "sessions" / "rollout.jsonl"
+    session.parent.mkdir(parents=True)
+    session.write_text('{"type":"message"}\n', encoding="utf-8")
+
+    class Workspace:
+        root_dir = str(root)
+        env = {"HOME": str(home)}
+
+    prepared = SimpleNamespace(
+        workspace=Workspace(),
+        repo_dir=str(repo),
+        checked_out_commit="abc",
+        layout="Dependency repositories are checked out as top-level directories inside the same workspace root.",
+        manifest_json='{"dependencies":[]}',
+    )
+    fake_db = FakeDb()
+    worker = Worker(
+        SimpleNamespace(retry_count=0, data_dir=str(tmp_path), github_token=None),
+        db=fake_db,
+    )
+    monkeypatch.setattr(worker_module, "prepare_dependency_workspace", lambda **_kwargs: prepared)
+    job = Job(
+        step=step(1, 0, multi=False, output_format='{"thing":"string"}'),
+        state=State(prev_id=0, prev_table=None, repeat_run=1, context={"repo_full": "owner/repo"}),
+    )
+    fake_harness = FakeHarness([marked({"stub": False, "stub_explanation": "", "results": [{"thing": "ok"}]})])
+
+    worker.execute_job(scan=scan(), workflow_id=3, job=job, harness=fake_harness)
+
+    archives = list((tmp_path / "workspace-archives").rglob("workspace.tar.gz"))
+    assert len(archives) == 1
+    manifest = json.loads((archives[0].parent / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["kind"] == "step"
+    assert manifest["scan_id"] == 7
+    assert manifest["workflow_id"] == 3
+    assert manifest["step_id"] == 1
+    with tarfile.open(archives[0]) as tarball:
+        assert "test/PoC.t.sol" in tarball.getnames()
+    assert [path.name for path in (archives[0].parent / "sessions").rglob("*.jsonl")] == ["rollout.jsonl"]
+    assert not root.exists()
+
+
 def test_worker_does_not_retry_permanent_harness_failures(monkeypatch, tmp_path):
     root = tmp_path / "job"
     root.mkdir()
@@ -3350,6 +3402,74 @@ def test_post_processing_harness_uses_dependency_workspace(monkeypatch, tmp_path
     assert workspace_arguments["model_provider"] == "codex"
     assert "Workspace context:" in fake_harness.calls[0]["prompt"]
     assert fake_db.updates[0]["prompt_filled"] == fake_harness.calls[0]["prompt"]
+    assert not root.exists()
+
+
+def test_post_processing_archives_workspace_before_cleanup(monkeypatch, tmp_path):
+    runtime_path = tmp_path / "engine-runtime.env"
+    runtime_path.write_text("ENGINE_WORKSPACE_ARCHIVE_RETENTION_HOURS=5\n", encoding="utf-8")
+    monkeypatch.setenv("ENGINE_RUNTIME_CONFIG_PATH", str(runtime_path))
+    root = tmp_path / "post-job"
+    repo = root / "workspace"
+    (repo / "test").mkdir(parents=True)
+    (repo / "test" / "StaleOraclePoC.t.sol").write_text("contract PoC {}\n", encoding="utf-8")
+    home = root / "home"
+    session = home / ".claude" / "projects" / "session.jsonl"
+    session.parent.mkdir(parents=True)
+    session.write_text('{"type":"message"}\n', encoding="utf-8")
+
+    class Workspace:
+        root_dir = str(root)
+        env = {"HOME": str(home)}
+
+    prepared = SimpleNamespace(
+        workspace=Workspace(),
+        repo_dir=str(repo),
+        checked_out_commit="def",
+        layout="Dependency repositories are checked out as top-level directories inside the same workspace root.",
+        manifest_json='{"dependencies":[]}',
+    )
+
+    class FakePostDb:
+        def __init__(self):
+            self.updates = []
+
+        @contextmanager
+        def connect(self):
+            yield FakeConn()
+
+        def update_post_process_metadata(self, _conn, metadata_id, **kwargs):
+            self.updates.append({"metadata_id": metadata_id, **kwargs})
+
+    monkeypatch.setattr(post_processing_module, "prepare_dependency_workspace", lambda **_kwargs: prepared)
+    processor = PostProcessor(
+        SimpleNamespace(retry_count=0, data_dir=str(tmp_path), github_token=None),
+        FakePostDb(),
+    )
+
+    processor._run_harness_with_retries(
+        metadata_id=9,
+        scan=scan(),
+        harness=FakeHarness([{"ok": True}]),
+        prompt="Rank findings.",
+        schema={},
+        validator=lambda _payload: None,
+        kind="post_script",
+        archive_context={"vulnerability_id": 829, "post_script_id": 4, "post_script_name": "PoC Creator"},
+    )
+
+    archives = list((tmp_path / "workspace-archives").rglob("workspace.tar.gz"))
+    assert len(archives) == 1
+    manifest = json.loads((archives[0].parent / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["kind"] == "post_script"
+    assert manifest["scan_id"] == 7
+    assert manifest["metadata_id"] == 9
+    assert manifest["vulnerability_id"] == 829
+    assert manifest["post_script_id"] == 4
+    assert manifest["post_script_name"] == "PoC Creator"
+    with tarfile.open(archives[0]) as tarball:
+        assert "test/StaleOraclePoC.t.sol" in tarball.getnames()
+    assert [path.name for path in (archives[0].parent / "sessions").rglob("*.jsonl")] == ["session.jsonl"]
     assert not root.exists()
 
 

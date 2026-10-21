@@ -1,6 +1,7 @@
 import logging
 import random
 import shutil
+import sys
 import threading
 import time
 import unicodedata
@@ -15,6 +16,7 @@ from .artifact_cleanup import (
     cleanup_legacy_scan_workspaces,
     cleanup_orphaned_job_workspaces,
     cleanup_persisted_scan_caches,
+    cleanup_workspace_archives,
     collect_quarantined_artifacts,
     delete_quarantined_artifacts,
 )
@@ -84,6 +86,7 @@ from .workspace import (
     workspace_context,
     workspace_prompt_context,
 )
+from .workspace_archive import archive_job_directory, archive_workspace
 from .workspace_snapshots import cleanup_stale_workspace_snapshot_builders
 
 LOGGER = logging.getLogger("open_kritt_engine")
@@ -108,6 +111,15 @@ MEMORY_PRESSURE_EVICTION_COOLDOWN_SECONDS = 30.0
 
 class StepExecutionError(RuntimeError):
     pass
+
+
+def _optional_int(value: Any) -> int | None:
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
 
 
 class RateLimitExhausted(StepExecutionError):
@@ -642,6 +654,13 @@ class Worker:
         )
         retention_days = max(0.0, float(getattr(self.config, "scan_cache_retention_days", 0.0) or 0.0))
         retain_after = now_utc() - timedelta(days=retention_days)
+        archive_retention_hours = runtime_float(
+            "ENGINE_WORKSPACE_ARCHIVE_RETENTION_HOURS",
+            0.0,
+            data_dir=getattr(self.config, "data_dir", None),
+            minimum=0.0,
+            maximum=24.0 * 365.0,
+        )
         quarantine = collect_quarantined_artifacts(
             [
                 self.config.data_dir,
@@ -698,6 +717,10 @@ class Worker:
                     getattr(self.config, "repo_dir", None),
                     quarantine=quarantine,
                 ),
+                workspace_archives=cleanup_workspace_archives(
+                    self.config.data_dir,
+                    retention_hours=archive_retention_hours,
+                ),
             )
             conn.commit()
         delete_quarantined_artifacts(quarantine)
@@ -711,13 +734,14 @@ class Worker:
         if result.total:
             LOGGER.info(
                 "removed stale engine artifacts: jobs=%s persisted_scan_caches=%s checkout_caches=%s "
-                "legacy_scan_workspaces=%s legacy_checkout_caches=%s legacy_repo_caches=%s",
+                "legacy_scan_workspaces=%s legacy_checkout_caches=%s legacy_repo_caches=%s workspace_archives=%s",
                 result.job_workspaces,
                 result.persisted_scan_caches,
                 result.checkout_caches,
                 result.legacy_scan_workspaces,
                 result.legacy_checkout_caches,
                 result.legacy_repo_caches,
+                result.workspace_archives,
             )
         return result
 
@@ -1453,6 +1477,7 @@ class Worker:
         checked_out_commit = None
         prompt_filled = ""
         prepared = None
+        selection = None
         try:
             schema = output_schema(step.output_format, step.multi_output)
             selection = model_selection or model_selection_for_depth(scan, step.depth)
@@ -1838,6 +1863,37 @@ class Worker:
             raise StepExecutionError(f"step {step.id} {failure_summary}")
         finally:
             if metadata_id is not None:
+                archive_status = "failed" if sys.exc_info()[0] is not None else "completed"
+                try:
+                    if prepared is not None:
+                        archive_workspace(
+                            prepared.workspace,
+                            data_dir=self.config.data_dir,
+                            scan_id=_optional_int(scan.get("id")),
+                            workflow_id=_optional_int(workflow_id),
+                            metadata_id=metadata_id,
+                            kind="step",
+                            step_id=_optional_int(step.id),
+                            status=archive_status,
+                            repo_dir=prepared.repo_dir,
+                            checked_out_commit=checked_out_commit,
+                            model=getattr(selection, "model", None),
+                            harness=getattr(selection, "harness", None),
+                        )
+                    else:
+                        archive_job_directory(
+                            data_dir=self.config.data_dir,
+                            scan_id=_optional_int(scan.get("id")),
+                            workflow_id=_optional_int(workflow_id),
+                            metadata_id=metadata_id,
+                            kind="step",
+                            step_id=_optional_int(step.id),
+                            status=archive_status,
+                            model=getattr(selection, "model", None),
+                            harness=getattr(selection, "harness", None),
+                        )
+                except Exception:
+                    LOGGER.exception("could not archive step workspace for metadata %s", metadata_id)
                 if prepared is not None:
                     cleanup_workspace(prepared.workspace)
                 else:

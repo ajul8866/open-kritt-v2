@@ -1,4 +1,6 @@
 import json
+import logging
+import sys
 from datetime import datetime, timezone
 from typing import Any
 
@@ -38,6 +40,9 @@ from .workspace import (
     workspace_context,
     workspace_prompt_context,
 )
+from .workspace_archive import archive_job_directory, archive_workspace
+
+LOGGER = logging.getLogger("open_kritt_engine.post_processing")
 
 BATCH_SIZE = 50
 POST_WORKSPACE_ID_OFFSET = 1_000_000_000
@@ -130,6 +135,25 @@ def ranker_schema() -> dict[str, Any]:
 
 def _int(value: Any) -> int:
     return int(value)
+
+
+def _optional_int(value: Any) -> int | None:
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _archive_context_fields(context: dict[str, Any] | None) -> dict[str, Any]:
+    context = context or {}
+    return {
+        "vulnerability_id": _optional_int(context.get("vulnerability_id")),
+        "target_vulnerability_ids": context.get("target_vulnerability_ids"),
+        "post_script_id": _optional_int(context.get("post_script_id")),
+        "post_script_name": context.get("post_script_name"),
+    }
 
 
 def _json_text(value: Any, max_chars: int = 4000) -> str:
@@ -525,6 +549,11 @@ class PostProcessor:
                 prompt_context=post_script_context(contextual_scan, vulnerability),
                 multi_output=False,
                 kind="supplemental_post_script",
+                archive_context={
+                    "vulnerability_id": _int(vulnerability["id"]),
+                    "post_script_id": _int(run["post_script_id"]),
+                    "post_script_name": run["post_script_name"],
+                },
             )
             rows = validate_payload(payload, schema, multi_output=False)
             result = rows[0] if rows else {}
@@ -653,8 +682,11 @@ class PostProcessor:
         prompt_context: dict[str, Any] | None = None,
         multi_output: bool = False,
         kind: str = "post_process",
+        archive_context: dict[str, Any] | None = None,
     ) -> tuple[dict[str, Any], dict[str, Any] | None, str | None, str]:
         prepared = None
+        selection = None
+        checked_out_commit = None
         try:
             selection = post_processing_model_selection(scan)
             agent_skills = self._agent_skills(scan)
@@ -840,10 +872,45 @@ class PostProcessor:
                 limit_kind=exc.limit_kind,
             ) from exc
         finally:
+            workspace_metadata_id = POST_WORKSPACE_ID_OFFSET + metadata_id
+            archive_status = "failed" if sys.exc_info()[0] is not None else "completed"
+            try:
+                if prepared is not None:
+                    archive_workspace(
+                        prepared.workspace,
+                        data_dir=self.config.data_dir,
+                        metadata_id=metadata_id,
+                        kind=kind,
+                        status=archive_status,
+                        scan_id=_optional_int(scan.get("id")),
+                        workflow_id=_optional_int(scan.get("workflow_id")),
+                        repo_dir=prepared.repo_dir,
+                        checked_out_commit=checked_out_commit,
+                        model=getattr(selection, "model", None),
+                        harness=getattr(selection, "harness", None),
+                        archive_context=archive_context,
+                        **_archive_context_fields(archive_context),
+                    )
+                else:
+                    archive_job_directory(
+                        data_dir=self.config.data_dir,
+                        metadata_id=metadata_id,
+                        workspace_metadata_id=workspace_metadata_id,
+                        kind=kind,
+                        status=archive_status,
+                        scan_id=_optional_int(scan.get("id")),
+                        workflow_id=_optional_int(scan.get("workflow_id")),
+                        model=getattr(selection, "model", None),
+                        harness=getattr(selection, "harness", None),
+                        archive_context=archive_context,
+                        **_archive_context_fields(archive_context),
+                    )
+            except Exception:
+                LOGGER.exception("could not archive post-process workspace for metadata %s", metadata_id)
             if prepared is not None:
                 cleanup_workspace(prepared.workspace)
             else:
-                cleanup_job_workspace(self.config.data_dir, POST_WORKSPACE_ID_OFFSET + metadata_id)
+                cleanup_job_workspace(self.config.data_dir, workspace_metadata_id)
 
     def _run_next_dedupe_batch(self, scan: dict[str, Any], harness) -> bool:
         scan_id = _int(scan["id"])
@@ -893,6 +960,7 @@ class PostProcessor:
                 schema=dedupe_schema(),
                 validator=validator,
                 kind="dedupe",
+                archive_context={"target_vulnerability_ids": [_int(row["id"]) for row in targets]},
             )
             clusters = validate_dedupe_payload(payload, anchors=anchors, targets=targets)
             mapping = dedupe_mapping_from_clusters(clusters, scan_id=scan_id, anchors=anchors, targets=targets)
@@ -982,6 +1050,7 @@ class PostProcessor:
                 schema=ranker_schema(),
                 validator=validator,
                 kind="ranker",
+                archive_context={"target_vulnerability_ids": [_int(row["id"]) for row in targets]},
             )
             updates = rank_updates_from_payload(
                 payload,
@@ -1140,6 +1209,11 @@ class PostProcessor:
                 prompt_context=post_script_context(current, row),
                 multi_output=False,
                 kind="post_script",
+                archive_context={
+                    "vulnerability_id": _int(row["id"]),
+                    "post_script_id": _int(post_script["id"]),
+                    "post_script_name": post_script["name"],
+                },
             )
             rows = validate_payload(payload, schema, multi_output=False)
             result = rows[0] if rows else {}

@@ -11,6 +11,7 @@ from pathlib import Path
 
 LOGGER = logging.getLogger("open_kritt_engine.artifact_cleanup")
 POST_WORKSPACE_ID_OFFSET = 1_000_000_000
+WORKSPACE_ARCHIVE_DIR_NAME = "workspace-archives"
 _JOB_WORKSPACE_PATTERN = re.compile(r"metadata-(\d+)")
 _PERSISTED_SCAN_CACHE_PATTERN = re.compile(r"scan-(\d+)")
 _BROKEN_SCAN_CACHE_PATTERN = re.compile(r"scan-\d+\.broken-\d{8}T\d{6}Z")
@@ -26,6 +27,7 @@ class ArtifactCleanupResult:
     legacy_scan_workspaces: int = 0
     legacy_checkout_caches: int = 0
     legacy_repo_caches: int = 0
+    workspace_archives: int = 0
 
     @property
     def total(self) -> int:
@@ -36,6 +38,7 @@ class ArtifactCleanupResult:
             + self.legacy_checkout_caches
             + self.checkout_caches
             + self.legacy_repo_caches
+            + self.workspace_archives
         )
 
 
@@ -55,6 +58,55 @@ def cleanup_orphaned_job_workspaces(
         now=now,
         quarantine=quarantine,
     )
+
+
+def cleanup_workspace_archives(
+    data_dir: str,
+    *,
+    retention_hours: float,
+    now: float | None = None,
+    partial_max_age_seconds: float = 3600,
+) -> int:
+    """Remove evidence archives past their retention window.
+
+    ``retention_hours <= 0`` disables archiving and leaves existing archives in
+    place. Incomplete ``.partial`` directories from interrupted archives are
+    removed after ``partial_max_age_seconds`` so they cannot accumulate.
+    """
+
+    if retention_hours <= 0:
+        return 0
+    root = Path(data_dir) / WORKSPACE_ARCHIVE_DIR_NAME
+    if not root.is_dir() or root.is_symlink():
+        return 0
+
+    checked_at = time.time() if now is None else now
+    retention_seconds = retention_hours * 3600
+    removed = 0
+    try:
+        scan_dirs = list(root.iterdir())
+    except OSError as exc:
+        LOGGER.warning("could not inspect workspace archives %s: %s", root, exc)
+        return 0
+    for scan_dir in scan_dirs:
+        if scan_dir.is_symlink() or not scan_dir.is_dir():
+            continue
+        try:
+            entries = list(scan_dir.iterdir())
+        except OSError:
+            continue
+        for entry in entries:
+            if entry.is_symlink() or not entry.is_dir():
+                continue
+            age_limit = partial_max_age_seconds if entry.name.endswith(".partial") else retention_seconds
+            if not _old_enough(entry, age_limit, checked_at):
+                continue
+            removed += int(_remove_artifact(entry))
+        try:
+            scan_dir.rmdir()
+        except OSError:
+            pass
+    return removed
 
 
 def cleanup_persisted_scan_caches(
