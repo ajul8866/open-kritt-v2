@@ -26,6 +26,7 @@ describe('archive labels', () => {
     expect(archiveKindLabel('supplemental_post_script')).toBe('Supplemental post-script');
     expect(archiveKindLabel('step')).toBe('Scan step');
     expect(archiveKindLabel('custom_kind')).toBe('Custom kind');
+    expect(archiveKindLabel('__proto__')).toBe('Proto');
     expect(archiveKindLabel(null)).toBe('Job');
   });
 

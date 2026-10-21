@@ -12,7 +12,7 @@ import {
 import { Button, ErrorState, Spinner } from './ui.jsx';
 
 const DEFAULT_DESCRIPTION =
-  'Workspace copies and harness transcripts saved before the engine deletes a job workspace. Downloads remain available until the retention window expires.';
+  'Workspace copies and harness transcripts saved before the engine deletes a job workspace. Downloads remain available until the retention window expires. Treat every archive as sensitive.';
 
 export default function EvidenceArchives({ scanId, vulnerabilityId, title = 'Evidence archives', description }) {
   const { data, loading, error, reload } = useFetch(
@@ -56,7 +56,7 @@ export default function EvidenceArchives({ scanId, vulnerabilityId, title = 'Evi
     >
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 14 }}>
         <div>
-          <div style={{ fontSize: 14, fontWeight: 600 }}>{title}</div>
+          <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>{title}</h3>
           <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 4, lineHeight: 1.5 }}>
             {description || DEFAULT_DESCRIPTION}
           </div>
@@ -102,6 +102,12 @@ export default function EvidenceArchives({ scanId, vulnerabilityId, title = 'Evi
                   {entry.id} · {formatArchiveTime(entry.archivedAt)} · {formatArchiveBytes(entry.bytes)}
                   {entry.incomplete ? ' · incomplete manifest' : ''}
                 </div>
+                {entry.workspaceMode === 'image' ? (
+                  <div style={{ fontSize: 11.5, color: 'var(--pend)', marginTop: 4 }}>
+                    Image workspace mode: agent-written files stay in the disposable runner; this archive contains the
+                    wrapper workspace and transcript.
+                  </div>
+                ) : null}
               </div>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 <Button
@@ -124,6 +130,8 @@ export default function EvidenceArchives({ scanId, vulnerabilityId, title = 'Evi
                   <Button
                     variant="ghost"
                     onClick={() => setExpanded(expandedEntry ? null : entry.id)}
+                    aria-expanded={expandedEntry}
+                    aria-controls={`sessions-${entry.id}`}
                     style={{ height: 30, padding: '0 11px', fontSize: 12 }}
                   >
                     {expandedEntry ? 'Hide sessions' : `Sessions (${sessions.length})`}
@@ -132,7 +140,10 @@ export default function EvidenceArchives({ scanId, vulnerabilityId, title = 'Evi
               </div>
             </div>
             {expandedEntry && sessions.length > 0 && (
-              <div style={{ marginTop: 10, paddingLeft: 12, borderLeft: '2px solid var(--border)' }}>
+              <div
+                id={`sessions-${entry.id}`}
+                style={{ marginTop: 10, paddingLeft: 12, borderLeft: '2px solid var(--border)' }}
+              >
                 {sessions.map((file) => (
                   <div key={file} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '4px 0' }}>
                     <span
@@ -158,7 +169,7 @@ export default function EvidenceArchives({ scanId, vulnerabilityId, title = 'Evi
       })}
 
       {downloadError && (
-        <div style={{ marginTop: 10, fontSize: 12, color: 'var(--fail)' }}>
+        <div role="alert" style={{ marginTop: 10, fontSize: 12, color: 'var(--fail)' }}>
           {downloadError.message || 'The archive download failed.'}
         </div>
       )}

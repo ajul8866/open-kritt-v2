@@ -24,9 +24,9 @@ export function formatArchiveBytes(value) {
 export function archiveKindLabel(kind) {
   const key = `${kind ?? ''}`.trim();
   if (!key) return 'Job';
-  if (KIND_LABELS[key]) return KIND_LABELS[key];
-  const words = key.replace(/_/g, ' ');
-  return words.charAt(0).toUpperCase() + words.slice(1);
+  if (Object.prototype.hasOwnProperty.call(KIND_LABELS, key)) return KIND_LABELS[key];
+  const words = key.replace(/_/g, ' ').trim();
+  return words ? words.charAt(0).toUpperCase() + words.slice(1) : 'Job';
 }
 
 export function archiveEntryLabel(entry = {}) {

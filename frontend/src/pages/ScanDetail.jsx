@@ -670,7 +670,7 @@ export default function ScanDetail() {
           />
         </div>
 
-        <EvidenceArchives scanId={id} />
+        <EvidenceArchives key={id} scanId={id} />
 
         {postScripts.length > 0 && <ConfiguredPostScripts postScripts={postScripts} />}
 

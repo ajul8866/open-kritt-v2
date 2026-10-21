@@ -10,6 +10,8 @@ export const MAX_ARCHIVE_ENTRIES = 500;
 export const MAX_MANIFEST_BYTES = 1024 * 1024;
 
 export const ARCHIVE_ENTRY_PATTERN = /^metadata-\d+-\d{8}T\d{6}Z(?:-\d+)?$/;
+const ARCHIVE_ENTRY_TIMESTAMP_PATTERN = /^metadata-\d+-(\d{8}T\d{6}Z)/;
+const LEGACY_SESSION_PREFIXES = ['.codex/sessions/', '.claude/projects/', '.grok/sessions/'];
 const SAFE_SEGMENT_PATTERN = /^[A-Za-z0-9._-]+$/;
 const ROOT_FILES = new Map([
   ['workspace.tar.gz', 'application/gzip'],
@@ -78,6 +80,30 @@ function textOrNull(value) {
   return typeof value === 'string' && value.trim() ? value : null;
 }
 
+function archiveEntryTimestamp(name) {
+  return ARCHIVE_ENTRY_TIMESTAMP_PATTERN.exec(name)?.[1] || '';
+}
+
+// Older engine builds recorded transcript paths relative to HOME without the
+// sessions/ prefix. Accept and normalize those only for known harness roots.
+function normalizeSessionFile(value) {
+  if (typeof value !== 'string') return null;
+  try {
+    const normalized = normalizeArchiveRelativePath(value);
+    return normalized.startsWith('sessions/') ? normalized : null;
+  } catch {
+    if (
+      !value.includes('\\') &&
+      !value.includes('\0') &&
+      value.endsWith('.jsonl') &&
+      LEGACY_SESSION_PREFIXES.some((prefix) => value.startsWith(prefix))
+    ) {
+      return `sessions/${value}`;
+    }
+    return null;
+  }
+}
+
 export function normalizeArchiveRelativePath(value) {
   if (value === undefined || value === null || value === '') return DEFAULT_ARCHIVE_FILE;
   if (typeof value !== 'string') throw new ArchivePathError();
@@ -104,7 +130,10 @@ export function archiveContentType(relativePath) {
   return 'application/octet-stream';
 }
 
-export async function listScanArchives(scanId, { env = process.env, fsApi = fs } = {}) {
+export async function listScanArchives(
+  scanId,
+  { env = process.env, fsApi = fs, maxEntries = MAX_ARCHIVE_ENTRIES } = {}
+) {
   const directory = scanArchiveDirectory(scanId, { env });
   let entries;
   try {
@@ -114,9 +143,17 @@ export async function listScanArchives(scanId, { env = process.env, fsApi = fs }
     throw error;
   }
 
+  // Directory iteration order is filesystem-dependent. Pick the newest
+  // entries by their embedded UTC timestamp before reading manifests so a
+  // busy scan never gets an arbitrary subset.
+  const candidates = entries
+    .filter((entry) => entry.isDirectory() && ARCHIVE_ENTRY_PATTERN.test(entry.name))
+    .map((entry) => ({ name: entry.name, timestamp: archiveEntryTimestamp(entry.name) }))
+    .sort((left, right) => right.timestamp.localeCompare(left.timestamp) || right.name.localeCompare(left.name))
+    .slice(0, Math.max(0, maxEntries));
+
   const archives = [];
-  for (const entry of entries) {
-    if (!entry.isDirectory() || !ARCHIVE_ENTRY_PATTERN.test(entry.name)) continue;
+  for (const entry of candidates) {
     let manifest = null;
     let incomplete = false;
     try {
@@ -135,7 +172,6 @@ export async function listScanArchives(scanId, { env = process.env, fsApi = fs }
       incomplete = true;
     }
     archives.push(summarizeArchiveEntry(entry.name, manifest, incomplete));
-    if (archives.length >= MAX_ARCHIVE_ENTRIES) break;
   }
 
   archives.sort((left, right) => {
@@ -148,13 +184,7 @@ export async function listScanArchives(scanId, { env = process.env, fsApi = fs }
 export function summarizeArchiveEntry(id, manifest, incomplete) {
   const archive = manifest?.archive && typeof manifest.archive === 'object' ? manifest.archive : {};
   const sessionFiles = Array.isArray(manifest?.session_files)
-    ? manifest.session_files.filter((value) => {
-        try {
-          return normalizeArchiveRelativePath(value).startsWith('sessions/');
-        } catch {
-          return false;
-        }
-      })
+    ? manifest.session_files.map(normalizeSessionFile).filter(Boolean)
     : [];
 
   return {
@@ -162,6 +192,7 @@ export function summarizeArchiveEntry(id, manifest, incomplete) {
     incomplete: Boolean(incomplete),
     kind: textOrNull(manifest?.kind),
     status: textOrNull(manifest?.status),
+    workspaceMode: textOrNull(manifest?.workspace_mode),
     scanId: integerOrNull(manifest?.scan_id),
     workflowId: integerOrNull(manifest?.workflow_id),
     metadataId: integerOrNull(manifest?.metadata_id),
@@ -195,12 +226,40 @@ export async function resolveArchiveFile(
   if (!ARCHIVE_ENTRY_PATTERN.test(entryName)) throw new ArchiveNotFoundError();
 
   const safeRelativePath = normalizeArchiveRelativePath(relativePath);
+  const rootDirectory = path.resolve(archiveRoot(env));
   const scanDirectory = path.resolve(scanArchiveDirectory(scanId, { env }));
   const entryDirectory = path.resolve(scanDirectory, entryName);
-  if (!isInside(scanDirectory, entryDirectory)) throw new ArchivePathError();
+  if (!isInside(rootDirectory, scanDirectory) || !isInside(scanDirectory, entryDirectory)) {
+    throw new ArchivePathError();
+  }
 
-  const candidate = path.resolve(entryDirectory, ...safeRelativePath.split('/'));
-  if (!isInside(entryDirectory, candidate)) throw new ArchivePathError();
+  let scanStat;
+  let entryStat;
+  try {
+    scanStat = await fsApi.lstat(scanDirectory);
+    entryStat = await fsApi.lstat(entryDirectory);
+  } catch {
+    throw new ArchiveNotFoundError();
+  }
+  if (scanStat.isSymbolicLink() || !scanStat.isDirectory()) throw new ArchiveNotFoundError();
+  if (entryStat.isSymbolicLink() || !entryStat.isDirectory()) throw new ArchiveNotFoundError();
+
+  let realRootDirectory;
+  let realScanDirectory;
+  let realEntryDirectory;
+  try {
+    realRootDirectory = await fsApi.realpath(rootDirectory);
+    realScanDirectory = await fsApi.realpath(scanDirectory);
+    realEntryDirectory = await fsApi.realpath(entryDirectory);
+  } catch {
+    throw new ArchiveNotFoundError();
+  }
+  if (!isInside(realRootDirectory, realScanDirectory) || !isInside(realScanDirectory, realEntryDirectory)) {
+    throw new ArchivePathError();
+  }
+
+  const candidate = path.resolve(realEntryDirectory, ...safeRelativePath.split('/'));
+  if (!isInside(realEntryDirectory, candidate)) throw new ArchivePathError();
 
   let stat;
   try {
@@ -210,10 +269,8 @@ export async function resolveArchiveFile(
   }
   if (stat.isSymbolicLink() || !stat.isFile()) throw new ArchiveNotFoundError();
 
-  let realEntryDirectory;
   let realCandidate;
   try {
-    realEntryDirectory = await fsApi.realpath(entryDirectory);
     realCandidate = await fsApi.realpath(candidate);
   } catch {
     throw new ArchiveNotFoundError();

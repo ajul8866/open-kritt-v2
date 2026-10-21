@@ -14,6 +14,7 @@ import json
 import logging
 import os
 import shutil
+import stat
 import tarfile
 import time
 from dataclasses import dataclass
@@ -78,9 +79,14 @@ class _TarStats:
     bytes: int
     files: int
     skipped: list[str]
+    skipped_special: list[str]
 
 
 class _ArchiveLimitExceeded(Exception):
+    pass
+
+
+class _ArchiveWriteError(Exception):
     pass
 
 
@@ -89,7 +95,7 @@ def workspace_archive_retention_hours(data_dir: str | None = None) -> float:
 
     return runtime_float(
         "ENGINE_WORKSPACE_ARCHIVE_RETENTION_HOURS",
-        0.0,
+        5.0,
         data_dir=data_dir,
         minimum=0.0,
         maximum=24.0 * 365.0,
@@ -110,6 +116,7 @@ def archive_workspace(
     post_script_id: int | None = None,
     post_script_name: str | None = None,
     status: str | None = None,
+    workspace_mode: str | None = None,
     repo_dir: str | Path | None = None,
     checked_out_commit: str | None = None,
     model: str | None = None,
@@ -132,6 +139,9 @@ def archive_workspace(
         return None
 
     root = Path(str(getattr(workspace, "root_dir", "") or ""))
+    if not str(getattr(workspace, "root_dir", "") or "").strip() or not root.is_absolute():
+        LOGGER.warning("workspace archive skipped for metadata %s: workspace root is missing", metadata_id)
+        return None
     if not root.is_dir():
         LOGGER.warning("workspace archive skipped for metadata %s: %s does not exist", metadata_id, root)
         return None
@@ -154,6 +164,7 @@ def archive_workspace(
         post_script_id=post_script_id,
         post_script_name=post_script_name,
         status=status,
+        workspace_mode=workspace_mode,
         checked_out_commit=checked_out_commit,
         model=model,
         harness=harness,
@@ -180,6 +191,7 @@ def archive_job_directory(
     post_script_id: int | None = None,
     post_script_name: str | None = None,
     status: str | None = None,
+    workspace_mode: str | None = None,
     checked_out_commit: str | None = None,
     model: str | None = None,
     harness: str | None = None,
@@ -211,6 +223,7 @@ def archive_job_directory(
         post_script_id=post_script_id,
         post_script_name=post_script_name,
         status=status,
+        workspace_mode=workspace_mode,
         checked_out_commit=checked_out_commit,
         model=model,
         harness=harness,
@@ -239,6 +252,7 @@ def _write_archive(
     post_script_id: int | None,
     post_script_name: str | None,
     status: str | None,
+    workspace_mode: str | None,
     checked_out_commit: str | None,
     model: str | None,
     harness: str | None,
@@ -287,6 +301,7 @@ def _write_archive(
             "post_script_id": post_script_id,
             "post_script_name": post_script_name,
             "status": status,
+            "workspace_mode": workspace_mode,
             "checked_out_commit": checked_out_commit,
             "model": model,
             "harness": harness,
@@ -299,6 +314,7 @@ def _write_archive(
             },
             "excluded_dir_names": sorted(_EXCLUDED_DIR_NAMES),
             "skipped_large_files": tar_stats.skipped,
+            "skipped_special_files": tar_stats.skipped_special,
             "session_files": session_files,
             "session_bytes": session_bytes,
             "context": _json_safe(context),
@@ -321,6 +337,10 @@ def _write_archive(
         shutil.rmtree(partial_dir, ignore_errors=True)
         LOGGER.warning("workspace archive skipped for metadata %s: %s", metadata_id, exc)
         return None
+    except _ArchiveWriteError as exc:
+        shutil.rmtree(partial_dir, ignore_errors=True)
+        LOGGER.warning("workspace archive aborted for metadata %s: %s", metadata_id, exc)
+        return None
     except Exception as exc:  # noqa: BLE001 - archival must never break cleanup
         shutil.rmtree(partial_dir, ignore_errors=True)
         LOGGER.warning("workspace archive failed for metadata %s: %s", metadata_id, exc, exc_info=True)
@@ -335,11 +355,12 @@ def _write_workspace_tarball(
     max_file_bytes: int,
 ) -> _TarStats:
     if not repo_dir.is_dir():
-        return _TarStats(bytes=0, files=0, skipped=[])
+        return _TarStats(bytes=0, files=0, skipped=[], skipped_special=[])
 
     total_bytes = 0
     file_count = 0
     skipped: list[str] = []
+    skipped_special: list[str] = []
     with tarfile.open(target, "w:gz") as archive:
         for current, dirs, files in os.walk(repo_dir, followlinks=False):
             current_path = Path(current)
@@ -349,22 +370,26 @@ def _write_workspace_tarball(
             for name in files:
                 path = current_path / name
                 try:
-                    size = path.lstat().st_size
+                    stat_result = path.lstat()
                 except OSError:
+                    skipped_special.append(path.relative_to(repo_dir).as_posix())
                     continue
                 arcname = path.relative_to(repo_dir).as_posix()
-                if size > max_file_bytes:
+                if stat.S_ISLNK(stat_result.st_mode) or not stat.S_ISREG(stat_result.st_mode):
+                    skipped_special.append(arcname)
+                    continue
+                if stat_result.st_size > max_file_bytes:
                     skipped.append(arcname)
                     continue
-                total_bytes += size
+                total_bytes += stat_result.st_size
                 if total_bytes > max_archive_bytes:
                     raise _ArchiveLimitExceeded(f"workspace evidence exceeds {max_archive_bytes} bytes at {arcname}")
                 try:
                     archive.add(path, arcname=arcname, recursive=False)
                     file_count += 1
-                except OSError:
-                    skipped.append(arcname)
-    return _TarStats(bytes=total_bytes, files=file_count, skipped=skipped)
+                except (OSError, tarfile.TarError) as exc:
+                    raise _ArchiveWriteError(f"could not add {arcname}: {exc}") from exc
+    return _TarStats(bytes=total_bytes, files=file_count, skipped=skipped, skipped_special=skipped_special)
 
 
 def _copy_session_transcripts(home: Path, target_root: Path, *, max_session_bytes: int) -> tuple[list[str], int]:
@@ -397,7 +422,7 @@ def _copy_session_transcripts(home: Path, target_root: Path, *, max_session_byte
                     shutil.copy2(source, destination)
                 except OSError:
                     continue
-                copied.append(relative_path.as_posix())
+                copied.append(destination.relative_to(target_root.parent).as_posix())
                 total_bytes += size
     return copied, total_bytes
 
@@ -417,8 +442,9 @@ def _readme_text(manifest: dict[str, Any]) -> str:
         "written by the agent. Dependency and build directories are excluded:\n"
         f"{', '.join(manifest['excluded_dir_names'])}\n"
         "\n"
-        "sessions/ contains harness transcript files (.jsonl). Credentials are\n"
-        "never archived. See manifest.json for the complete inventory.\n"
+        "sessions/ contains harness transcript files (.jsonl). Credential files\n"
+        "such as auth.json are not copied, but transcripts can contain secrets\n"
+        "printed by the agent. Treat every archive as sensitive.\n"
     )
 
 

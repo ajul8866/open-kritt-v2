@@ -7,6 +7,7 @@ from open_kritt_engine.workspace import JobWorkspace
 from open_kritt_engine.workspace_archive import (
     archive_job_directory,
     archive_workspace,
+    workspace_archive_retention_hours,
 )
 
 
@@ -23,6 +24,8 @@ def _build_job_workspace(tmp_path):
     (repo / "lib" / "dependency.sol").write_text("contract Dependency {}\n", encoding="utf-8")
     (repo / "out" / "DualTokenVault.json").write_text("{}\n", encoding="utf-8")
     (repo / "node_modules" / "package.js").write_text("x\n", encoding="utf-8")
+    (repo / "poc-link").symlink_to("/etc/hostname")
+    os.mkfifo(repo / "pipe")
     session = home / ".codex" / "sessions" / "2026" / "10" / "21" / "rollout.jsonl"
     session.parent.mkdir(parents=True)
     session.write_text('{"type":"message"}\n', encoding="utf-8")
@@ -45,6 +48,7 @@ def test_archive_workspace_captures_poc_and_transcript(tmp_path):
         vulnerability_id=829,
         post_script_id=4,
         post_script_name="PoC Creator",
+        workspace_mode="copy",
         retention_hours=5,
         now=1_700_000_000,
     )
@@ -62,6 +66,8 @@ def test_archive_workspace_captures_poc_and_transcript(tmp_path):
     assert manifest["retention_hours"] == 5
     assert manifest["expires_at"] == "2023-11-15T03:13:20Z"
     assert manifest["workspace_root"] == str(root)
+    assert manifest["workspace_mode"] == "copy"
+    assert manifest["session_files"] == ["sessions/.codex/sessions/2026/10/21/rollout.jsonl"]
 
     with tarfile.open(archive / "workspace.tar.gz") as tarball:
         names = set(tarball.getnames())
@@ -69,6 +75,9 @@ def test_archive_workspace_captures_poc_and_transcript(tmp_path):
     assert "foundry.toml" in names
     assert "src/DualTokenVault.sol" in names
     assert not any(name.startswith(("lib/", "out/", "node_modules/")) for name in names)
+    assert "poc-link" not in names
+    assert "pipe" not in names
+    assert set(manifest["skipped_special_files"]) == {"poc-link", "pipe"}
 
     session_files = list((archive / "sessions").rglob("*.jsonl"))
     assert [path.name for path in session_files] == ["rollout.jsonl"]
@@ -184,3 +193,49 @@ def test_cleanup_workspace_archives_is_noop_when_disabled(tmp_path):
 
     assert cleanup_workspace_archives(str(data_dir), retention_hours=0, now=1_700_000_000) == 0
     assert expired.exists()
+
+
+def test_archive_retention_defaults_to_five_hours(tmp_path, monkeypatch):
+    monkeypatch.delenv("ENGINE_WORKSPACE_ARCHIVE_RETENTION_HOURS", raising=False)
+    monkeypatch.delenv("ENGINE_RUNTIME_CONFIG_PATH", raising=False)
+
+    assert workspace_archive_retention_hours(str(tmp_path)) == 5.0
+
+
+def test_archive_workspace_skips_empty_root(tmp_path):
+    workspace = JobWorkspace(root_dir="", repo_base_dir=str(tmp_path), env={})
+
+    archive = archive_workspace(
+        workspace,
+        data_dir=str(tmp_path / "data"),
+        metadata_id=42,
+        kind="step",
+        retention_hours=5,
+    )
+
+    assert archive is None
+    assert not (tmp_path / "data" / "workspace-archives").exists()
+
+
+def test_archive_aborts_instead_of_publishing_a_corrupt_tarball(tmp_path, monkeypatch):
+    workspace, data_dir, _root = _build_job_workspace(tmp_path)
+    original_add = tarfile.TarFile.add
+
+    def failing_add(self, name, arcname=None, recursive=True, **kwargs):
+        if str(arcname).endswith("StaleOracleFallbackFeePoC.t.sol"):
+            raise OSError("simulated read failure")
+        return original_add(self, name, arcname=arcname, recursive=recursive, **kwargs)
+
+    monkeypatch.setattr(tarfile.TarFile, "add", failing_add)
+
+    archive = archive_workspace(
+        workspace,
+        data_dir=str(data_dir),
+        metadata_id=42,
+        kind="step",
+        retention_hours=5,
+    )
+
+    assert archive is None
+    assert not list((data_dir / "workspace-archives").rglob("workspace.tar.gz"))
+    assert not list((data_dir / "workspace-archives").rglob("*.partial"))

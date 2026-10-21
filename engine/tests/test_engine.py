@@ -3179,6 +3179,7 @@ def test_worker_archives_workspace_before_cleanup(monkeypatch, tmp_path):
     with tarfile.open(archives[0]) as tarball:
         assert "test/PoC.t.sol" in tarball.getnames()
     assert [path.name for path in (archives[0].parent / "sessions").rglob("*.jsonl")] == ["rollout.jsonl"]
+    assert manifest["session_files"] == ["sessions/.codex/sessions/rollout.jsonl"]
     assert not root.exists()
 
 
@@ -3470,6 +3471,55 @@ def test_post_processing_archives_workspace_before_cleanup(monkeypatch, tmp_path
     with tarfile.open(archives[0]) as tarball:
         assert "test/StaleOraclePoC.t.sol" in tarball.getnames()
     assert [path.name for path in (archives[0].parent / "sessions").rglob("*.jsonl")] == ["session.jsonl"]
+    assert manifest["session_files"] == ["sessions/.claude/projects/session.jsonl"]
+    assert not root.exists()
+
+
+def test_post_processing_skips_workspace_archive_for_dedupe(monkeypatch, tmp_path):
+    runtime_path = tmp_path / "engine-runtime.env"
+    runtime_path.write_text("ENGINE_WORKSPACE_ARCHIVE_RETENTION_HOURS=5\n", encoding="utf-8")
+    monkeypatch.setenv("ENGINE_RUNTIME_CONFIG_PATH", str(runtime_path))
+    root = tmp_path / "post-job"
+    (root / "workspace").mkdir(parents=True)
+
+    class Workspace:
+        root_dir = str(root)
+        env = {"HOME": str(root / "home")}
+
+    prepared = SimpleNamespace(
+        workspace=Workspace(),
+        repo_dir=str(root / "workspace"),
+        checked_out_commit="def",
+        layout="Dependency repositories are checked out as top-level directories inside the same workspace root.",
+        manifest_json='{"dependencies":[]}',
+        runner_image=None,
+    )
+
+    class FakePostDb:
+        @contextmanager
+        def connect(self):
+            yield FakeConn()
+
+        def update_post_process_metadata(self, _conn, metadata_id, **kwargs):
+            pass
+
+    monkeypatch.setattr(post_processing_module, "prepare_dependency_workspace", lambda **_kwargs: prepared)
+    processor = PostProcessor(
+        SimpleNamespace(retry_count=0, data_dir=str(tmp_path), github_token=None),
+        FakePostDb(),
+    )
+
+    processor._run_harness_with_retries(
+        metadata_id=9,
+        scan=scan(),
+        harness=FakeHarness([{"ok": True}]),
+        prompt="Dedupe findings.",
+        schema={},
+        validator=lambda _payload: None,
+        kind="dedupe",
+    )
+
+    assert not (tmp_path / "workspace-archives").exists()
     assert not root.exists()
 
 

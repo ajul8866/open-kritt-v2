@@ -656,7 +656,7 @@ class Worker:
         retain_after = now_utc() - timedelta(days=retention_days)
         archive_retention_hours = runtime_float(
             "ENGINE_WORKSPACE_ARCHIVE_RETENTION_HOURS",
-            0.0,
+            5.0,
             data_dir=getattr(self.config, "data_dir", None),
             minimum=0.0,
             maximum=24.0 * 365.0,
@@ -1875,6 +1875,7 @@ class Worker:
                             kind="step",
                             step_id=_optional_int(step.id),
                             status=archive_status,
+                            workspace_mode="image" if getattr(prepared, "runner_image", None) else "copy",
                             repo_dir=prepared.repo_dir,
                             checked_out_commit=checked_out_commit,
                             model=getattr(selection, "model", None),

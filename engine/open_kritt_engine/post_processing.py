@@ -874,39 +874,43 @@ class PostProcessor:
         finally:
             workspace_metadata_id = POST_WORKSPACE_ID_OFFSET + metadata_id
             archive_status = "failed" if sys.exc_info()[0] is not None else "completed"
-            try:
-                if prepared is not None:
-                    archive_workspace(
-                        prepared.workspace,
-                        data_dir=self.config.data_dir,
-                        metadata_id=metadata_id,
-                        kind=kind,
-                        status=archive_status,
-                        scan_id=_optional_int(scan.get("id")),
-                        workflow_id=_optional_int(scan.get("workflow_id")),
-                        repo_dir=prepared.repo_dir,
-                        checked_out_commit=checked_out_commit,
-                        model=getattr(selection, "model", None),
-                        harness=getattr(selection, "harness", None),
-                        archive_context=archive_context,
-                        **_archive_context_fields(archive_context),
-                    )
-                else:
-                    archive_job_directory(
-                        data_dir=self.config.data_dir,
-                        metadata_id=metadata_id,
-                        workspace_metadata_id=workspace_metadata_id,
-                        kind=kind,
-                        status=archive_status,
-                        scan_id=_optional_int(scan.get("id")),
-                        workflow_id=_optional_int(scan.get("workflow_id")),
-                        model=getattr(selection, "model", None),
-                        harness=getattr(selection, "harness", None),
-                        archive_context=archive_context,
-                        **_archive_context_fields(archive_context),
-                    )
-            except Exception:
-                LOGGER.exception("could not archive post-process workspace for metadata %s", metadata_id)
+            # Dedupe and ranker calls analyze findings; they do not produce PoC
+            # evidence and would multiply archive size across batches.
+            if kind not in {"dedupe", "ranker"}:
+                try:
+                    if prepared is not None:
+                        archive_workspace(
+                            prepared.workspace,
+                            data_dir=self.config.data_dir,
+                            metadata_id=metadata_id,
+                            kind=kind,
+                            status=archive_status,
+                            workspace_mode="image" if getattr(prepared, "runner_image", None) else "copy",
+                            scan_id=_optional_int(scan.get("id")),
+                            workflow_id=_optional_int(scan.get("workflow_id")),
+                            repo_dir=prepared.repo_dir,
+                            checked_out_commit=checked_out_commit,
+                            model=getattr(selection, "model", None),
+                            harness=getattr(selection, "harness", None),
+                            archive_context=archive_context,
+                            **_archive_context_fields(archive_context),
+                        )
+                    else:
+                        archive_job_directory(
+                            data_dir=self.config.data_dir,
+                            metadata_id=metadata_id,
+                            workspace_metadata_id=workspace_metadata_id,
+                            kind=kind,
+                            status=archive_status,
+                            scan_id=_optional_int(scan.get("id")),
+                            workflow_id=_optional_int(scan.get("workflow_id")),
+                            model=getattr(selection, "model", None),
+                            harness=getattr(selection, "harness", None),
+                            archive_context=archive_context,
+                            **_archive_context_fields(archive_context),
+                        )
+                except Exception:
+                    LOGGER.exception("could not archive post-process workspace for metadata %s", metadata_id)
             if prepared is not None:
                 cleanup_workspace(prepared.workspace)
             else:
@@ -960,7 +964,6 @@ class PostProcessor:
                 schema=dedupe_schema(),
                 validator=validator,
                 kind="dedupe",
-                archive_context={"target_vulnerability_ids": [_int(row["id"]) for row in targets]},
             )
             clusters = validate_dedupe_payload(payload, anchors=anchors, targets=targets)
             mapping = dedupe_mapping_from_clusters(clusters, scan_id=scan_id, anchors=anchors, targets=targets)
@@ -1050,7 +1053,6 @@ class PostProcessor:
                 schema=ranker_schema(),
                 validator=validator,
                 kind="ranker",
-                archive_context={"target_vulnerability_ids": [_int(row["id"]) for row in targets]},
             )
             updates = rank_updates_from_payload(
                 payload,

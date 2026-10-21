@@ -15,6 +15,7 @@ import {
   normalizeArchiveRelativePath,
   resolveArchiveFile,
   scanArchiveDirectory,
+  summarizeArchiveEntry,
 } from '../src/lib/workspaceArchives.js';
 
 async function makeArchiveRoot() {
@@ -88,6 +89,7 @@ test('listScanArchives returns sorted manifests and ignores partial or malformed
         post_script_name: 'PoC Creator',
         archived_at: '2026-10-21T09:00:00Z',
         retention_hours: 5,
+        workspace_mode: 'copy',
         archive: { bytes: 1234, files: 7 },
         session_files: ['sessions/.codex/sessions/rollout.jsonl'],
       },
@@ -115,12 +117,41 @@ test('listScanArchives returns sorted manifests and ignores partial or malformed
     assert.equal(archives[1].vulnerabilityId, 829);
     assert.equal(archives[1].postScriptName, 'PoC Creator');
     assert.equal(archives[1].bytes, 1234);
+    assert.equal(archives[1].workspaceMode, 'copy');
     assert.deepEqual(archives[1].sessionFiles, ['sessions/.codex/sessions/rollout.jsonl']);
     assert.equal(archives[2].incomplete, true);
     assert.deepEqual(await listScanArchives(999, { env }), []);
+
+    // The cap must keep the newest entries, not whichever readdir returned first.
+    const capped = await listScanArchives(381, { env, maxEntries: 2 });
+    assert.deepEqual(
+      capped.map((entry) => entry.id),
+      ['metadata-2433-20261021T100000Z', 'metadata-2435-20261021T120000Z']
+    );
   } finally {
     await rm(env.OPEN_KRITT_ENGINE_DATA_DIR, { recursive: true, force: true });
   }
+});
+
+test('summarizeArchiveEntry normalizes legacy transcript paths and drops unsafe ones', () => {
+  const summary = summarizeArchiveEntry(
+    'metadata-1-20261021T090000Z',
+    {
+      session_files: [
+        '.codex/sessions/2026/rollout.jsonl',
+        'sessions/.claude/projects/session.jsonl',
+        '../escape.jsonl',
+        '.codex/auth.json',
+        42,
+      ],
+    },
+    false
+  );
+
+  assert.deepEqual(summary.sessionFiles, [
+    'sessions/.codex/sessions/2026/rollout.jsonl',
+    'sessions/.claude/projects/session.jsonl',
+  ]);
 });
 
 test('listVulnerabilityArchives keeps only manifests for the requested finding', async () => {
@@ -187,6 +218,32 @@ test('resolveArchiveFile rejects traversal, missing files, and symlink escapes',
     await assert.rejects(
       resolveArchiveFile('../381', 'metadata-1-20261021T090000Z', undefined, { env }),
       ArchivePathError
+    );
+  } finally {
+    await rm(env.OPEN_KRITT_ENGINE_DATA_DIR, { recursive: true, force: true });
+  }
+});
+
+test('resolveArchiveFile rejects symlinked scan and entry directories', async () => {
+  const env = { OPEN_KRITT_ENGINE_DATA_DIR: await makeArchiveRoot() };
+  try {
+    const archiveBase = path.join(env.OPEN_KRITT_ENGINE_DATA_DIR, 'workspace-archives');
+    const outside = path.join(env.OPEN_KRITT_ENGINE_DATA_DIR, 'outside');
+    await mkdir(archiveBase, { recursive: true });
+    await mkdir(outside, { recursive: true });
+    await writeFile(path.join(outside, 'workspace.tar.gz'), 'outside bytes', 'utf8');
+
+    await symlink(outside, path.join(archiveBase, 'scan-382'));
+    await mkdir(path.join(archiveBase, 'scan-383'), { recursive: true });
+    await symlink(outside, path.join(archiveBase, 'scan-383', 'metadata-1-20261021T090000Z'));
+
+    await assert.rejects(
+      resolveArchiveFile(382, 'metadata-1-20261021T090000Z', undefined, { env }),
+      ArchiveNotFoundError
+    );
+    await assert.rejects(
+      resolveArchiveFile(383, 'metadata-1-20261021T090000Z', undefined, { env }),
+      ArchiveNotFoundError
     );
   } finally {
     await rm(env.OPEN_KRITT_ENGINE_DATA_DIR, { recursive: true, force: true });
