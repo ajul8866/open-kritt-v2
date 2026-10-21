@@ -1,8 +1,22 @@
 import { Router } from 'express';
 import { prisma } from '../db.js';
 import { serializeVulnerability } from '../lib/serialize.js';
+import { ArchivePathError, listVulnerabilityArchives } from '../lib/workspaceArchives.js';
 
 const router = Router();
+
+// GET /api/vulnerabilities/:id/archives — evidence snapshots for this finding.
+router.get('/:id/archives', async (req, res, next) => {
+  try {
+    const id = BigInt(req.params.id);
+    const vulnerability = await prisma.vulnerability.findUnique({ where: { id }, select: { scanId: true } });
+    if (!vulnerability) return res.status(404).json({ error: 'Vulnerability not found.' });
+    res.json({ archives: await listVulnerabilityArchives(vulnerability.scanId, id) });
+  } catch (e) {
+    if (e instanceof ArchivePathError) return res.status(400).json({ error: e.message });
+    next(e);
+  }
+});
 
 // GET /api/vulnerabilities/:id — a single finding with its post-script output.
 router.get('/:id', async (req, res, next) => {

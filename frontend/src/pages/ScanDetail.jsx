@@ -33,6 +33,7 @@ import Pagination from '../components/Pagination.jsx';
 import { saveBrowserDownload } from '../lib/download.js';
 import { extractExtraKeys } from '../lib/keys.js';
 import SelfImprovementPanel from '../components/self-improvement/SelfImprovementPanel.jsx';
+import EvidenceArchives from '../components/EvidenceArchives.jsx';
 
 const SUPPLEMENTAL_POST_SCRIPT_SCAN_STATUSES = new Set(['paused', 'completed', 'stopped', 'failed']);
 
@@ -668,6 +669,8 @@ export default function ScanDetail() {
             value={scan.repoKind === 'local' ? 'local snapshot' : scan.commitShort}
           />
         </div>
+
+        <EvidenceArchives scanId={id} />
 
         {postScripts.length > 0 && <ConfiguredPostScripts postScripts={postScripts} />}
 

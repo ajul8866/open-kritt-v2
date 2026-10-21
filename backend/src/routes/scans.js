@@ -36,6 +36,12 @@ import {
   MAX_FINDING_EXPORT_SOURCE_BYTES,
   MAX_FINDING_EXPORT_SOURCE_RECORD_BYTES,
 } from '../lib/findingExport.js';
+import {
+  ArchiveNotFoundError,
+  ArchivePathError,
+  listScanArchives,
+  resolveArchiveFile,
+} from '../lib/workspaceArchives.js';
 
 const router = Router();
 const runFindingExport = createFindingExportLimiter();
@@ -946,6 +952,35 @@ router.get('/:id/export', async (req, res, next) => {
       res.setHeader('Retry-After', String(e.retryAfterSeconds));
       return res.status(429).json({ error: e.message });
     }
+    next(e);
+  }
+});
+
+// GET /api/scans/:id/archives — evidence snapshots kept before workspace cleanup.
+router.get('/:id/archives', async (req, res, next) => {
+  try {
+    res.json({ archives: await listScanArchives(req.params.id) });
+  } catch (e) {
+    if (e instanceof ArchivePathError) return res.status(400).json({ error: e.message });
+    next(e);
+  }
+});
+
+// GET /api/scans/:id/archives/:entryId/file?path=workspace.tar.gz — download one archived file.
+router.get('/:id/archives/:entryId/file', async (req, res, next) => {
+  try {
+    const file = await resolveArchiveFile(req.params.id, req.params.entryId, req.query.path);
+    res.setHeader('Content-Type', file.contentType);
+    res.setHeader('Content-Disposition', `attachment; filename="${file.filename}"`);
+    res.setHeader('Cache-Control', 'no-store');
+    res.sendFile(file.path, { dotfiles: 'allow' }, (error) => {
+      if (!error) return;
+      if (!res.headersSent) next(error);
+      else res.destroy(error);
+    });
+  } catch (e) {
+    if (e instanceof ArchiveNotFoundError) return res.status(404).json({ error: e.message });
+    if (e instanceof ArchivePathError) return res.status(400).json({ error: e.message });
     next(e);
   }
 });

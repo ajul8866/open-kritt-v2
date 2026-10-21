@@ -167,6 +167,13 @@ export const api = {
   retrySupplementalPostScriptRun: (id, runId, body) =>
     request(`/scans/${id}/supplemental-post-script-runs/${runId}/retry`, { method: 'POST', body }),
   exportScanFindings: (id) => download(`/scans/${id}/export`, `scan-${id}-findings.zip`),
+  scanArchives: (id) => request(`/scans/${id}/archives`),
+  vulnerabilityArchives: (id) => request(`/vulnerabilities/${id}/archives`),
+  downloadArchiveFile: (scanId, entryId, filePath = 'workspace.tar.gz') =>
+    download(
+      `/scans/${scanId}/archives/${encodeURIComponent(entryId)}/file?path=${encodeURIComponent(filePath)}`,
+      `${entryId}-${filePath.split('/').pop() || 'download'}`
+    ),
   createScan: (body) => request('/scans', { method: 'POST', body }),
   updateScan: (id, body) => request(`/scans/${id}`, { method: 'PATCH', body }),
   // model providers currently configured for the engine
