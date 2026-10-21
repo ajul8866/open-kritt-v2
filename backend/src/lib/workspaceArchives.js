@@ -13,6 +13,8 @@ export const ARCHIVE_ENTRY_PATTERN = /^metadata-\d+-\d{8}T\d{6}Z(?:-\d+)?$/;
 const ARCHIVE_ENTRY_TIMESTAMP_PATTERN = /^metadata-\d+-(\d{8}T\d{6}Z)/;
 const LEGACY_SESSION_PREFIXES = ['.codex/sessions/', '.claude/projects/', '.grok/sessions/'];
 const SAFE_SEGMENT_PATTERN = /^[A-Za-z0-9._-]+$/;
+const MAX_SEGMENT_BYTES = 255;
+const MAX_RELATIVE_PATH_BYTES = 4096;
 const ROOT_FILES = new Map([
   ['workspace.tar.gz', 'application/gzip'],
   ['manifest.json', 'application/json; charset=utf-8'],
@@ -114,13 +116,20 @@ export function normalizeArchiveRelativePath(value) {
   if (typeof value !== 'string') throw new ArchivePathError();
   const raw = value.trim();
   if (!raw || raw.includes('\0') || raw.includes('\\')) throw new ArchivePathError();
+  if (Buffer.byteLength(raw, 'utf8') > MAX_RELATIVE_PATH_BYTES) throw new ArchivePathError();
   if (ROOT_FILES.has(raw)) return raw;
   if (!raw.startsWith('sessions/')) throw new ArchivePathError();
 
   const segments = raw.split('/');
   if (
     segments.length < 2 ||
-    segments.some((segment) => !SAFE_SEGMENT_PATTERN.test(segment) || segment === '.' || segment === '..')
+    segments.some(
+      (segment) =>
+        !SAFE_SEGMENT_PATTERN.test(segment) ||
+        segment === '.' ||
+        segment === '..' ||
+        Buffer.byteLength(segment, 'utf8') > MAX_SEGMENT_BYTES
+    )
   ) {
     throw new ArchivePathError();
   }

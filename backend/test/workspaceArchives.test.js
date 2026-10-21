@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
+import fs from 'node:fs';
 import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { Readable } from 'node:stream';
 import { test } from 'node:test';
 
 import { createApp } from '../src/app.js';
@@ -69,6 +71,7 @@ test('normalizeArchiveRelativePath allows only evidence files and session transc
     'sessions\\.codex\\rollout.jsonl',
     'notes.txt',
     ['workspace.tar.gz'],
+    `sessions/${'a'.repeat(256)}.jsonl`,
   ]) {
     assert.throws(() => normalizeArchiveRelativePath(value), ArchivePathError, String(value));
   }
@@ -323,6 +326,75 @@ test('scan archive routes list entries and stream allowed files', async () => {
     assert.equal(scanArchiveDirectory(381, { env }), path.dirname(directory));
     assert.equal(archiveRoot(env), path.join(env.OPEN_KRITT_ENGINE_DATA_DIR, 'workspace-archives'));
   } finally {
+    await server.close();
+    if (previous === undefined) delete process.env.OPEN_KRITT_ENGINE_DATA_DIR;
+    else process.env.OPEN_KRITT_ENGINE_DATA_DIR = previous;
+    await rm(env.OPEN_KRITT_ENGINE_DATA_DIR, { recursive: true, force: true });
+  }
+});
+
+test('every summarized session path is accepted by resolveArchiveFile', async () => {
+  const env = { OPEN_KRITT_ENGINE_DATA_DIR: await makeArchiveRoot() };
+  try {
+    const entryId = 'metadata-2-20261021T090000Z';
+    const manifest = {
+      session_files: [
+        '.codex/sessions/2026/rollout.jsonl',
+        'sessions/.claude/projects/session.jsonl',
+        '.codex/sessions/../../etc/passwd.jsonl',
+      ],
+    };
+    await writeArchive(env.OPEN_KRITT_ENGINE_DATA_DIR, 381, entryId, manifest, {
+      'sessions/.codex/sessions/2026/rollout.jsonl': '{"line":1}\n',
+      'sessions/.claude/projects/session.jsonl': '{"line":2}\n',
+    });
+
+    const summary = summarizeArchiveEntry(entryId, manifest, false);
+    assert.equal(summary.sessionFiles.length, 2);
+    for (const sessionFile of summary.sessionFiles) {
+      const resolved = await resolveArchiveFile(381, entryId, sessionFile, { env });
+      assert.equal(resolved.contentType, 'application/x-ndjson; charset=utf-8');
+    }
+  } finally {
+    await rm(env.OPEN_KRITT_ENGINE_DATA_DIR, { recursive: true, force: true });
+  }
+});
+
+test('failed archive streams return JSON errors without download headers', async () => {
+  const env = { OPEN_KRITT_ENGINE_DATA_DIR: await makeArchiveRoot() };
+  const previous = process.env.OPEN_KRITT_ENGINE_DATA_DIR;
+  process.env.OPEN_KRITT_ENGINE_DATA_DIR = env.OPEN_KRITT_ENGINE_DATA_DIR;
+  const entryId = 'metadata-3-20261021T090000Z';
+  await writeArchive(
+    env.OPEN_KRITT_ENGINE_DATA_DIR,
+    381,
+    entryId,
+    { scan_id: 381, archived_at: '2026-10-21T09:00:00Z' },
+    { 'workspace.tar.gz': 'tarball-bytes' }
+  );
+  const server = await startServer(env);
+  const originalCreateReadStream = fs.createReadStream;
+  try {
+    for (const [code, expectedStatus] of [
+      ['ENOENT', 404],
+      ['EACCES', 500],
+    ]) {
+      fs.createReadStream = () => {
+        const stream = new Readable({ read() {} });
+        process.nextTick(() => stream.destroy(Object.assign(new Error('stream failed'), { code })));
+        return stream;
+      };
+      const response = await fetch(`${server.origin}/api/scans/381/archives/${entryId}/file?path=workspace.tar.gz`);
+      assert.equal(response.status, expectedStatus);
+      assert.equal(response.headers.get('content-type'), 'application/json; charset=utf-8');
+      assert.equal(response.headers.get('content-disposition'), null);
+      assert.equal(response.headers.get('accept-ranges'), null);
+      assert.equal(response.headers.get('last-modified'), null);
+      const payload = await response.json();
+      assert.equal(typeof payload.error, 'string');
+    }
+  } finally {
+    fs.createReadStream = originalCreateReadStream;
     await server.close();
     if (previous === undefined) delete process.env.OPEN_KRITT_ENGINE_DATA_DIR;
     else process.env.OPEN_KRITT_ENGINE_DATA_DIR = previous;

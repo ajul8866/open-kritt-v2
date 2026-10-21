@@ -966,6 +966,21 @@ router.get('/:id/archives', async (req, res, next) => {
   }
 });
 
+// Clear file-stream headers before sending a JSON error for a failed sendFile.
+function resetDownloadResponseHeaders(res) {
+  for (const header of [
+    'Content-Disposition',
+    'Content-Range',
+    'Accept-Ranges',
+    'Last-Modified',
+    'ETag',
+    'Content-Length',
+  ]) {
+    res.removeHeader(header);
+  }
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+}
+
 // GET /api/scans/:id/archives/:entryId/file?path=workspace.tar.gz — download one archived file.
 router.get('/:id/archives/:entryId/file', async (req, res, next) => {
   try {
@@ -975,13 +990,15 @@ router.get('/:id/archives/:entryId/file', async (req, res, next) => {
     res.setHeader('Cache-Control', 'no-store');
     res.sendFile(file.path, { dotfiles: 'allow' }, (error) => {
       if (!error) return;
-      if (error.code === 'ENOENT' && !res.headersSent) {
-        res.removeHeader('Content-Disposition');
-        res.setHeader('Content-Type', 'application/json; charset=utf-8');
+      if (res.headersSent) {
+        res.destroy(error);
+        return;
+      }
+      resetDownloadResponseHeaders(res);
+      if (error.code === 'ENOENT' || error.status === 404) {
         return res.status(404).json({ error: 'Archive file not found.' });
       }
-      if (!res.headersSent) next(error);
-      else res.destroy(error);
+      next(error);
     });
   } catch (e) {
     if (e instanceof ArchiveNotFoundError) return res.status(404).json({ error: e.message });

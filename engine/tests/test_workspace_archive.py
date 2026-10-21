@@ -151,6 +151,7 @@ def test_archive_job_directory_uses_offset_workspace_id(tmp_path):
     assert archive is not None
     manifest = json.loads((archive / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["metadata_id"] == 42
+    assert manifest["workspace_mode"] is None
     assert manifest["workspace_root"].endswith("metadata-1000000042")
     with tarfile.open(archive / "workspace.tar.gz") as tarball:
         assert "test/PoC.t.sol" in tarball.getnames()

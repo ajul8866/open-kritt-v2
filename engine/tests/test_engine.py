@@ -3407,7 +3407,16 @@ def test_post_processing_harness_uses_dependency_workspace(monkeypatch, tmp_path
     assert not root.exists()
 
 
-def test_post_processing_archives_workspace_before_cleanup(monkeypatch, tmp_path):
+@pytest.mark.parametrize(
+    ("runner_image", "expected_mode", "expected_readme"),
+    [
+        (None, "copy", "including PoC files"),
+        ("open-kritt-workspace-snapshot:test", "image", "wrapper workspace only"),
+    ],
+)
+def test_post_processing_archives_workspace_before_cleanup(
+    monkeypatch, tmp_path, runner_image, expected_mode, expected_readme
+):
     runtime_path = tmp_path / "engine-runtime.env"
     runtime_path.write_text("ENGINE_WORKSPACE_ARCHIVE_RETENTION_HOURS=5\n", encoding="utf-8")
     monkeypatch.setenv("ENGINE_RUNTIME_CONFIG_PATH", str(runtime_path))
@@ -3430,6 +3439,7 @@ def test_post_processing_archives_workspace_before_cleanup(monkeypatch, tmp_path
         checked_out_commit="def",
         layout="Dependency repositories are checked out as top-level directories inside the same workspace root.",
         manifest_json='{"dependencies":[]}',
+        runner_image=runner_image,
     )
 
     class FakePostDb:
@@ -3464,7 +3474,8 @@ def test_post_processing_archives_workspace_before_cleanup(monkeypatch, tmp_path
     assert len(archives) == 1
     manifest = json.loads((archives[0].parent / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["kind"] == "post_script"
-    assert manifest["workspace_mode"] == "copy"
+    assert manifest["workspace_mode"] == expected_mode
+    assert expected_readme in (archives[0].parent / "README.txt").read_text(encoding="utf-8")
     assert manifest["scan_id"] == 7
     assert manifest["metadata_id"] == 9
     assert manifest["vulnerability_id"] == 829
