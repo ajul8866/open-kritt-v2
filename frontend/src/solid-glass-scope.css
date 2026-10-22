@@ -1,0 +1,25 @@
+/*
+ * Solid Glass keeps its own tokens inside `.solid-glass`.
+ *
+ * The app defines `--border`, `--accent`, `--hover` and `--sidebar` on its
+ * themed shell for its own palette, and Solid Glass uses the same four names
+ * for the material. Custom properties resolve on the element that reads them,
+ * so without this block the app's values reach Solid Glass components and the
+ * panes lose their rim, hover and sidebar colours.
+ *
+ * Values are copied from `solid-glass.css` (`:root` and `.dark`); when the
+ * vendored stylesheet is updated, update these too.
+ */
+.solid-glass {
+  --border: oklch(0.3 0.02 265 / 13%);
+  --accent: oklch(0.3 0.02 265 / 9%);
+  --hover: oklch(0.3 0.02 265 / 10%);
+  --sidebar: oklch(0.975 0.004 265 / 44%);
+}
+
+.dark .solid-glass {
+  --border: oklch(1 0 0 / 11%);
+  --accent: oklch(1 0 0 / 8%);
+  --hover: oklch(1 0 0 / 8%);
+  --sidebar: oklch(0.11 0 0 / 50%);
+}

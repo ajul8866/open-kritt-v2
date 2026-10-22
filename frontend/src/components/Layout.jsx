@@ -10,7 +10,7 @@ export default function Layout() {
   const [communityShareOpen, setCommunityShareOpen] = useState(false);
   return (
     <div
-      className="app-shell"
+      className={theme === 'dark' ? 'app-shell dark' : 'app-shell'}
       data-theme={theme}
       style={{
         display: 'flex',

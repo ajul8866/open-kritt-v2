@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
 
 // Version injected as the compile-time constant __APP_VERSION__ so the UI never
 // hardcodes a version. The root VERSION file is the source of truth, but it isn't
@@ -25,7 +26,12 @@ const appVersion = resolveAppVersion();
 // inside Docker, http://localhost:3002 locally). The browser keeps using relative
 // /api unless VITE_API_BASE_URL is set explicitly.
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), tailwindcss()],
+  resolve: {
+    alias: {
+      '@': join(here, 'src'),
+    },
+  },
   define: {
     __APP_VERSION__: JSON.stringify(appVersion),
   },
