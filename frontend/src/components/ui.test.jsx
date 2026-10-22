@@ -1,7 +1,25 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it } from 'vitest';
-import { Button, CardLinkOverlay } from './ui.jsx';
+import { Button, CardLinkOverlay, StatusBadge } from './ui.jsx';
+
+describe('status badge', () => {
+  it('shows the Solid Glass activity glyph while work is in progress', () => {
+    const html = renderToStaticMarkup(<StatusBadge status="running" />);
+
+    expect(html).toContain('data-slot="status-glyph"');
+    expect(html).toContain('size-3');
+    expect(html).not.toContain('size-4');
+    expect(html).toContain('Running');
+  });
+
+  it('keeps the static dot for states that are only waiting or finished', () => {
+    const html = renderToStaticMarkup(<StatusBadge status="completed" />);
+
+    expect(html).not.toContain('data-slot="status-glyph"');
+    expect(html).toContain('Completed');
+  });
+});
 
 describe('navigation UI', () => {
   it('renders navigation buttons as native links', () => {

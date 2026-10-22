@@ -87,12 +87,10 @@ export default function Overview() {
 function Kpi({ label, value, sub, color = 'var(--text)' }) {
   return (
     <div
+      className="glass-panel"
       style={{
-        border: '1px solid var(--border)',
         borderRadius: 12,
         padding: '16px 18px',
-        background: 'var(--surface)',
-        boxShadow: 'var(--shadow)',
       }}
     >
       <div

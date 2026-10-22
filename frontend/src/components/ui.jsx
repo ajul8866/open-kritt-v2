@@ -1,6 +1,7 @@
 // Small shared presentational components used across screens.
 import { Link } from 'react-router-dom';
 import { statusMeta } from '../lib/format.js';
+import { StatusGlyph } from './ui/status-glyph.jsx';
 
 export function Spinner({ label = 'Loading…' }) {
   return (
@@ -78,9 +79,18 @@ export function EmptyState({ title, sub, action }) {
   );
 }
 
+// Work that is actually in progress gets the Solid Glass activity glyph; states
+// that are only waiting (queued, pending, rate-limited) keep the static dot.
+const ACTIVE_GLYPHS = {
+  running: 'running',
+  prewarming_cache: 'searching',
+  post_processing: 'writing',
+};
+
 export function StatusBadge({ status, reasoning, size = 'md' }) {
   const m = statusMeta(status, reasoning);
   const pad = size === 'sm' ? '3px 9px' : '4px 10px';
+  const glyph = ACTIVE_GLYPHS[status];
   return (
     <span
       style={{
@@ -95,7 +105,11 @@ export function StatusBadge({ status, reasoning, size = 'md' }) {
         whiteSpace: 'nowrap',
       }}
     >
-      <span style={{ width: 6, height: 6, borderRadius: '50%', background: m.color, animation: m.pulse }} />
+      {glyph ? (
+        <StatusGlyph activity={glyph} className="size-3" />
+      ) : (
+        <span style={{ width: 6, height: 6, borderRadius: '50%', background: m.color, animation: m.pulse }} />
+      )}
       {m.label}
     </span>
   );
