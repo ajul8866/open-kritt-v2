@@ -53,8 +53,23 @@ CREATE TABLE IF NOT EXISTS workflows.step_results (
 CREATE TABLE IF NOT EXISTS workflows.step_results_default
     PARTITION OF workflows.step_results DEFAULT;
 
-ALTER TABLE workflows.step_results_default
-    ALTER COLUMN id SET DEFAULT nextval(pg_get_serial_sequence('workflows.step_results', 'id'));
+-- Partitions inherit an identity parent's sequence; PostgreSQL rejects a
+-- serial default on an identity column. Keep the fallback for older installs
+-- whose partition predates the identity definition.
+DO $step_results_default$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_attribute
+        WHERE attrelid = 'workflows.step_results_default'::regclass
+          AND attname = 'id'
+          AND attidentity <> ''
+    ) THEN
+        ALTER TABLE workflows.step_results_default
+            ALTER COLUMN id SET DEFAULT nextval(pg_get_serial_sequence('workflows.step_results', 'id'));
+    END IF;
+END
+$step_results_default$;
 
 CREATE INDEX IF NOT EXISTS step_results_partition_key_idx
     ON workflows.step_results USING btree (partition_key);

@@ -2,7 +2,7 @@ FROM python:3.15.0-slim-bookworm
 
 WORKDIR /app
 
-RUN pip install --no-cache-dir psycopg[binary]==3.2.3
+RUN pip install --no-cache-dir psycopg[binary]==3.3.6
 
 COPY server.py ./
 

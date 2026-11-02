@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Bug Fixes
+
+* **startup:** align ESLint and Prisma with the existing plugins and schema, use
+  the Python 3.15-compatible database driver, and install Node's required system
+  library in the engine image.
+* **database:** preserve inherited identity sequences when initializing the
+  default results partition on PostgreSQL 17.
+
 ## [1.4.1](https://github.com/Kritt-ai/open-kritt/compare/v1.4.0...v1.4.1) (2026-08-16)
 
 
