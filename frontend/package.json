@@ -31,7 +31,7 @@
     "@vitejs/plugin-react": "^6.1.1",
     "@eslint/js": "^9.17.0",
     "@vitejs/plugin-react": "^6.1.2",
-    "eslint": "^9.17.0",
+    "eslint": "^10.13.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-react": "^7.37.2",
     "eslint-plugin-react-hooks": "^7.1.1",
@@ -39,6 +39,6 @@
     "happy-dom": "^21.0.4",
     "prettier": "^3.9.10",
     "vite": "^8.2.2",
-    "vitest": "^4.1.12"
+    "vitest": "^5.0.5"
   }
 }
