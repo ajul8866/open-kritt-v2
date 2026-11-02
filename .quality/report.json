@@ -1,0 +1,94 @@
+{
+  "schema": "ship-ready/report@1",
+  "skill_version": "2.6.1",
+  "component": "open-kritt @ fix/judgment-gaps (14 commits vs main 90ba421)",
+  "date": "2026-10-09",
+  "depth": "M",
+  "verdict": "NOT_READY",
+  "metrics": {
+    "before": {
+      "engine_format": "PASS (50 files already formatted)",
+      "engine_tests": "FAIL (8 collection errors, psycopg/py3.12)",
+      "backend_tests": "FAIL (232 tests, 3 failing)",
+      "frontend_tests": "PASS (357 passed)",
+      "frontend_format": "FAIL (Markdown.jsx)",
+      "line_coverage": null
+    },
+    "after": {
+      "engine_format": "FAIL (worker.py unformatted) <== REGRESSION",
+      "engine_tests": "FAIL (same 8 pre-existing failures)",
+      "backend_tests": "FAIL (251 tests, same 3 pre-existing failures)",
+      "frontend_tests": "PASS (357 passed)",
+      "frontend_format": "FAIL (Markdown.jsx, unchanged from main)",
+      "line_coverage": null
+    },
+    "mutation_spot_check": "5/5"
+  },
+  "findings": [
+    {
+      "id": "F-001",
+      "severity": "P0",
+      "confidence": "HIGH",
+      "file": "engine/open_kritt_engine/harnesses.py",
+      "line": 2303,
+      "category": "security",
+      "cwe": "CWE-201",
+      "title": "Harness stdout is forwarded to the third-party TypeSafe endpoint, contradicting the documented no-repository-content guarantee",
+      "status": "open",
+      "evidence": "Probe: a claude-code is_error stdout whose `result` quotes a repository secret (sk-live-...) is forwarded verbatim to judgment.choice state.error_text. Same on the generic _short_output path (line 925). .env.example:151 claims 'never repository content or agent transcripts'."
+    },
+    {
+      "id": "F-002",
+      "severity": "P1",
+      "confidence": "HIGH",
+      "file": "engine/open_kritt_engine/harnesses.py",
+      "line": 1500,
+      "category": "correctness",
+      "title": "Placeholder ranking can discard the agent's real answer when a quoted example scores equal",
+      "status": "open",
+      "evidence": "Probe exact tie: REAL (payload-only angle-bracket fields) scores 2, EXAMPLE scores 2; when the real answer comes first the example is selected. Pre-existing on main, only partially fixed by this branch."
+    },
+    {
+      "id": "F-003",
+      "severity": "P1",
+      "confidence": "MEDIUM",
+      "file": "engine/requirements.txt",
+      "line": 1,
+      "category": "testing",
+      "title": "Engine test suite is unrunnable on the host's default Python 3.14; only a 3.12 venv works",
+      "status": "needs_verification",
+      "evidence": "python3 is 3.14; venv built on /root/.local/bin/python3.12 was required to run the suite at all."
+    },
+    {
+      "id": "F-004",
+      "severity": "P1",
+      "confidence": "HIGH",
+      "file": "engine/open_kritt_engine/worker.py",
+      "line": 1381,
+      "category": "maintainability",
+      "title": "worker.py is not ruff-formatted, breaking an engine lint gate that is a hard CI gate",
+      "status": "open",
+      "evidence": "ruff format --check . => 'File would be reformatted' for worker.py; main passes with '50 files already formatted'."
+    }
+  ],
+  "scorecard": {
+    "correctness": 3,
+    "security": 1,
+    "testing": 3,
+    "readability": 3,
+    "performance": 4,
+    "operability": 2,
+    "documentation": 2,
+    "overall": 1
+  },
+  "attestation": {
+    "evidence_level": "runtime",
+    "not_verified": [
+      "Frontend runtime behaviour in a browser (no browser run in this session)",
+      "Docker/Compose stack behaviour",
+      "Engine tests under Python 3.12 CI parity (ran on 3.12 venv here)"
+    ],
+    "gates_skipped": []
+  },
+  "not_converged": []
+}

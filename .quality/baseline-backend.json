@@ -1,0 +1,15 @@
+{
+  "schema": "ship-ready/gate@1",
+  "date": "2026-10-09T22:09:53Z",
+  "verdict": "FAIL",
+  "stack": "node",
+  "checks": [
+    {"status": "PASS", "check": "format", "detail": "All matched files use Prettier code style!"},
+    {"status": "PASS", "check": "lint", "detail": ""},
+    {"status": "FAIL", "check": "tests", "detail": "exit 1:   }"},
+    {"status": "FAIL", "check": "deps-audit", "detail": "exit 1:   npm audit fix"},
+    {"status": "SKIPPED", "check": "duplication", "detail": "jscpd not installed"},
+    {"status": "PASS", "check": "secrets", "detail": "10:09PM INF no leaks found"},
+    {"status": "FAIL", "check": "sast", "detail": "exit 1:                src/server.js\"]                                                                "}
+  ]
+}

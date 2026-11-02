@@ -1,0 +1,15 @@
+{
+  "schema": "ship-ready/gate@1",
+  "date": "2026-10-09T22:10:23Z",
+  "verdict": "FAIL",
+  "stack": "node",
+  "checks": [
+    {"status": "FAIL", "check": "format", "detail": "exit 1: [warn] Code style issues found in the above file. Run Prettier with --write to fix."},
+    {"status": "PASS", "check": "lint", "detail": ""},
+    {"status": "PASS", "check": "tests", "detail": "      Tests  357 passed (357)"},
+    {"status": "FAIL", "check": "deps-audit", "detail": "exit 1:   npm audit fix"},
+    {"status": "SKIPPED", "check": "duplication", "detail": "jscpd not installed"},
+    {"status": "PASS", "check": "secrets", "detail": "10:10PM INF no leaks found"},
+    {"status": "FAIL", "check": "sast", "detail": "exit 1:            13┆ CMD [\"sh\", \"-c\", \"npm ci && npm run dev -- --host 0.0.0.0\"]"}
+  ]
+}

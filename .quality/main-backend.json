@@ -1,0 +1,15 @@
+{
+  "schema": "ship-ready/gate@1",
+  "date": "2026-10-09T22:14:48Z",
+  "verdict": "FAIL",
+  "stack": "node",
+  "checks": [
+    {"status": "PASS", "check": "format", "detail": "All matched files use Prettier code style!"},
+    {"status": "PASS", "check": "lint", "detail": ""},
+    {"status": "FAIL", "check": "tests", "detail": "exit 1:   }"},
+    {"status": "FAIL", "check": "deps-audit", "detail": "exit 1:   npm audit fix"},
+    {"status": "FAIL", "check": "duplication", "detail": "exit 1: ERROR: jscpd found too many duplicates (3.0%) over threshold (3.0%)"},
+    {"status": "PASS", "check": "secrets", "detail": "10:14PM INF no leaks found"},
+    {"status": "FAIL", "check": "sast", "detail": "exit 1:                src/server.js\"]                                                                "}
+  ]
+}

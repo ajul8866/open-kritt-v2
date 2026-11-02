@@ -1,0 +1,202 @@
+{
+  "kind": "open-kritt-workflow",
+  "version": 2,
+  "workflow": {
+    "name": "Six-Phase Bug Hunter",
+    "description": "Implements a six-phase bug-hunting strategy: map the codebase into non-overlapping review areas, hunt each area exhaustively, independently confirm every candidate with a fresh reviewer, write canonical structured findings, independently re-verify every record from source, and produce a deduplicated, ranked final report of confirmed vulnerabilities.",
+    "levels": [
+      {
+        "depth": 0,
+        "multiOutput": true,
+        "consumesAll": false,
+        "bindPrevious": false,
+        "outputFormat": {
+          "area_id": "string",
+          "area_label": "string",
+          "area_kind": "string",
+          "area_description": "string",
+          "area_source_paths": "array",
+          "area_entry_points": "array",
+          "area_trust_boundaries": "array",
+          "area_security_relevance": "string",
+          "area_dependencies": "array",
+          "area_coverage_notes": "string",
+          "area_known_gaps": "array",
+          "area_priority": "string"
+        },
+        "steps": [
+          {
+            "name": "Map codebase into review areas",
+            "content": "You are mapping the codebase at {{workspace_root}} for a cover-to-cover security review. The target is {{repo_full}} at commit {{commit_sha}}.\n\nScope and constraints:\n- User scope: {{repo_scope}}\n- Declared dependencies: {{dependencies}}\n- Runtime configuration: {{configuration}}\n- Workspace layout: {{workspace_layout}}\n- Workspace manifest: {{workspace_manifest_json}}\n- Explicit exclusions (may be \"none\"): {{extra.exclusions}}\n\nYour objective is to partition the production codebase into a complete, non-overlapping set of review areas so that every production file and every externally reachable or security-sensitive path is assigned to exactly one area. Do not review for vulnerabilities yet; this phase only builds the map.\n\nMethod:\n1. Start from the workspace manifest and layout. Identify every repository in the workspace and its role.\n2. Walk the top-level structure and descend into each production component. Use the actual files, build manifests, route and registration tables, entry-point declarations, configuration, and documentation to understand boundaries.\n3. Define areas by coherent architecture or security responsibility, not by arbitrary file counts. Good boundaries include: HTTP/API handlers, GraphQL/gRPC/RPC surfaces, authentication and authorization, session and token handling, persistence and query construction, background jobs, queues and event handlers, smart-contract modules and external calls, cryptography and key management, file/archive/upload handling, command and process execution, network clients and fetchers, configuration and secrets, serialization and deserialization, and cross-cutting supply-chain or build concerns.\n4. Assign every production file to at least one area. For each area, list the concrete source paths, directories, or files it owns. If two areas would overlap, decide which one owns the shared code and state the dependency in area_dependencies.\n5. For each area, record the externally reachable entry points, trust boundaries, security-sensitive operations, relevant configuration and feature gates, dependencies, existing tests and documentation, and any coverage gaps or unassigned files.\n6. Exclude tests, mocks, examples, benchmarks, generated vendored code, and developer-only tooling unless the user scope explicitly includes them. List excluded paths and the reason in area_known_gaps or the area description.\n7. Cross-check the union of all areas against the workspace layout. If a production path is not assigned, add it to an existing area or create a new area. Do not silently drop code.\n\nOutput one record per review area. Every record must be self-contained and specific enough that a reviewer who has never seen the repository can start from it. Do not merge unrelated components into one area just to reduce the count. Do not invent paths or files.\n\nField meanings:\n- area_id: a stable identifier such as A01, A02.\n- area_label: a short human-readable name.\n- area_kind: the architectural or security category of the area.\n- area_description: what the area does, its role in the system, and why it matters.\n- area_source_paths: an array of concrete paths, directories, or files owned by this area.\n- area_entry_points: an array of externally reachable ingress points, each with its registration or handler location.\n- area_trust_boundaries: an array of boundary crossings and the actors on each side.\n- area_security_relevance: the protected assets, actors, and security-sensitive operations in the area.\n- area_dependencies: an array of other areas or repositories this area depends on.\n- area_coverage_notes: what you inspected and how you verified that the area is complete.\n- area_known_gaps: an array of unassigned paths, excluded paths, or unresolved coverage questions.\n- area_priority: high, medium, or low based on exposure and potential impact.\n\nAll arrays contain strings. If no production code can be established, return a stub explaining what was missing."
+          }
+        ]
+      },
+      {
+        "depth": 1,
+        "multiOutput": true,
+        "consumesAll": false,
+        "bindPrevious": false,
+        "outputFormat": {
+          "candidate_id": "string",
+          "candidate_area_id": "string",
+          "candidate_title": "string",
+          "candidate_vulnerability_type": "string",
+          "candidate_file_path": "string",
+          "candidate_line": "number",
+          "candidate_symbol": "string",
+          "candidate_root_cause": "string",
+          "candidate_trigger_flow": "array",
+          "candidate_malicious_input": "string",
+          "candidate_actor": "string",
+          "candidate_preconditions": "array",
+          "candidate_impact": "string",
+          "candidate_evidence": "array",
+          "candidate_controls": "string",
+          "candidate_why_controls_fail": "string",
+          "candidate_confidence": "string",
+          "candidate_open_questions": "array",
+          "candidate_related_locations": "array",
+          "candidate_coverage_notes": "string"
+        },
+        "steps": [
+          {
+            "name": "Hunt vulnerabilities in one area",
+            "content": "You are performing an exhaustive security review of one area of {{repo_full}} at commit {{commit_sha}}.\n\nArea under review:\n- id: {{area_id}}\n- label: {{area_label}}\n- kind: {{area_kind}}\n- description: {{area_description}}\n- source paths: {{area_source_paths}}\n- entry points: {{area_entry_points}}\n- trust boundaries: {{area_trust_boundaries}}\n- security relevance: {{area_security_relevance}}\n- dependencies: {{area_dependencies}}\n- coverage notes: {{area_coverage_notes}}\n- known gaps: {{area_known_gaps}}\n- priority: {{area_priority}}\n\nGlobal context:\n- User scope: {{repo_scope}}\n- Runtime configuration: {{configuration}}\n- Explicit exclusions (may be \"none\"): {{extra.exclusions}}\n- Known findings to avoid re-reporting (may be \"none\"): {{extra.known_findings}}\n\nObjective: find every concrete security vulnerability in this area, not just the obvious one. Read the actual source paths, their callers, and the relevant configuration. Do not rely on names, comments, or the area description alone.\n\nRequired method:\n1. Enumerate the security-sensitive operations in the area: input parsing, validation, authorization, state changes, persistence, file, process, and network operations, cryptographic use, external calls, and error handling.\n2. Trace actor-controlled input from each entry point through the area to sinks. Record the exact ordered path using path:line symbol - behavior entries.\n3. Check the vulnerability classes that fit the area, including missing or wrong authorization, IDOR and tenant isolation, injection (SQL, NoSQL, command, path, template, header), unsafe deserialization, SSRF and XXE, path traversal, file upload, race conditions and TOCTOU, state or accounting errors, integer and bounds errors, nil or null handling, resource exhaustion, insecure cryptography or key handling, secret exposure, unsafe defaults or feature gates, and dependency behavior that changes reachability.\n4. For each candidate, establish the vulnerable operation, the missing or flawed control, a realistic actor and controlled input, the full trigger path, the concrete impact, and why existing controls do not stop it. Include low-confidence candidates when they are supported by code, and mark confidence honestly.\n5. Do not report style issues, test-only behavior, dead code, or purely theoretical concerns without a concrete path. Do not invent a finding to fill the schema. If no candidate qualifies, return a stub whose explanation lists what you reviewed and why nothing qualified.\n6. Avoid re-reporting items in known findings unless you can show a materially different path, impact, or incomplete fix. In that case, state the delta.\n\nOutput one record per distinct candidate. Keep candidate_area_id equal to the area id. Use exact paths and line numbers. candidate_trigger_flow is an ordered array from ingress to the vulnerable operation. candidate_evidence lists the concrete source locations and facts that support the claim. candidate_coverage_notes must summarize what was reviewed in this area so the operator can see coverage.\n\nField meanings:\n- candidate_id: a stable identifier such as A03-C02.\n- candidate_area_id: the area id this candidate belongs to.\n- candidate_title: a short, specific title.\n- candidate_vulnerability_type: the canonical vulnerability class.\n- candidate_file_path, candidate_line, candidate_symbol: the most precise vulnerable location.\n- candidate_root_cause: the faulty operation and the missing or flawed control.\n- candidate_trigger_flow: an ordered array from attacker ingress to the vulnerable operation.\n- candidate_malicious_input: a minimal realistic payload or sequence.\n- candidate_actor: the actor and required position or privileges.\n- candidate_preconditions: an array of conditions the actor must satisfy.\n- candidate_impact: what the actor gains or disrupts, with the affected scope.\n- candidate_evidence: an array of source locations and facts supporting the claim.\n- candidate_controls: the existing validation, authorization, or other guards.\n- candidate_why_controls_fail: why those guards do not stop the stated trigger.\n- candidate_confidence: high, medium, or low.\n- candidate_open_questions: an array of unresolved questions.\n- candidate_related_locations: an array of related callers, callees, or configuration locations.\n- candidate_coverage_notes: what was reviewed in this area.\n\nAll arrays contain strings."
+          }
+        ]
+      },
+      {
+        "depth": 2,
+        "multiOutput": false,
+        "consumesAll": false,
+        "bindPrevious": false,
+        "outputFormat": {
+          "confirmation_id": "string",
+          "confirmation_candidate_id": "string",
+          "confirmation_verdict": "string",
+          "confirmation_summary": "string",
+          "confirmation_reasoning": "string",
+          "confirmation_evidence": "array",
+          "confirmation_counterevidence": "array",
+          "confirmation_reproduction_steps": "array",
+          "confirmation_confirmed_file_path": "string",
+          "confirmation_confirmed_line": "number",
+          "confirmation_confirmed_symbol": "string",
+          "confirmation_confirmed_vulnerability_type": "string",
+          "confirmation_confirmed_trigger_flow": "array",
+          "confirmation_confirmed_actor": "string",
+          "confirmation_confirmed_malicious_input": "string",
+          "confirmation_confirmed_preconditions": "array",
+          "confirmation_confirmed_impact": "string",
+          "confirmation_unresolved_assumptions": "array",
+          "confirmation_confidence": "string",
+          "confirmation_notes": "string"
+        },
+        "steps": [
+          {
+            "name": "Independently confirm or reject one candidate",
+            "content": "You are an independent confirmation reviewer. You did not produce the candidate below and you must not trust it. Treat every field as a claim to be tested against the actual source.\n\nCandidate under review:\n- id: {{candidate_id}}\n- area: {{candidate_area_id}}\n- title: {{candidate_title}}\n- type: {{candidate_vulnerability_type}}\n- location: {{candidate_file_path}}:{{candidate_line}} ({{candidate_symbol}})\n- root cause claim: {{candidate_root_cause}}\n- trigger flow claim: {{candidate_trigger_flow}}\n- malicious input claim: {{candidate_malicious_input}}\n- actor claim: {{candidate_actor}}\n- preconditions: {{candidate_preconditions}}\n- impact claim: {{candidate_impact}}\n- evidence claim: {{candidate_evidence}}\n- existing controls claim: {{candidate_controls}}\n- why controls fail claim: {{candidate_why_controls_fail}}\n- confidence claim: {{candidate_confidence}}\n- open questions: {{candidate_open_questions}}\n- related locations: {{candidate_related_locations}}\n\nGlobal context:\n- Repository: {{repo_full}} at {{commit_sha}}\n- User scope: {{repo_scope}}\n- Runtime configuration: {{configuration}}\n- Explicit exclusions (may be \"none\"): {{extra.exclusions}}\n- Known findings (may be \"none\"): {{extra.known_findings}}\n\nYour job is to try to falsify the candidate. Re-read the actual code at the stated location and the surrounding implementation, callers, callees, routing or registration, and configuration. Check each link independently:\n1. Does the claimed code exist at the stated location, and does it behave as claimed?\n2. Is the path reachable from the stated entry point under the supplied configuration? Are there guards, feature flags, validation, sanitization, type constraints, or platform behavior that block it?\n3. Can the stated actor really control the input and satisfy every precondition? Is the actor's required position realistic in the configured deployment?\n4. Does the claimed impact follow, or is it prevented or limited by another control or by the data flow?\n5. Is the candidate actually a duplicate of a known finding? If so, does it add a materially different path or impact?\n6. Is there a simpler benign explanation for the behavior?\n\nReturn a result only if the candidate survives this attempt and is a real, reachable vulnerability with a supported impact. Correct any field that the source contradicts; the corrected values are authoritative for the next phase. If the candidate fails any essential link, is merely suspicious, is out of scope, or remains inconclusive, return a stub whose explanation states exactly which link failed and what would be needed to confirm it. Do not confirm based on the candidate's own evidence. Do not invent a stronger impact than the source supports.\n\nField meanings:\n- confirmation_id: a stable identifier for this confirmation.\n- confirmation_candidate_id: the candidate id under review.\n- confirmation_verdict: set to \"confirmed\" for returned records.\n- confirmation_summary: a short statement of what survived.\n- confirmation_reasoning: the falsification attempt and why the candidate survived.\n- confirmation_evidence: an array of source locations and facts you verified yourself.\n- confirmation_counterevidence: an array of guards or alternative explanations you checked and ruled out.\n- confirmation_reproduction_steps: an array of concrete steps to trigger the issue.\n- confirmation_confirmed_file_path, confirmation_confirmed_line, confirmation_confirmed_symbol: the corrected location.\n- confirmation_confirmed_vulnerability_type: the corrected canonical class.\n- confirmation_confirmed_trigger_flow: an ordered array from ingress to the vulnerable operation.\n- confirmation_confirmed_actor: the actor and required position or privileges.\n- confirmation_confirmed_malicious_input: a minimal realistic payload or sequence.\n- confirmation_confirmed_preconditions: an array of conditions the actor must satisfy.\n- confirmation_confirmed_impact: the supported impact and affected scope.\n- confirmation_unresolved_assumptions: an array of assumptions that remain.\n- confirmation_confidence: high, medium, or low.\n- confirmation_notes: anything the next phase must preserve.\n\nAll arrays contain strings."
+          }
+        ]
+      },
+      {
+        "depth": 3,
+        "multiOutput": false,
+        "consumesAll": false,
+        "bindPrevious": false,
+        "outputFormat": {
+          "structured_id": "string",
+          "structured_source_candidate_id": "string",
+          "structured_area_id": "string",
+          "structured_title": "string",
+          "structured_vulnerability_type": "string",
+          "structured_file_path": "string",
+          "structured_line": "number",
+          "structured_symbol": "string",
+          "structured_root_cause": "string",
+          "structured_trigger_flow": "array",
+          "structured_actor": "string",
+          "structured_malicious_input": "string",
+          "structured_preconditions": "array",
+          "structured_impact": "string",
+          "structured_evidence": "array",
+          "structured_existing_controls": "string",
+          "structured_why_controls_fail": "string",
+          "structured_reproduction_steps": "array",
+          "structured_severity": "string",
+          "structured_severity_rationale": "string",
+          "structured_confidence": "string",
+          "structured_unresolved_assumptions": "array",
+          "structured_notes": "string"
+        },
+        "steps": [
+          {
+            "name": "Write the structured finding",
+            "content": "You are writing the canonical structured record for a candidate that an independent reviewer has confirmed. The confirmation record is the authority; do not re-litigate the verdict, but resolve internal inconsistencies against the source.\n\nCandidate record:\n- candidate id: {{candidate_id}}\n- area id: {{candidate_area_id}}\n- candidate title: {{candidate_title}}\n- candidate type: {{candidate_vulnerability_type}}\n- candidate location: {{candidate_file_path}}:{{candidate_line}} ({{candidate_symbol}})\n- candidate root cause: {{candidate_root_cause}}\n- candidate impact: {{candidate_impact}}\n- candidate evidence: {{candidate_evidence}}\n\nIndependent confirmation:\n- verdict: {{confirmation_verdict}}\n- summary: {{confirmation_summary}}\n- reasoning: {{confirmation_reasoning}}\n- evidence: {{confirmation_evidence}}\n- counterevidence: {{confirmation_counterevidence}}\n- reproduction steps: {{confirmation_reproduction_steps}}\n- confirmed location: {{confirmation_confirmed_file_path}}:{{confirmation_confirmed_line}} ({{confirmation_confirmed_symbol}})\n- confirmed type: {{confirmation_confirmed_vulnerability_type}}\n- confirmed trigger flow: {{confirmation_confirmed_trigger_flow}}\n- confirmed actor: {{confirmation_confirmed_actor}}\n- confirmed malicious input: {{confirmation_confirmed_malicious_input}}\n- confirmed preconditions: {{confirmation_confirmed_preconditions}}\n- confirmed impact: {{confirmation_confirmed_impact}}\n- unresolved assumptions: {{confirmation_unresolved_assumptions}}\n- confidence: {{confirmation_confidence}}\n- confirmation notes: {{confirmation_notes}}\n\nGlobal context:\n- Repository: {{repo_full}} at {{commit_sha}}\n- User scope: {{repo_scope}}\n- Runtime configuration: {{configuration}}\n- Explicit exclusions (may be \"none\"): {{extra.exclusions}}\n- Known findings (may be \"none\"): {{extra.known_findings}}\n\nProduce one canonical structured finding:\n1. Use the confirmation's corrected location, type, trigger flow, actor, input, preconditions, and impact. If the candidate and confirmation disagree, prefer the confirmation and verify the chosen values against the source.\n2. structured_trigger_flow must be an ordered array from attacker ingress to the vulnerable operation, with concrete path:line symbol - behavior entries.\n3. structured_root_cause must state the faulty operation and the missing or flawed control. structured_why_controls_fail must explain why the existing validation, authorization, or other guard does not stop the stated trigger.\n4. structured_impact must state what the actor gains or disrupts, with the affected asset, tenant, or account scope. Do not inflate it.\n5. Assign structured_severity from critical, high, medium, low, or informational, and justify it in structured_severity_rationale using exploitability, reachability, privileges required, and impact. Keep structured_confidence honest.\n6. Preserve unresolved assumptions; do not silently drop them. If an assumption is essential and unsupported, return a stub explaining why the record cannot be written.\n7. Deduplicate against known findings only when the known item genuinely covers the same root cause and impact. Otherwise keep the record and state the delta in structured_notes.\n8. Do not invent fields or evidence. Every location must be real. If the confirmation is not confirmed or the record cannot be grounded, return a stub.\n\nThis record will be independently verified again. Write it so a reviewer can reproduce the reasoning from the source without guessing.\n\nField meanings:\n- structured_id: a stable identifier for this structured record.\n- structured_source_candidate_id: the candidate id.\n- structured_area_id: the area id.\n- structured_title: a short, specific title.\n- structured_vulnerability_type: the canonical vulnerability class.\n- structured_file_path, structured_line, structured_symbol: the canonical vulnerable location.\n- structured_root_cause: the faulty operation and missing or flawed control.\n- structured_trigger_flow: an ordered array from ingress to the vulnerable operation.\n- structured_actor: the actor and required position or privileges.\n- structured_malicious_input: a minimal realistic payload or sequence.\n- structured_preconditions: an array of conditions the actor must satisfy.\n- structured_impact: the supported impact and affected scope.\n- structured_evidence: an array of source locations and facts.\n- structured_existing_controls: the guards that exist.\n- structured_why_controls_fail: why those guards do not stop the trigger.\n- structured_reproduction_steps: an array of concrete steps.\n- structured_severity: critical, high, medium, low, or informational.\n- structured_severity_rationale: the justification for the severity.\n- structured_confidence: high, medium, or low.\n- structured_unresolved_assumptions: an array of remaining assumptions.\n- structured_notes: anything the next verifier must preserve.\n\nAll arrays contain strings."
+          }
+        ]
+      },
+      {
+        "depth": 4,
+        "multiOutput": false,
+        "consumesAll": false,
+        "bindPrevious": false,
+        "outputFormat": {
+          "verification_id": "string",
+          "verification_structured_id": "string",
+          "verification_verdict": "string",
+          "verification_summary": "string",
+          "verification_reasoning": "string",
+          "verification_evidence": "array",
+          "verification_counterevidence": "array",
+          "verification_final_file_path": "string",
+          "verification_final_line": "number",
+          "verification_final_symbol": "string",
+          "verification_final_vulnerability_type": "string",
+          "verification_final_summary": "string",
+          "verification_final_root_cause": "string",
+          "verification_final_trigger_flow": "array",
+          "verification_final_actor": "string",
+          "verification_final_malicious_input": "string",
+          "verification_final_preconditions": "array",
+          "verification_final_impact": "string",
+          "verification_final_explanation": "string",
+          "verification_final_exploitable": "boolean",
+          "verification_final_severity": "string",
+          "verification_final_confidence": "string",
+          "verification_unresolved_assumptions": "array",
+          "verification_notes": "string"
+        },
+        "steps": [
+          {
+            "name": "Independently re-verify the structured record",
+            "content": "You are a second independent verifier. You did not discover the candidate and you did not write the structured record. Treat the record as a claim, not as evidence, and re-derive the conclusion from the actual source.\n\nStructured record under review:\n- id: {{structured_id}}\n- source candidate: {{structured_source_candidate_id}}\n- area: {{structured_area_id}}\n- title: {{structured_title}}\n- type: {{structured_vulnerability_type}}\n- location: {{structured_file_path}}:{{structured_line}} ({{structured_symbol}})\n- root cause: {{structured_root_cause}}\n- trigger flow: {{structured_trigger_flow}}\n- actor: {{structured_actor}}\n- malicious input: {{structured_malicious_input}}\n- preconditions: {{structured_preconditions}}\n- impact: {{structured_impact}}\n- evidence: {{structured_evidence}}\n- existing controls: {{structured_existing_controls}}\n- why controls fail: {{structured_why_controls_fail}}\n- reproduction steps: {{structured_reproduction_steps}}\n- severity: {{structured_severity}}\n- severity rationale: {{structured_severity_rationale}}\n- confidence: {{structured_confidence}}\n- unresolved assumptions: {{structured_unresolved_assumptions}}\n- notes: {{structured_notes}}\n\nGlobal context:\n- Repository: {{repo_full}} at {{commit_sha}}\n- User scope: {{repo_scope}}\n- Runtime configuration: {{configuration}}\n- Explicit exclusions (may be \"none\"): {{extra.exclusions}}\n- Known findings (may be \"none\"): {{extra.known_findings}}\n\nRe-verify from scratch:\n1. Open the actual source at every cited location and confirm the behavior. Check callers, routing or registration, configuration, and any relevant dependency behavior.\n2. Re-derive reachability for the stated actor and input under the supplied configuration. Look for guards, flags, validation, sanitization, type constraints, platform behavior, or compensating controls that the record missed.\n3. Re-check the trigger flow end to end. A single unsupported link is enough to reject.\n4. Re-check the impact and severity. Confirm the affected asset, tenant, or account scope and whether the actor can realistically realize it.\n5. Check for duplicates in known findings. If the same root cause and impact are already known, reject as a duplicate unless the record adds a materially different path or impact.\n6. Correct any field the source contradicts. The corrected final fields are what the report will use.\n\nReturn a result only if the finding survives every check. If it fails, is merely suspicious, is out of scope, is a duplicate, or remains inconclusive, return a stub naming the failed link and the evidence. Do not rely on the structured record's evidence or on the first confirmer's reasoning. Do not strengthen the impact beyond what the source supports.\n\nField meanings:\n- verification_id: a stable identifier for this verification.\n- verification_structured_id: the structured record id under review.\n- verification_verdict: set to \"verified\" for returned records.\n- verification_summary: a short statement of what survived.\n- verification_reasoning: the independent re-derivation and why the finding survived.\n- verification_evidence: an array of source locations and facts you verified yourself.\n- verification_counterevidence: an array of guards or alternative explanations you checked and ruled out.\n- verification_final_file_path, verification_final_line, verification_final_symbol: the final corrected location.\n- verification_final_vulnerability_type: the final canonical class.\n- verification_final_summary: the final short title.\n- verification_final_root_cause: the final root cause.\n- verification_final_trigger_flow: the final ordered array from ingress to the vulnerable operation.\n- verification_final_actor: the final actor and required position or privileges.\n- verification_final_malicious_input: the final minimal realistic payload or sequence.\n- verification_final_preconditions: the final array of conditions.\n- verification_final_impact: the final supported impact and affected scope.\n- verification_final_explanation: the full explanation the report should use, including why controls fail and what remains uncertain.\n- verification_final_exploitable: true only if the verified actor can realistically trigger the issue under the supplied configuration.\n- verification_final_severity: the final severity.\n- verification_final_confidence: high, medium, or low.\n- verification_unresolved_assumptions: an array of remaining assumptions.\n- verification_notes: anything the report must preserve.\n\nAll arrays contain strings."
+          }
+        ]
+      },
+      {
+        "depth": 5,
+        "multiOutput": true,
+        "consumesAll": true,
+        "bindPrevious": false,
+        "outputFormat": {
+          "explanation": "string",
+          "file_path": "string",
+          "line": "number",
+          "malicious_input_example": "string",
+          "summary": "string",
+          "trigger_flow": "array",
+          "vulnerability_type": "string",
+          "malicious_actor": "string",
+          "exploitable": "boolean"
+        },
+        "steps": [
+          {
+            "name": "Write the final ranked report",
+            "content": "You are writing the final report from the complete set of independently verified findings for {{repo_full}} at commit {{commit_sha}}.\n\nVerified records (JSON array, one entry per verified finding):\n{{multi_output_depth_4}}\n\nGlobal context:\n- User scope: {{repo_scope}}\n- Runtime configuration: {{configuration}}\n- Explicit exclusions (may be \"none\"): {{extra.exclusions}}\n- Known findings (may be \"none\"): {{extra.known_findings}}\n\nYour tasks:\n1. Treat the array as the only source of findings. Do not add a finding that is not supported by an entry. Check each entry's verification verdict and final fields; drop any entry that is not verified.\n2. Deduplicate across areas. Merge entries that share the same root cause, vulnerable operation, and impact, even if they were found from different entry points. Keep the strongest evidence set, the most precise location, and the highest supported impact. Do not merge distinct root causes just because they share a file or vulnerability class.\n3. Rank the final findings from highest to lowest priority using exploitability, reachability, privileges required, affected asset, account, or tenant scope, and impact. Emit them in that order.\n4. For each final finding, emit exactly the required terminal fields:\n   - summary: a short, specific title.\n   - explanation: the root cause, why existing controls fail, the trigger path, and the concrete impact. Ground every claim in the verified record.\n   - file_path: the most precise vulnerable source file.\n   - line: the exact line number as a number.\n   - vulnerability_type: the canonical class.\n   - trigger_flow: an ordered array from attacker ingress to the vulnerable operation.\n   - malicious_actor: the actor and required position or privileges.\n   - malicious_input_example: a minimal realistic payload or sequence.\n   - exploitable: true only if the verified actor can realistically trigger the issue under the supplied configuration.\n5. Do not include rejected, inconclusive, duplicate, or speculative items. Do not invent findings to fill the schema. If there are no verified findings, return a stub with a concise explanation.\n6. Write the explanation as a report a triager can act on: what is wrong, where, how to trigger it, what the attacker gains, and what remains uncertain. Keep it factual and avoid severity inflation.\n\nAll arrays contain strings."
+          }
+        ]
+      }
+    ]
+  }
+}

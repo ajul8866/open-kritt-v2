@@ -1,0 +1,11 @@
+{
+  "schema": "ship-ready/gate@1",
+  "date": "2026-10-09T22:08:56Z",
+  "verdict": "FAIL",
+  "stack": "",
+  "checks": [
+    {"status": "SKIPPED", "check": "duplication", "detail": "jscpd not installed"},
+    {"status": "PASS", "check": "secrets", "detail": "10:08PM INF no leaks found"},
+    {"status": "FAIL", "check": "sast", "detail": "exit 1:                parent.*${dataDirectory}`));                                    "}
+  ]
+}

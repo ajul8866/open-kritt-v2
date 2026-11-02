@@ -1,0 +1,15 @@
+{
+  "schema": "ship-ready/gate@1",
+  "date": "2026-10-09T22:25:27Z",
+  "verdict": "FAIL",
+  "stack": "node",
+  "checks": [
+    {"status": "FAIL", "check": "format", "detail": "exit 1: [warn] Code style issues found in the above file. Run Prettier with --write to fix."},
+    {"status": "PASS", "check": "lint", "detail": ""},
+    {"status": "PASS", "check": "tests", "detail": "      Tests  357 passed (357)"},
+    {"status": "FAIL", "check": "deps-audit", "detail": "exit 1:   npm audit fix"},
+    {"status": "PASS", "check": "duplication", "detail": "Duplications detection: Found 62 exact clones with 849(2.61%) duplicated lines in 117 (5 formats) files."},
+    {"status": "PASS", "check": "secrets", "detail": "10:25PM INF no leaks found"},
+    {"status": "FAIL", "check": "sast", "detail": "exit 1:            13┆ CMD [\"sh\", \"-c\", \"npm ci && npm run dev -- --host 0.0.0.0\"]"}
+  ]
+}

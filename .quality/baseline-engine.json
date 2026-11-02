@@ -1,0 +1,18 @@
+{
+  "schema": "ship-ready/gate@1",
+  "date": "2026-10-09T22:09:29Z",
+  "verdict": "FAIL",
+  "stack": "python",
+  "checks": [
+    {"status": "FAIL", "check": "format", "detail": "exit 1: unformatted: File would be reformatted"},
+    {"status": "PASS", "check": "lint", "detail": "All checks passed!"},
+    {"status": "SKIPPED", "check": "types", "detail": "mypy not installed"},
+    {"status": "SKIPPED", "check": "complexity", "detail": "radon not installed"},
+    {"status": "SKIPPED", "check": "security", "detail": "bandit not installed"},
+    {"status": "SKIPPED", "check": "deps-audit", "detail": "pip-audit not installed"},
+    {"status": "FAIL", "check": "tests", "detail": "exit 2: !!!!!!!!!!!!!!!!!!! Interrupted: 8 errors during collection !!!!!!!!!!!!!!!!!!!!"},
+    {"status": "SKIPPED", "check": "duplication", "detail": "jscpd not installed"},
+    {"status": "PASS", "check": "secrets", "detail": "10:09PM INF no leaks found"},
+    {"status": "FAIL", "check": "sast", "detail": "exit 1:           1607┆ with urllib.request.urlopen(request, timeout=20.0) as response:"}
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "schema": "ship-ready/gate@1",
+  "date": "2026-10-09T22:13:31Z",
+  "verdict": "FAIL",
+  "stack": "python",
+  "checks": [
+    {"status": "FAIL", "check": "format", "detail": "exit 1: unformatted: File would be reformatted"},
+    {"status": "PASS", "check": "lint", "detail": "All checks passed!"},
+    {"status": "FAIL", "check": "types", "detail": "exit 1: Found 1906 errors in 47 files (checked 54 source files)"},
+    {"status": "FAIL", "check": "complexity", "detail": "functions above complexity 10"},
+    {"status": "FAIL", "check": "security", "detail": "exit 1: >> Issue: [B608:hardcoded_sql_expressions] Possible SQL injection vector through string-based query construction."},
+    {"status": "PASS", "check": "deps-audit", "detail": "No known vulnerabilities found"},
+    {"status": "FAIL", "check": "tests+coverage", "detail": "exit 1: Required test coverage of 80% reached. Total coverage: 83.49%"},
+    {"status": "FAIL", "check": "duplication", "detail": "exit 1: ERROR: jscpd found too many duplicates (4.3%) over threshold (3.0%)"},
+    {"status": "PASS", "check": "secrets", "detail": "10:13PM INF no leaks found"},
+    {"status": "FAIL", "check": "sast", "detail": "exit 1:           1607┆ with urllib.request.urlopen(request, timeout=20.0) as response:"}
+  ]
+}
