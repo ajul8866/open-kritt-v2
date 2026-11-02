@@ -22,18 +22,9 @@ const STATIC = [
   { type: 'Action', label: 'New severity ranker', to: '/severity-rankers/new' },
 ];
 
-const TYPE_COLOR = {
-  Page: 'var(--text-3)',
-  Action: 'var(--accent)',
-  Workflow: 'var(--run)',
-  Scan: 'var(--ok)',
-  'Post-script': 'var(--pend)',
-  'Agent skill': 'var(--text-2)',
-  'Severity ranker': 'var(--accent)',
-};
-
 function haystack(item) {
-  return `${item.label} ${item.sub || ''} ${item.type}`.toLowerCase();
+  const sub = Array.isArray(item.sub) ? item.sub.join(' ') : item.sub || '';
+  return `${item.label} ${sub} ${item.type}`.toLowerCase();
 }
 
 export default function CommandPalette({ open, onClose }) {
@@ -53,21 +44,22 @@ export default function CommandPalette({ open, onClose }) {
         if (!active) return;
         const items = [
           ...wf.map((w) => ({ type: 'Workflow', label: w.name, sub: w.description, to: `/workflows/${w.id}` })),
-          ...sc.map((s) => ({
-            type: 'Scan',
-            label: s.repoDisplay || s.repoFull,
-            sub: [
+          ...sc.map((s) => {
+            const sub = [
               s.workflowName,
               s.model,
               Object.keys(s.modelOverrides || {}).length
                 ? `${Object.keys(s.modelOverrides).length} depth overrides`
                 : null,
               s.status,
-            ]
-              .filter(Boolean)
-              .join(' · '),
-            to: `/scans/${s.id}`,
-          })),
+            ].filter(Boolean);
+            return {
+              type: 'Scan',
+              label: s.repoDisplay || s.repoFull,
+              sub,
+              to: `/scans/${s.id}`,
+            };
+          }),
           ...ps.map((p) => ({ type: 'Post-script', label: p.name, sub: p.description, to: `/post-scripts/${p.id}` })),
           ...ag.map((a) => ({
             type: 'Agent skill',
@@ -151,26 +143,29 @@ export default function CommandPalette({ open, onClose }) {
   return (
     <div
       onClick={onClose}
+      role="presentation"
       style={{
         position: 'fixed',
         inset: 0,
-        zIndex: 80,
-        background: 'rgba(0,0,0,.32)',
+        zIndex: 'var(--z-overlay)',
+        background: 'var(--scrim)',
         display: 'flex',
         alignItems: 'flex-start',
         justifyContent: 'center',
-        paddingTop: '12vh',
+        padding: 'calc(var(--topbar-h) + var(--space-9)) var(--space-6) var(--space-6)',
       }}
     >
       <div
+        className="dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Command palette"
         onClick={(e) => e.stopPropagation()}
         style={{
-          width: 560,
-          maxWidth: '92vw',
-          background: 'var(--surface)',
-          border: '1px solid var(--border)',
-          borderRadius: 14,
-          boxShadow: '0 24px 60px rgba(0,0,0,.32)',
+          display: 'flex',
+          width: 'min(560px, 100%)',
+          maxHeight: 'calc(100dvh - var(--space-12))',
+          flexDirection: 'column',
           overflow: 'hidden',
         }}
       >
@@ -178,16 +173,14 @@ export default function CommandPalette({ open, onClose }) {
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: 10,
-            padding: '13px 16px',
-            borderBottom: '1px solid var(--border-2)',
+            gap: 'var(--space-4)',
+            padding: 'var(--space-3) var(--space-6)',
+            borderBottom: '1px solid var(--border)',
           }}
         >
-          <span
-            style={{ width: 13, height: 13, border: '1.6px solid var(--text-3)', borderRadius: '50%', flex: 'none' }}
-          />
           <input
             ref={inputRef}
+            className="input"
             value={query}
             onChange={(e) => {
               setQuery(e.target.value);
@@ -195,101 +188,103 @@ export default function CommandPalette({ open, onClose }) {
             }}
             onKeyDown={onKeyDown}
             placeholder="Search workflows, scans, post-scripts, skills…"
+            aria-label="Search the command palette"
             style={{
               flex: 1,
-              border: 'none',
-              outline: 'none',
+              height: 'var(--control-h)',
+              padding: 0,
+              border: 0,
               background: 'transparent',
-              color: 'var(--text)',
-              fontSize: 14.5,
+              fontSize: 'var(--text-base)',
             }}
           />
-          <span
-            className="mono"
-            style={{
-              fontSize: 10,
-              color: 'var(--text-3)',
-              border: '1px solid var(--border)',
-              borderRadius: 4,
-              padding: '1px 5px',
-            }}
-          >
-            esc
-          </span>
+          <kbd className="kbd">esc</kbd>
         </div>
 
-        <div ref={listRef} style={{ maxHeight: 360, overflowY: 'auto', padding: 6 }}>
+        <div ref={listRef} style={{ flex: 1, overflowY: 'auto', padding: 'var(--space-2)' }}>
           {results.length === 0 && (
-            <div style={{ padding: '22px 14px', textAlign: 'center', color: 'var(--text-3)', fontSize: 13 }}>
+            <div
+              style={{
+                padding: 'var(--space-7) var(--space-5)',
+                textAlign: 'center',
+                color: 'var(--text-3)',
+                fontSize: 'var(--text-sm)',
+              }}
+            >
               {data === null ? 'Loading…' : 'No matches.'}
             </div>
           )}
-          {results.map((it, i) => (
-            <Link
-              key={`${it.type}-${it.to}-${i}`}
-              to={it.to}
-              data-idx={i}
-              onClick={onClose}
-              onMouseEnter={() => setIndex(i)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 12,
-                padding: '9px 11px',
-                borderRadius: 8,
-                cursor: 'pointer',
-                background: i === index ? 'var(--hover)' : 'transparent',
-                color: 'inherit',
-                textDecoration: 'none',
-              }}
-            >
-              <span
-                className="mono"
+          {results.map((it, i) => {
+            const subParts = Array.isArray(it.sub) ? it.sub : it.sub ? [it.sub] : [];
+            return (
+              <Link
+                key={`${it.type}-${it.to}-${i}`}
+                to={it.to}
+                data-idx={i}
+                className="menu-item"
+                onClick={onClose}
+                onMouseEnter={() => setIndex(i)}
                 style={{
-                  flex: 'none',
-                  width: 92,
-                  fontSize: 9.5,
-                  letterSpacing: '0.04em',
-                  textTransform: 'uppercase',
-                  color: TYPE_COLOR[it.type] || 'var(--text-3)',
+                  height: 'auto',
+                  alignItems: 'flex-start',
+                  gap: 'var(--space-5)',
+                  padding: 'var(--space-3) var(--space-4)',
+                  background: i === index ? 'var(--hover)' : 'transparent',
+                  textDecoration: 'none',
                 }}
               >
-                {it.type}
-              </span>
-              <div style={{ minWidth: 0, flex: 1 }}>
-                <div
+                <span
                   style={{
-                    fontSize: 13.5,
-                    color: 'var(--text)',
+                    flex: 'none',
+                    width: '6rem',
+                    paddingTop: 1,
+                    color: 'var(--text-3)',
+                    fontSize: 'var(--text-2xs)',
                     whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
                   }}
                 >
-                  {it.label}
-                </div>
-                {it.sub && (
+                  {it.type}
+                </span>
+                <div style={{ minWidth: 0, flex: 1 }}>
                   <div
                     style={{
-                      fontSize: 11.5,
-                      color: 'var(--text-3)',
+                      fontSize: 'var(--text-sm)',
+                      color: 'var(--text)',
                       whiteSpace: 'nowrap',
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
-                      marginTop: 1,
                     }}
                   >
-                    {it.sub}
+                    {it.label}
                   </div>
+                  {subParts.length > 0 && (
+                    <div
+                      style={{
+                        display: 'flex',
+                        gap: 'var(--space-4)',
+                        marginTop: 'var(--space-1)',
+                        color: 'var(--text-3)',
+                        fontSize: 'var(--text-xs)',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                      }}
+                    >
+                      {subParts.map((part, partIndex) => (
+                        <span key={partIndex} style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {part}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {i === index && (
+                  <kbd className="kbd" style={{ flex: 'none' }}>
+                    enter
+                  </kbd>
                 )}
-              </div>
-              {i === index && (
-                <span className="mono" style={{ flex: 'none', fontSize: 10, color: 'var(--text-3)' }}>
-                  ↵
-                </span>
-              )}
-            </Link>
-          ))}
+              </Link>
+            );
+          })}
         </div>
       </div>
     </div>

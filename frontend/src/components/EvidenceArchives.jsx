@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { api } from '../api/client.js';
 import { useFetch } from '../lib/useFetch.js';
 import { saveBrowserDownload } from '../lib/download.js';
@@ -45,131 +45,156 @@ export default function EvidenceArchives({ scanId, vulnerabilityId, title = 'Evi
   };
 
   return (
-    <section
-      style={{
-        border: '1px solid var(--border)',
-        borderRadius: 12,
-        background: 'var(--surface)',
-        padding: '14px 16px',
-        marginBottom: 24,
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 14 }}>
+    <section className="panel" style={{ marginBottom: 'var(--space-8)' }}>
+      <div className="panel-head">
         <div>
-          <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>{title}</h3>
-          <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 4, lineHeight: 1.5 }}>
-            {description || DEFAULT_DESCRIPTION}
-          </div>
+          <h3 className="panel-title">{title}</h3>
+          <div className="panel-note">{description || DEFAULT_DESCRIPTION}</div>
         </div>
-        <Button
-          variant="ghost"
-          onClick={reload}
-          disabled={loading}
-          style={{ height: 30, padding: '0 12px', fontSize: 12, flex: 'none' }}
-        >
+        <Button variant="ghost" onClick={reload} disabled={loading} style={{ flex: 'none' }}>
           Refresh
         </Button>
       </div>
 
       {loading && !data && (
-        <div style={{ padding: '14px 0' }}>
+        <div style={{ padding: 'var(--space-5)' }}>
           <Spinner label="Loading archives…" />
         </div>
       )}
       {error && (
-        <div style={{ marginTop: 12 }}>
+        <div style={{ padding: 'var(--space-5)' }}>
           <ErrorState error={error} onRetry={reload} />
         </div>
       )}
       {!loading && !error && archives.length === 0 && (
-        <div style={{ fontSize: 12.5, color: 'var(--text-3)', marginTop: 12 }}>
+        <div
+          style={{
+            padding: 'var(--space-5)',
+            color: 'var(--text-3)',
+            fontSize: 'var(--text-xs)',
+            lineHeight: 'var(--leading-base)',
+          }}
+        >
           No evidence archives yet. New jobs store a workspace snapshot and harness transcript before cleanup.
         </div>
       )}
 
-      {archives.map((entry) => {
-        const sessions = archiveSessionPaths(entry);
-        const expandedEntry = expanded === entry.id;
-        return (
-          <div key={entry.id} style={{ borderTop: '1px solid var(--border-2)', marginTop: 12, paddingTop: 12 }}>
-            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10 }}>
-              <div style={{ flex: '1 1 260px', minWidth: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 500 }}>{archiveEntryLabel(entry)}</div>
-                <div
-                  className="mono"
-                  style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 3, overflowWrap: 'anywhere' }}
-                >
-                  {entry.id} · {formatArchiveTime(entry.archivedAt)} · {formatArchiveBytes(entry.bytes)}
-                  {entry.incomplete ? ' · incomplete manifest' : ''}
-                </div>
-                {entry.workspaceMode === 'image' ? (
-                  <div style={{ fontSize: 11.5, color: 'var(--pend)', marginTop: 4 }}>
-                    Image workspace mode: agent-written files stay in the disposable runner; this archive contains the
-                    wrapper workspace and transcript.
-                  </div>
-                ) : null}
-              </div>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                <Button
-                  variant="subtle"
-                  onClick={() => download(entry, 'workspace.tar.gz')}
-                  disabled={Boolean(downloading)}
-                  style={{ height: 30, padding: '0 11px', fontSize: 12 }}
-                >
-                  {downloading === `${entry.id}:workspace.tar.gz` ? 'Downloading…' : 'Workspace (.tar.gz)'}
-                </Button>
-                <Button
-                  variant="ghost"
-                  onClick={() => download(entry, 'manifest.json')}
-                  disabled={Boolean(downloading)}
-                  style={{ height: 30, padding: '0 11px', fontSize: 12 }}
-                >
-                  {downloading === `${entry.id}:manifest.json` ? 'Downloading…' : 'Manifest'}
-                </Button>
-                {sessions.length > 0 && (
-                  <Button
-                    variant="ghost"
-                    onClick={() => setExpanded(expandedEntry ? null : entry.id)}
-                    aria-expanded={expandedEntry}
-                    aria-controls={`sessions-${entry.id}`}
-                    style={{ height: 30, padding: '0 11px', fontSize: 12 }}
-                  >
-                    {expandedEntry ? 'Hide sessions' : `Sessions (${sessions.length})`}
-                  </Button>
-                )}
-              </div>
-            </div>
-            {expandedEntry && sessions.length > 0 && (
-              <div
-                id={`sessions-${entry.id}`}
-                style={{ marginTop: 10, paddingLeft: 12, borderLeft: '2px solid var(--border)' }}
-              >
-                {sessions.map((file) => (
-                  <div key={file} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '4px 0' }}>
-                    <span
-                      className="mono"
-                      style={{ flex: 1, fontSize: 11.5, color: 'var(--text-2)', overflowWrap: 'anywhere' }}
-                    >
-                      {file}
-                    </span>
-                    <Button
-                      variant="ghost"
-                      onClick={() => download(entry, file)}
-                      disabled={Boolean(downloading)}
-                      style={{ height: 26, padding: '0 9px', fontSize: 11.5 }}
-                    >
-                      {downloading === `${entry.id}:${file}` ? 'Downloading…' : 'Download'}
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        );
-      })}
+      {archives.length > 0 && (
+        <div style={{ overflowX: 'auto' }}>
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Archive</th>
+                <th>Archived</th>
+                <th className="cell-num">Size</th>
+                <th className="cell-num">
+                  <span className="sr-only">Actions</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {archives.map((entry) => {
+                const sessions = archiveSessionPaths(entry);
+                const expandedEntry = expanded === entry.id;
+                return (
+                  <Fragment key={entry.id}>
+                    <tr>
+                      <td>
+                        <span className="cell-main">{archiveEntryLabel(entry)}</span>
+                        <span className="cell-sub mono">{entry.id}</span>
+                        {entry.incomplete && <span className="cell-sub">Incomplete manifest</span>}
+                        {entry.workspaceMode === 'image' && (
+                          <span className="cell-sub" style={{ color: 'var(--pend)', whiteSpace: 'normal' }}>
+                            Image workspace mode: agent-written files stay in the disposable runner; this archive
+                            contains the wrapper workspace and transcript.
+                          </span>
+                        )}
+                      </td>
+                      <td className="cell-muted">{formatArchiveTime(entry.archivedAt)}</td>
+                      <td className="cell-num mono">{formatArchiveBytes(entry.bytes)}</td>
+                      <td>
+                        <div className="cell-actions">
+                          <Button
+                            variant="subtle"
+                            onClick={() => download(entry, 'workspace.tar.gz')}
+                            disabled={Boolean(downloading)}
+                          >
+                            {downloading === `${entry.id}:workspace.tar.gz` ? 'Downloading…' : 'Workspace (.tar.gz)'}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            onClick={() => download(entry, 'manifest.json')}
+                            disabled={Boolean(downloading)}
+                          >
+                            {downloading === `${entry.id}:manifest.json` ? 'Downloading…' : 'Manifest'}
+                          </Button>
+                          {sessions.length > 0 && (
+                            <Button
+                              variant="ghost"
+                              onClick={() => setExpanded(expandedEntry ? null : entry.id)}
+                              aria-expanded={expandedEntry}
+                              aria-controls={`sessions-${entry.id}`}
+                            >
+                              {expandedEntry ? 'Hide sessions' : `Sessions (${sessions.length})`}
+                            </Button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                    {expandedEntry && sessions.length > 0 && (
+                      <tr className="scan-detail-row">
+                        <td colSpan={4} className="table-detail" id={`sessions-${entry.id}`}>
+                          {sessions.map((file) => (
+                            <div
+                              key={file}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 'var(--space-4)',
+                                padding: 'var(--space-2) 0',
+                              }}
+                            >
+                              <span
+                                className="mono"
+                                style={{
+                                  flex: 1,
+                                  color: 'var(--text-2)',
+                                  fontSize: 'var(--text-2xs)',
+                                  overflowWrap: 'anywhere',
+                                }}
+                              >
+                                {file}
+                              </span>
+                              <Button
+                                variant="ghost"
+                                onClick={() => download(entry, file)}
+                                disabled={Boolean(downloading)}
+                              >
+                                {downloading === `${entry.id}:${file}` ? 'Downloading…' : 'Download'}
+                              </Button>
+                            </div>
+                          ))}
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {downloadError && (
-        <div role="alert" style={{ marginTop: 10, fontSize: 12, color: 'var(--fail)' }}>
+        <div
+          role="alert"
+          style={{
+            padding: 'var(--space-3) var(--space-5)',
+            borderTop: '1px solid var(--border-2)',
+            color: 'var(--fail)',
+            fontSize: 'var(--text-xs)',
+          }}
+        >
           {downloadError.message || 'The archive download failed.'}
         </div>
       )}

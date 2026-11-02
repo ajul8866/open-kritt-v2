@@ -3,7 +3,8 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { api, ApiError, apiErrorMessages } from '../api/client.js';
 import { usePageChrome } from '../context/ui.jsx';
 import { useUnsavedChangesPrompt } from '../lib/useUnsavedChangesPrompt.js';
-import { ErrorState, Spinner } from '../components/ui.jsx';
+import { ErrorState, Spinner, Button, KeyChip } from '../components/ui.jsx';
+import { Page, PageHeader } from '../components/app.jsx';
 import { PromptEditor } from '../components/PromptEditor.jsx';
 import SchemaEditor from '../components/SchemaEditor.jsx';
 import { postScriptDraftFromGeneration, resultFromCompletedGeneration } from '../lib/generationDraft.js';
@@ -24,7 +25,30 @@ import {
 } from '../lib/keys.js';
 
 const AVAILABLE = new Set(RESERVED_POST_SCRIPT_KEYS);
-const NEW_POST_SCRIPT_CONTENT = 'Grade the finding "{{summary}}" — a {{vulnerability_type}} at {{file_path}}:{{line}}.';
+const NEW_POST_SCRIPT_CONTENT = 'Grade the finding "{{summary}}", a {{vulnerability_type}} at {{file_path}}:{{line}}.';
+
+const META_GRID = {
+  display: 'grid',
+  maxWidth: 880,
+  gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 320px), 1fr))',
+  gap: 'var(--space-6)',
+  marginBottom: 'var(--space-8)',
+};
+
+const FOOTER = {
+  maxWidth: 880,
+  position: 'sticky',
+  bottom: 0,
+  zIndex: 2,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: 'var(--space-5)',
+  marginTop: 'var(--space-9)',
+  padding: 'var(--space-4) 0',
+  borderTop: '1px solid var(--border)',
+  background: 'var(--bg)',
+};
 
 function newPostScriptState() {
   return {
@@ -133,18 +157,18 @@ export default function PostScriptEditor() {
 
   if (loadError)
     return (
-      <div style={{ padding: 26 }}>
+      <Page>
         <ErrorState error={loadError} onRetry={() => window.location.reload()} />
-      </div>
+      </Page>
     );
   if (!loaded)
     return (
-      <div style={{ padding: 26 }}>
+      <Page>
         <Spinner />
-      </div>
+      </Page>
     );
 
-  // ---- live validation ----
+  // Live validation.
   const parsedRefs = parseTemplateRefs(content);
   const refs = [...new Set(parsedRefs.refs)];
   const malformedRefs = [...new Set(parsedRefs.malformed)];
@@ -175,7 +199,7 @@ export default function PostScriptEditor() {
 
   const validateKey = (key) => {
     if (!isValidKey(key)) return 'invalid key name';
-    if (RESERVED_POST_SCRIPT_KEYS.includes(key)) return 'reserved key — those are inputs';
+    if (RESERVED_POST_SCRIPT_KEYS.includes(key)) return 'reserved key, those are inputs';
     if (key === POST_SCRIPT_CHIP_PREFIX) return 'add a label after _chip_';
     return null;
   };
@@ -204,279 +228,179 @@ export default function PostScriptEditor() {
     }
   };
 
+  const referenceStatus =
+    refs.length === 0 && malformedRefs.length === 0
+      ? 'no references yet'
+      : malformedRefs.length || badRefs.length
+        ? `${malformedRefs.length + badRefs.length} invalid reference${malformedRefs.length + badRefs.length > 1 ? 's' : ''}`
+        : `all ${refs.length} resolved`;
+  const referenceTone =
+    malformedRefs.length || badRefs.length ? 'var(--fail)' : refs.length ? 'var(--ok)' : 'var(--text-3)';
+
   return (
-    <div
-      className="post-script-editor"
-      style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}
-    >
-      <div className="post-script-editor-body" style={{ flex: 1, overflowY: 'auto', padding: '26px 32px' }}>
-        <div className="post-script-editor-content" style={{ maxWidth: 880, margin: '0 auto' }}>
+    <Page style={{ paddingBottom: 0 }}>
+      <PageHeader
+        title={id ? 'Edit post-script' : 'New post-script'}
+        meta="Runs once per finding. It may only reference the reserved context and finding keys below, not step outputs."
+      />
+
+      <div style={META_GRID}>
+        <div className="field">
+          <label className="field-label" htmlFor="post-script-name">
+            Name
+          </label>
           <input
+            id="post-script-name"
+            className="input mono"
             value={name}
             onChange={(e) => setName(e.target.value)}
             spellCheck={false}
             placeholder="post-script-name"
-            className="mono"
-            style={{
-              border: 'none',
-              outline: 'none',
-              background: 'transparent',
-              fontSize: 22,
-              fontWeight: 600,
-              color: 'var(--text)',
-              letterSpacing: 0,
-              width: '100%',
-              padding: 0,
-            }}
           />
+        </div>
+        <div className="field">
+          <label className="field-label" htmlFor="post-script-description">
+            Description
+          </label>
           <input
+            id="post-script-description"
+            className="input"
             value={description}
             onChange={(event) => setDescription(event.target.value)}
             placeholder="Describe what this post-script adds to a finding…"
-            style={{
-              border: 'none',
-              outline: 'none',
-              background: 'transparent',
-              fontSize: 13.5,
-              color: 'var(--text-2)',
-              width: '100%',
-              marginTop: 6,
-              padding: 0,
-            }}
           />
-          <div style={{ fontSize: 13.5, color: 'var(--text-2)', margin: '6px 0 24px' }}>
-            Runs once per finding. It may only reference the reserved context and finding keys below — no step outputs.
-          </div>
-
-          {generationId && (
-            <div
-              style={{
-                margin: '-10px 0 22px',
-                padding: '10px 12px',
-                border: '1px solid var(--run-bg)',
-                borderRadius: 8,
-                background: 'var(--run-bg)',
-                color: 'var(--run)',
-                fontSize: 12.5,
-                lineHeight: 1.5,
-              }}
-            >
-              AI-generated draft. Review the prompt, referenced variables, and output schema before saving.
-            </div>
-          )}
-
-          <div
-            className="post-script-editor-grid"
-            style={{ display: 'grid', gridTemplateColumns: '1.25fr 1fr', gap: 24, alignItems: 'start' }}
-          >
-            {/* left: prompt */}
-            <div>
-              <Label>CONTENT</Label>
-              <PromptEditor
-                ref={editorRef}
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
-                available={AVAILABLE}
-                allowExtra
-                height={240}
-                expandable
-                title="Post-script content"
-                paletteChips={[
-                  ...BUILTIN_KEYS.map((k) => ({ label: `${k} · context`, token: k })),
-                  ...[...REQUIRED_VULN_KEYS, ...OPTIONAL_VULN_KEYS].map((k) => ({
-                    label: `${k} · finding`,
-                    token: k,
-                    accent: true,
-                  })),
-                  { label: 'extra.<key> · scan input', token: 'extra.', accent: true },
-                ]}
-              />
-
-              <div
-                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '14px 0 8px' }}
-              >
-                <Label inline>REFERENCED KEYS</Label>
-                <span
-                  className="mono"
-                  style={{
-                    fontSize: 10.5,
-                    color:
-                      malformedRefs.length || badRefs.length
-                        ? 'var(--fail)'
-                        : refs.length
-                          ? 'var(--ok)'
-                          : 'var(--text-3)',
-                  }}
-                >
-                  {refs.length === 0 && malformedRefs.length === 0
-                    ? 'no references yet'
-                    : malformedRefs.length || badRefs.length
-                      ? `${malformedRefs.length + badRefs.length} invalid reference${malformedRefs.length + badRefs.length > 1 ? 's' : ''}`
-                      : `all ${refs.length} resolved`}
-                </span>
-              </div>
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                {refs.map((k) => {
-                  const ok = refIsAvailable(k);
-                  return (
-                    <span
-                      key={k}
-                      className="mono"
-                      style={{
-                        fontSize: 11,
-                        padding: '3px 9px',
-                        borderRadius: 6,
-                        color: ok ? 'var(--ok)' : 'var(--fail)',
-                        background: ok ? 'var(--ok-bg)' : 'var(--fail-bg)',
-                      }}
-                    >
-                      {ok ? '✓' : '✕'} {k}
-                    </span>
-                  );
-                })}
-                {malformedRefs.map((token, index) => (
-                  <span
-                    key={`${token}-${index}`}
-                    className="mono"
-                    style={{
-                      fontSize: 11,
-                      padding: '3px 9px',
-                      borderRadius: 6,
-                      color: 'var(--fail)',
-                      background: 'var(--fail-bg)',
-                    }}
-                  >
-                    ✕ {token}
-                  </span>
-                ))}
-              </div>
-
-              <Label style={{ margin: '20px 0 8px' }}>
-                CONTEXT KEYS <span style={{ textTransform: 'none', letterSpacing: 0 }}>· scan inputs</span>
-              </Label>
-              <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
-                {[...BUILTIN_KEYS, EXTRA_KEY].map((k) => (
-                  <span
-                    key={k}
-                    onClick={() => insert(k === EXTRA_KEY ? `${EXTRA_KEY}.` : k)}
-                    className="mono"
-                    style={{
-                      fontSize: 10.5,
-                      padding: '3px 8px',
-                      borderRadius: 6,
-                      color: 'var(--text-2)',
-                      background: 'var(--surface-2)',
-                      border: '1px solid var(--border-2)',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    {k === EXTRA_KEY ? 'extra.<key>' : k}
-                  </span>
-                ))}
-              </div>
-              <Label style={{ margin: '14px 0 8px' }}>
-                FINDING KEYS <span style={{ textTransform: 'none', letterSpacing: 0 }}>· vulnerability fields</span>
-              </Label>
-              <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
-                {[...REQUIRED_VULN_KEYS, ...OPTIONAL_VULN_KEYS].map((k) => (
-                  <span
-                    key={k}
-                    onClick={() => insert(k)}
-                    className="mono"
-                    style={{
-                      fontSize: 10.5,
-                      padding: '3px 8px',
-                      borderRadius: 6,
-                      color: 'var(--accent)',
-                      background: 'var(--accent-subtle)',
-                      border: '1px solid var(--accent-subtle)',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    {k}
-                  </span>
-                ))}
-              </div>
-            </div>
-
-            {/* right: output schema */}
-            <div>
-              <Label style={{ marginBottom: 8 }}>OUTPUT FORMAT</Label>
-              <SchemaEditor
-                rows={rows}
-                onRowsChange={setRows}
-                mode={mode}
-                onToggleMode={() => setMode((m) => (m === 'visual' ? 'raw' : 'visual'))}
-                validateKey={validateKey}
-                inputBg="var(--surface)"
-              />
-              <div
-                style={{
-                  marginTop: 14,
-                  fontSize: 11.5,
-                  color: 'var(--text-3)',
-                  lineHeight: 1.5,
-                  background: 'var(--surface-2)',
-                  borderRadius: 8,
-                  padding: '11px 13px',
-                }}
-              >
-                Output keys become columns on{' '}
-                <span className="mono" style={{ color: 'var(--text-2)' }}>
-                  post_script_answer
-                </span>
-                . They can't reuse a reserved context or finding key.
-              </div>
-            </div>
-          </div>
         </div>
       </div>
 
-      <div
-        className="post-script-editor-footer"
-        style={{
-          flex: 'none',
-          borderTop: '1px solid var(--border)',
-          background: 'var(--bg)',
-          padding: '13px 32px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-        }}
-      >
-        <span
-          className="post-script-editor-footer-status"
-          style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: 'var(--text-2)' }}
-        >
-          <span
-            style={{
-              width: 7,
-              height: 7,
-              borderRadius: '50%',
-              background: errs.length || serverErrors.length ? 'var(--fail)' : 'var(--ok)',
-            }}
-          />
-          {serverErrors[0] || errs[0] || 'Post-script is valid.'}
-        </span>
-        <button
-          type="button"
-          disabled={!canSave}
-          onClick={save}
-          className="post-script-editor-save"
+      {generationId && (
+        <div
+          className="state-block"
           style={{
-            border: 0,
-            height: 36,
-            padding: '0 20px',
-            display: 'flex',
-            alignItems: 'center',
-            borderRadius: 9,
-            fontSize: 13.5,
-            fontWeight: 500,
-            cursor: canSave ? 'pointer' : 'default',
-            background: canSave ? 'var(--accent)' : 'var(--surface-2)',
-            color: canSave ? 'var(--accent-fg)' : 'var(--text-3)',
+            marginBottom: 'var(--space-6)',
+            borderStyle: 'solid',
+            borderColor: 'var(--run)',
+            background: 'var(--run-bg)',
           }}
         >
+          <div className="state-note" style={{ color: 'var(--run)' }}>
+            AI-generated draft. Review the prompt, referenced variables, and output schema before saving.
+          </div>
+        </div>
+      )}
+
+      <div
+        className="post-script-editor-grid"
+        style={{
+          display: 'grid',
+          maxWidth: 880,
+          gridTemplateColumns: 'minmax(0, 1.25fr) minmax(0, 1fr)',
+          gap: 'var(--space-8)',
+          alignItems: 'start',
+        }}
+      >
+        <div>
+          <div className="field">
+            <div className="field-label">
+              <span>Content</span>
+            </div>
+            <PromptEditor
+              ref={editorRef}
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              available={AVAILABLE}
+              allowExtra
+              height={240}
+              expandable
+              title="Post-script content"
+              paletteChips={[
+                ...BUILTIN_KEYS.map((k) => ({ label: `${k} (context)`, token: k })),
+                ...[...REQUIRED_VULN_KEYS, ...OPTIONAL_VULN_KEYS].map((k) => ({
+                  label: `${k} (finding)`,
+                  token: k,
+                  accent: true,
+                })),
+                { label: 'extra.<key> (scan input)', token: 'extra.', accent: true },
+              ]}
+            />
+          </div>
+
+          <div className="field-label" style={{ marginTop: 'var(--space-5)' }}>
+            <span>Referenced keys</span>
+            <span className="field-unit" style={{ color: referenceTone }}>
+              {referenceStatus}
+            </span>
+          </div>
+          <div className="chip-row" style={{ marginTop: 'var(--space-3)' }}>
+            {refs.map((k) => {
+              const ok = refIsAvailable(k);
+              return <KeyChip key={k} name={`${ok ? '✓' : '✕'} ${k}`} ok={ok} />;
+            })}
+            {malformedRefs.map((token, index) => (
+              <KeyChip key={`${token}-${index}`} name={`✕ ${token}`} ok={false} />
+            ))}
+          </div>
+
+          <div className="field-label" style={{ marginTop: 'var(--space-6)' }}>
+            <span>Context keys</span>
+            <span className="field-unit">scan inputs</span>
+          </div>
+          <div className="chip-row" style={{ marginTop: 'var(--space-3)' }}>
+            {[...BUILTIN_KEYS, EXTRA_KEY].map((k) => (
+              <button
+                key={k}
+                type="button"
+                className="chip chip--code"
+                style={{ cursor: 'pointer' }}
+                onClick={() => insert(k === EXTRA_KEY ? `${EXTRA_KEY}.` : k)}
+              >
+                {k === EXTRA_KEY ? 'extra.<key>' : k}
+              </button>
+            ))}
+          </div>
+
+          <div className="field-label" style={{ marginTop: 'var(--space-6)' }}>
+            <span>Finding keys</span>
+            <span className="field-unit">vulnerability fields</span>
+          </div>
+          <div className="chip-row" style={{ marginTop: 'var(--space-3)' }}>
+            {[...REQUIRED_VULN_KEYS, ...OPTIONAL_VULN_KEYS].map((k) => (
+              <button
+                key={k}
+                type="button"
+                className="chip chip--code chip--accent"
+                style={{ cursor: 'pointer' }}
+                onClick={() => insert(k)}
+              >
+                {k}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="field">
+          <div className="field-label">
+            <span>Output format</span>
+          </div>
+          <SchemaEditor
+            rows={rows}
+            onRowsChange={setRows}
+            mode={mode}
+            onToggleMode={() => setMode((m) => (m === 'visual' ? 'raw' : 'visual'))}
+            validateKey={validateKey}
+            inputBg="var(--surface)"
+          />
+          <p className="field-note" style={{ margin: 0 }}>
+            Output keys become columns on <span className="mono">post_script_answer</span>. They cannot reuse a reserved
+            context or finding key.
+          </p>
+        </div>
+      </div>
+
+      <div className="post-script-editor-footer" style={FOOTER}>
+        <span className="post-script-editor-footer-status field-note" role="status">
+          {serverErrors[0] || errs[0] || 'Post-script is valid.'}
+        </span>
+        <Button className="btn btn--primary post-script-editor-save" onClick={save} disabled={!canSave}>
           {saving
             ? 'Saving…'
             : errs.length
@@ -484,19 +408,8 @@ export default function PostScriptEditor() {
               : id
                 ? 'Save changes'
                 : 'Create post-script'}
-        </button>
+        </Button>
       </div>
-    </div>
-  );
-}
-
-function Label({ children, style, inline }) {
-  return (
-    <div
-      className="mono"
-      style={{ fontSize: 10, letterSpacing: '0.07em', color: 'var(--text-3)', marginBottom: inline ? 0 : 8, ...style }}
-    >
-      {children}
-    </div>
+    </Page>
   );
 }

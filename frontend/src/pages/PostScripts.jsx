@@ -3,12 +3,27 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../api/client.js';
 import { useFetch } from '../lib/useFetch.js';
 import { usePageChrome } from '../context/ui.jsx';
-import { CardLinkOverlay, Spinner, ErrorState, EmptyState, Button } from '../components/ui.jsx';
+import { Spinner, ErrorState, EmptyState, Button } from '../components/ui.jsx';
+import { Page, PageHeader } from '../components/app.jsx';
 import { useModalDialog } from '../lib/useModalDialog.js';
 import { useNewestFirst, usePagination } from '../lib/usePagination.js';
 import { downloadResourceExport } from '../lib/resourceTransfer.js';
 import { useResourceImport } from '../lib/useResourceImport.js';
 import Pagination from '../components/Pagination.jsx';
+
+function updatedLabel(value) {
+  if (!value) return 'unknown';
+  return new Date(value).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+const DESCRIPTION_STYLE = {
+  display: 'block',
+  maxWidth: '58ch',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+  color: 'var(--text-2)',
+};
 
 export default function PostScripts() {
   const navigate = useNavigate();
@@ -38,18 +53,16 @@ export default function PostScripts() {
   });
 
   return (
-    <div style={{ padding: '30px 32px', maxWidth: 1180 }}>
-      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16 }}>
-        <div>
-          <div style={{ fontSize: 27, fontWeight: 600, letterSpacing: '-0.02em' }}>Post-scripts</div>
-          <div style={{ fontSize: 14, color: 'var(--text-2)', marginTop: 3 }}>
-            Run after every finding to enrich, grade or cluster it. Reserved keys only.
-          </div>
-        </div>
-        <Button variant="ghost" disabled={resourceImport.importing} onClick={resourceImport.chooseFile}>
-          {resourceImport.importing ? 'Importing…' : 'Import JSON'}
-        </Button>
-      </div>
+    <Page>
+      <PageHeader
+        title="Post-scripts"
+        meta="Run after every finding to enrich, grade or cluster it. Reserved keys only."
+        actions={
+          <Button variant="ghost" disabled={resourceImport.importing} onClick={resourceImport.chooseFile}>
+            {resourceImport.importing ? 'Importing…' : 'Import JSON'}
+          </Button>
+        }
+      />
       <input
         ref={resourceImport.inputRef}
         type="file"
@@ -60,12 +73,10 @@ export default function PostScripts() {
       />
 
       {resourceImport.importError && (
-        <div role="alert" style={{ margin: '18px 0' }}>
+        <div role="alert" style={{ marginBottom: 'var(--space-5)' }}>
           <ErrorState error={{ message: resourceImport.importError }} />
         </div>
       )}
-
-      <div style={{ height: resourceImport.importError ? 4 : 22 }} />
 
       {dialogOpen && <NewPostScriptDialog onClose={closeDialog} />}
 
@@ -80,90 +91,73 @@ export default function PostScripts() {
       )}
       {data && data.length > 0 && (
         <>
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: '1fr 1fr 1fr',
-              gap: 14,
-              paddingRight: 4,
-            }}
-          >
-            {postScriptPages.pageItems.map((p) => (
-              <div
-                key={p.id}
-                style={{
-                  position: 'relative',
-                  border: '1px solid var(--border)',
-                  borderRadius: 12,
-                  padding: 18,
-                  background: 'var(--surface)',
-                  boxShadow: 'var(--shadow)',
-                  cursor: 'pointer',
-                }}
-              >
-                <CardLinkOverlay to={`/post-scripts/${p.id}`} label={`Open post-script ${p.name}`} />
-                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
-                  <div className="mono" style={{ fontWeight: 600, fontSize: 14.5 }}>
-                    {p.name}
-                  </div>
-                  <Button
-                    variant="ghost"
-                    aria-label={`Export ${p.name}`}
-                    title="Export post-script as JSON"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      downloadResourceExport('postScript', p);
-                    }}
-                    style={{ position: 'relative', zIndex: 2, height: 27, padding: '0 9px', fontSize: 11.5 }}
-                  >
-                    Export
-                  </Button>
-                </div>
-                <div
-                  style={{
-                    fontSize: 12.5,
-                    color: 'var(--text-2)',
-                    marginTop: 6,
-                    lineHeight: 1.5,
-                    height: 54,
-                    overflow: 'hidden',
-                  }}
-                >
-                  {p.description}
-                </div>
-                <div
-                  style={{
-                    display: 'flex',
-                    gap: 5,
-                    flexWrap: 'wrap',
-                    marginTop: 12,
-                    paddingTop: 12,
-                    borderTop: '1px solid var(--border-2)',
-                  }}
-                >
-                  {p.keys.map((k) => (
-                    <span
-                      key={k}
-                      className="mono"
-                      style={{
-                        fontSize: 10,
-                        color: 'var(--text-2)',
-                        background: 'var(--surface-2)',
-                        padding: '2px 7px',
-                        borderRadius: 5,
-                      }}
-                    >
-                      {k}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            ))}
+          <div className="table-wrap">
+            <table className="data-table">
+              <colgroup>
+                <col style={{ width: '22%' }} />
+                <col style={{ width: '36%' }} />
+                <col style={{ width: '22%' }} />
+                <col style={{ width: '12%' }} />
+                <col style={{ width: '8%' }} />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th>Post-script</th>
+                  <th>Description</th>
+                  <th>Output keys</th>
+                  <th>Updated</th>
+                  <th aria-label="Actions" />
+                </tr>
+              </thead>
+              <tbody>
+                {postScriptPages.pageItems.map((p) => (
+                  <tr key={p.id}>
+                    <td style={{ minWidth: 180 }}>
+                      <Link className="cell-main" to={`/post-scripts/${p.id}`}>
+                        {p.name}
+                      </Link>
+                    </td>
+                    <td>
+                      <span style={DESCRIPTION_STYLE}>{p.description}</span>
+                    </td>
+                    <td>
+                      <div className="chip-row">
+                        {p.keys.map((k) => (
+                          <span key={k} className="chip chip--code">
+                            {k}
+                          </span>
+                        ))}
+                      </div>
+                    </td>
+                    <td className="cell-muted" style={{ whiteSpace: 'nowrap' }}>
+                      {updatedLabel(p.updatedAt)}
+                    </td>
+                    <td>
+                      <div className="cell-actions">
+                        <Button
+                          variant="ghost"
+                          aria-label={`Export ${p.name}`}
+                          title="Export post-script as JSON"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            downloadResourceExport('postScript', p);
+                          }}
+                        >
+                          Export
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-          <Pagination {...postScriptPages} itemLabel="post-scripts" />
+          <div style={{ marginTop: 'var(--space-4)' }}>
+            <Pagination {...postScriptPages} itemLabel="post-scripts" />
+          </div>
         </>
       )}
-    </div>
+    </Page>
   );
 }
 
@@ -171,19 +165,7 @@ function NewPostScriptDialog({ onClose }) {
   const dialogRef = useModalDialog(onClose);
 
   return (
-    <div
-      onClick={onClose}
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 60,
-        background: 'rgba(0,0,0,.32)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 20,
-      }}
-    >
+    <div className="dialog-wrap" onClick={onClose}>
       <div
         ref={dialogRef}
         role="dialog"
@@ -191,44 +173,18 @@ function NewPostScriptDialog({ onClose }) {
         aria-labelledby="new-post-script-title"
         tabIndex={-1}
         onClick={(event) => event.stopPropagation()}
-        style={{
-          width: 460,
-          maxWidth: '100%',
-          background: 'var(--surface)',
-          border: '1px solid var(--border)',
-          borderRadius: 8,
-          boxShadow: '0 18px 50px rgba(0,0,0,.28)',
-          overflow: 'hidden',
-        }}
+        className="dialog"
+        style={{ width: 'min(460px, 100%)' }}
       >
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '16px 20px',
-            borderBottom: '1px solid var(--border-2)',
-          }}
-        >
-          <div id="new-post-script-title" style={{ fontSize: 16, fontWeight: 600 }}>
+        <div className="dialog-head">
+          <h2 className="dialog-title" id="new-post-script-title">
             New post-script
-          </div>
-          <button
-            type="button"
-            aria-label="Close"
-            onClick={onClose}
-            style={{
-              border: 'none',
-              background: 'transparent',
-              cursor: 'pointer',
-              color: 'var(--text-3)',
-              fontSize: 20,
-            }}
-          >
+          </h2>
+          <button type="button" className="btn btn--icon btn--sm" aria-label="Close" onClick={onClose}>
             ×
           </button>
         </div>
-        <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div className="dialog-body" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
           <OptionCard
             autoFocus
             title="Generate with AI"
@@ -252,20 +208,21 @@ function OptionCard({ title, sub, to, autoFocus = false }) {
       to={to}
       data-autofocus={autoFocus || undefined}
       style={{
-        width: '100%',
-        padding: '14px 16px',
-        borderRadius: 8,
+        display: 'block',
+        padding: 'var(--space-5)',
         border: '1px solid var(--border)',
+        borderRadius: 'var(--radius-md)',
         background: 'var(--surface)',
         color: 'var(--text)',
-        cursor: 'pointer',
-        textAlign: 'left',
-        font: 'inherit',
         textDecoration: 'none',
       }}
     >
-      <div style={{ fontSize: 14, fontWeight: 600 }}>{title}</div>
-      <div style={{ fontSize: 12.5, color: 'var(--text-2)', marginTop: 4, lineHeight: 1.45 }}>{sub}</div>
+      <div style={{ fontSize: 'var(--text-base)', fontWeight: 600 }}>{title}</div>
+      <div
+        style={{ marginTop: 'var(--space-2)', color: 'var(--text-2)', fontSize: 'var(--text-sm)', lineHeight: 1.45 }}
+      >
+        {sub}
+      </div>
     </Link>
   );
 }

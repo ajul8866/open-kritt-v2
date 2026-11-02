@@ -5,7 +5,8 @@ import ModelConfiguration, {
   modelConfigurationForCatalog,
   modelConfigurationIsValid,
 } from '../components/ModelConfiguration.jsx';
-import { Spinner } from '../components/ui.jsx';
+import { Button, SectionLabel, Spinner } from '../components/ui.jsx';
+import { Page, PageHeader } from '../components/app.jsx';
 import ResourceNotice from '../components/ResourceNotice.jsx';
 import { usePageChrome } from '../context/ui.jsx';
 import { configuredModelCatalog, configuredModelProviders, modelCatalogIsReady } from '../lib/modelProviders.js';
@@ -182,11 +183,9 @@ export default function AiGeneration({ kind }) {
     poll();
     return () => {
       active = false;
-      if (timer) clearTimeout(timer);
+      clearTimeout(timer);
     };
   }, [copy.editorPath, generationId, navigate, pollRevision]);
-
-  if (!copy) return null;
 
   const fatalPollError = generationPollErrorIsTerminal(pollError);
   const generationRunning = generationIsRunning(generationId, job, pollError);
@@ -238,56 +237,42 @@ export default function AiGeneration({ kind }) {
   const primaryEnabled = pollPaused || canGenerate;
 
   return (
-    <div className="ai-generation-page" style={{ height: '100%', overflowY: 'auto', padding: '30px 32px 70px' }}>
-      <div style={{ maxWidth: 920, margin: '0 auto' }}>
-        <div style={{ fontSize: 25, fontWeight: 600 }}>{copy.title}</div>
-        <div style={{ fontSize: 14, color: 'var(--text-2)', marginTop: 5, lineHeight: 1.5 }}>{copy.subtitle}</div>
+    <Page>
+      <PageHeader title={copy.title} meta={copy.subtitle} />
 
-        <section style={{ marginTop: 30 }}>
-          <Label htmlFor={`generation-${kind}-request`}>DESCRIBE THE {copy.label.toUpperCase()}</Label>
+      <div style={{ maxWidth: 920 }}>
+        <div className="field">
+          <label className="field-label" htmlFor={`generation-${kind}-request`}>
+            <span>Describe the {copy.label}</span>
+            <span className="field-unit">{request.length.toLocaleString()} / 20,000</span>
+          </label>
           <textarea
             id={`generation-${kind}-request`}
+            className="textarea"
             value={request}
             onChange={(event) => setRequest(event.target.value)}
             disabled={generationRunning || submitting}
             maxLength={20_000}
             placeholder={copy.placeholder}
             style={{
-              width: '100%',
-              minHeight: 260,
+              minHeight: 240,
+              padding: 'var(--space-5)',
+              fontSize: 'var(--text-base)',
+              lineHeight: 'var(--leading-prose)',
               resize: 'vertical',
-              padding: 16,
-              border: '1px solid var(--border)',
-              borderRadius: 8,
-              background: 'var(--surface)',
-              color: 'var(--text)',
-              fontSize: 14,
-              lineHeight: 1.65,
-              outline: 'none',
             }}
           />
-          <div
-            className="ai-generation-guidance"
-            style={{
-              display: 'flex',
-              alignItems: 'flex-start',
-              justifyContent: 'space-between',
-              gap: 18,
-              fontSize: 12.5,
-              color: 'var(--text-3)',
-              marginTop: 8,
-              lineHeight: 1.55,
-            }}
-          >
-            <span>{copy.guidance}</span>
-            <span className="mono" style={{ flex: 'none', fontSize: 10.5 }}>
-              {request.length.toLocaleString()} / 20,000
-            </span>
+          <div className="field-note" style={{ maxWidth: '72ch' }}>
+            {copy.guidance}
           </div>
-        </section>
+        </div>
 
-        <section style={{ marginTop: 28 }}>
-          <Label>MODEL &amp; HARNESS</Label>
+        <section style={{ marginTop: 'var(--space-9)' }}>
+          <div className="section-head" style={{ marginBottom: 'var(--space-5)' }}>
+            <div>
+              <h2>Model and harness</h2>
+            </div>
+          </div>
           {loadError ? (
             <GenerationError title="Could not load model options" errors={[loadError.message]} />
           ) : referenceData ? (
@@ -305,7 +290,7 @@ export default function AiGeneration({ kind }) {
         </section>
 
         {(generationRunning || job?.status === 'failed' || errors.length > 0) && (
-          <section style={{ marginTop: 28 }}>
+          <section style={{ marginTop: 'var(--space-8)' }}>
             {generationRunning && !pollingStopped ? (
               <GenerationProgress status={job?.status || 'pending'} kind={copy.label} notice={job?.resourceNotice} />
             ) : job?.status === 'failed' ? (
@@ -324,42 +309,16 @@ export default function AiGeneration({ kind }) {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            gap: 12,
-            marginTop: 32,
-            paddingTop: 18,
+            gap: 'var(--space-4)',
+            marginTop: 'var(--space-9)',
+            paddingTop: 'var(--space-5)',
             borderTop: '1px solid var(--border)',
           }}
         >
-          <Link
-            to={copy.listPath}
-            style={{
-              border: 'none',
-              background: 'transparent',
-              color: 'var(--text-2)',
-              fontSize: 13,
-              cursor: 'pointer',
-              padding: 0,
-              textDecoration: 'none',
-            }}
-          >
+          <Link className="btn btn--quiet" to={copy.listPath}>
             Back to {copy.plural.toLowerCase()}
           </Link>
-          <button
-            type="button"
-            onClick={pollPaused ? resumePolling : startGeneration}
-            disabled={!primaryEnabled}
-            style={{
-              height: 38,
-              padding: '0 18px',
-              border: 'none',
-              borderRadius: 8,
-              background: primaryEnabled ? 'var(--accent)' : 'var(--surface-2)',
-              color: primaryEnabled ? 'var(--accent-fg)' : 'var(--text-3)',
-              fontSize: 13.5,
-              fontWeight: 500,
-              cursor: primaryEnabled ? 'pointer' : 'default',
-            }}
-          >
+          <Button onClick={pollPaused ? resumePolling : startGeneration} disabled={!primaryEnabled}>
             {pollPaused
               ? 'Check status again'
               : submitting
@@ -371,42 +330,18 @@ export default function AiGeneration({ kind }) {
                   : job?.status === 'failed'
                     ? 'Try again'
                     : blockedLabel}
-          </button>
+          </Button>
         </div>
       </div>
-    </div>
-  );
-}
-
-function Label({ children, htmlFor }) {
-  const style = { display: 'block', fontSize: 10, letterSpacing: 0, color: 'var(--text-3)', marginBottom: 9 };
-  return htmlFor ? (
-    <label htmlFor={htmlFor} className="mono" style={style}>
-      {children}
-    </label>
-  ) : (
-    <div className="mono" style={style}>
-      {children}
-    </div>
+    </Page>
   );
 }
 
 function GenerationProgress({ status, kind, notice }) {
   return (
-    <div
-      role="status"
-      aria-live="polite"
-      style={{
-        border: '1px solid var(--border)',
-        borderRadius: 8,
-        background: 'var(--surface)',
-        padding: '0 18px',
-      }}
-    >
+    <div role="status" aria-live="polite" className="state-block" style={{ borderStyle: 'solid' }}>
       <Spinner label={status === 'running' ? `Generating and validating your ${kind}…` : 'Waiting for the engine…'} />
-      <div style={{ fontSize: 12.5, color: 'var(--text-3)', margin: '-28px 0 18px 26px' }}>
-        Invalid output is rejected before it reaches the editor.
-      </div>
+      <div className="state-note">Invalid output is rejected before it reaches the editor.</div>
       {status === 'pending' && <ResourceNotice notice={notice} />}
     </div>
   );
@@ -425,134 +360,124 @@ function GenerationFailure({ job, kind }) {
   const titleId = `generation-failure-title-${failure.generationId || 'current'}`;
 
   return (
-    <div
+    <section
+      className="panel"
       role="alert"
       aria-live="assertive"
       aria-labelledby={titleId}
-      style={{
-        border: '1px solid var(--border)',
-        borderLeft: '3px solid var(--fail)',
-        borderRadius: 8,
-        background: 'var(--surface)',
-        padding: 18,
-        boxShadow: 'var(--shadow)',
-      }}
+      style={{ borderColor: 'var(--fail)' }}
     >
-      <div className="generation-failure-header">
+      <div className="panel-head">
         <div style={{ minWidth: 0 }}>
-          <div className="mono" style={{ color: 'var(--fail)', fontSize: 10, marginBottom: 5 }}>
-            GENERATION FAILED
+          <div className="field-note" style={{ color: 'var(--fail)' }}>
+            Generation failed
           </div>
-          <div id={titleId} style={{ color: 'var(--text)', fontSize: 16, fontWeight: 600 }}>
+          <h2 id={titleId} className="panel-title" style={{ fontSize: 'var(--text-md)' }}>
             {failure.title}
-          </div>
+          </h2>
         </div>
         <span
           className="mono"
-          style={{ color: 'var(--text-3)', fontSize: 10.5, overflowWrap: 'anywhere', textAlign: 'right' }}
+          style={{ color: 'var(--text-3)', fontSize: 'var(--text-xs)', overflowWrap: 'anywhere', textAlign: 'right' }}
         >
           {failure.reference}
         </span>
       </div>
 
-      <div
-        style={{
-          marginTop: 16,
-          padding: '11px 13px',
-          borderRadius: 6,
-          background: 'var(--fail-bg)',
-          color: 'var(--text)',
-          lineHeight: 1.55,
-          overflowWrap: 'anywhere',
-        }}
-      >
-        <div className="mono" style={{ color: 'var(--fail)', fontSize: 10, marginBottom: 4 }}>
-          WHAT HAPPENED
-        </div>
-        {job.resourceFailure?.message || failure.message}
-        {job.resourceFailure?.fixLinks?.map((link) => (
-          <div key={link.url} style={{ marginTop: 6 }}>
-            <Link to={link.url}>{link.label}</Link>
-          </div>
-        ))}
-      </div>
-
-      {failure.issues.length > 0 && (
-        <div style={{ marginTop: 18 }}>
-          <div className="mono" style={{ color: 'var(--text-3)', fontSize: 10, marginBottom: 8 }}>
-            DRAFT VALIDATION ISSUES · {failure.issues.length}
-          </div>
-          <ul style={{ listStyle: 'none', margin: 0, padding: 0, borderTop: '1px solid var(--border)' }}>
-            {failure.issues.map((issue, index) => (
-              <li className="generation-validation-issue" key={`${issue.field}-${issue.message}-${index}`}>
-                <span className="mono" style={{ color: 'var(--fail)', fontSize: 11, overflowWrap: 'anywhere' }}>
-                  {issue.field}
-                </span>
-                <span style={{ color: 'var(--text-2)', lineHeight: 1.5, overflowWrap: 'anywhere' }}>
-                  {issue.message}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      <div style={{ marginTop: 18 }}>
-        <div className="mono" style={{ color: 'var(--text-3)', fontSize: 10, marginBottom: 8 }}>
-          RUN CONFIGURATION
-        </div>
-        <div className="generation-failure-context">
-          {failure.configuration.map((item) => (
-            <div key={item.label} style={{ minWidth: 0 }}>
-              <div style={{ color: 'var(--text-3)', fontSize: 10.5, marginBottom: 3 }}>{item.label}</div>
-              <div className="mono" style={{ color: 'var(--text)', fontSize: 11.5, overflowWrap: 'anywhere' }}>
-                {item.value}
+      <div className="panel-body" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
+        <div>
+          <SectionLabel style={{ marginBottom: 'var(--space-3)' }}>What happened</SectionLabel>
+          <div
+            style={{
+              padding: 'var(--space-5)',
+              borderRadius: 'var(--radius-sm)',
+              background: 'var(--fail-bg)',
+              color: 'var(--text)',
+              lineHeight: 'var(--leading-base)',
+              overflowWrap: 'anywhere',
+            }}
+          >
+            {job.resourceFailure?.message || failure.message}
+            {job.resourceFailure?.fixLinks?.map((link) => (
+              <div key={link.url} style={{ marginTop: 'var(--space-3)' }}>
+                <Link to={link.url}>{link.label}</Link>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
-      </div>
 
-      <details style={{ marginTop: 16, color: 'var(--text-2)', fontSize: 12 }}>
-        <summary style={{ cursor: 'pointer', fontWeight: 500 }}>Technical details</summary>
-        <dl className="generation-failure-run-details">
-          {runDetails.map((item) => (
-            <div key={item.label} style={{ minWidth: 0 }}>
-              <dt style={{ color: 'var(--text-3)', fontSize: 10.5 }}>{item.label}</dt>
-              <dd className="mono" style={{ margin: '3px 0 0', overflowWrap: 'anywhere' }}>
-                {item.value}
-              </dd>
-            </div>
-          ))}
-        </dl>
-      </details>
+        {failure.issues.length > 0 && (
+          <div>
+            <SectionLabel style={{ marginBottom: 'var(--space-2)' }}>
+              <span>Draft validation issues</span>
+              <span className="field-unit">{failure.issues.length}</span>
+            </SectionLabel>
+            <ul style={{ listStyle: 'none', margin: 0, padding: 0, borderTop: '1px solid var(--border)' }}>
+              {failure.issues.map((issue, index) => (
+                <li className="generation-validation-issue" key={`${issue.field}-${issue.message}-${index}`}>
+                  <span
+                    className="mono"
+                    style={{ color: 'var(--fail)', fontSize: 'var(--text-2xs)', overflowWrap: 'anywhere' }}
+                  >
+                    {issue.field}
+                  </span>
+                  <span style={{ color: 'var(--text-2)', lineHeight: 'var(--leading-base)', overflowWrap: 'anywhere' }}>
+                    {issue.message}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
-      <div style={{ marginTop: 16, color: 'var(--text-3)', fontSize: 12, lineHeight: 1.5 }}>
-        Your description is preserved above. Adjust it or the model configuration, then try again.
+        <div>
+          <SectionLabel style={{ marginBottom: 'var(--space-3)' }}>Run configuration</SectionLabel>
+          <div className="generation-failure-context" style={{ paddingBottom: 0 }}>
+            {failure.configuration.map((item) => (
+              <div key={item.label} style={{ minWidth: 0 }}>
+                <div className="field-note" style={{ marginBottom: 'var(--space-1)' }}>
+                  {item.label}
+                </div>
+                <div
+                  className="mono"
+                  style={{ color: 'var(--text)', fontSize: 'var(--text-2xs)', overflowWrap: 'anywhere' }}
+                >
+                  {item.value}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <details style={{ color: 'var(--text-2)', fontSize: 'var(--text-xs)' }}>
+          <summary style={{ cursor: 'pointer', fontWeight: 500 }}>Technical details</summary>
+          <dl className="generation-failure-run-details">
+            {runDetails.map((item) => (
+              <div key={item.label} style={{ minWidth: 0 }}>
+                <dt className="field-note">{item.label}</dt>
+                <dd className="mono" style={{ margin: 'var(--space-1) 0 0', overflowWrap: 'anywhere' }}>
+                  {item.value}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </details>
+
+        <p className="field-note">
+          Your description is preserved above. Adjust it or the model configuration, then try again.
+        </p>
       </div>
-    </div>
+    </section>
   );
 }
 
 function GenerationError({ errors, title = 'Generation failed' }) {
   return (
-    <div
-      role="alert"
-      aria-live="assertive"
-      style={{
-        border: '1px solid var(--fail-bg)',
-        borderRadius: 8,
-        background: 'var(--fail-bg)',
-        color: 'var(--fail)',
-        padding: '14px 16px',
-        fontSize: 12.5,
-        lineHeight: 1.55,
-      }}
-    >
-      <div style={{ fontWeight: 600, marginBottom: 4 }}>{title}</div>
-      <ul style={{ margin: 0, paddingLeft: 18 }}>
+    <div role="alert" aria-live="assertive" className="state-block state-block--error">
+      <div className="state-title">{title}</div>
+      <ul className="state-note" style={{ margin: 0, paddingLeft: 'var(--space-6)' }}>
         {errors.map((error, index) => (
-          <li key={`${error}-${index}`} style={{ color: 'var(--text-2)', overflowWrap: 'anywhere' }}>
+          <li key={`${error}-${index}`} style={{ overflowWrap: 'anywhere' }}>
             {error}
           </li>
         ))}

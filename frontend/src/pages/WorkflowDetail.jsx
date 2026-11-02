@@ -1,14 +1,17 @@
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api, ApiError } from '../api/client.js';
 import { useFetch } from '../lib/useFetch.js';
 import { usePageChrome } from '../context/ui.jsx';
-import { Spinner, ErrorState, Button } from '../components/ui.jsx';
+import { Button, ErrorState, SectionLabel, Spinner } from '../components/ui.jsx';
+import { Figure, FigureStrip, Page, PageHeader } from '../components/app.jsx';
 import { PromptHighlight } from '../components/PromptEditor.jsx';
 import Drawer from '../components/Drawer.jsx';
 import { availableKeysForDepth, groupByDepth, workflowDeleteState } from '../lib/workflow.js';
 import { parseTemplateRefs, refResolves, REQUIRED_VULN_KEYS } from '../lib/keys.js';
 import { downloadWorkflowExport } from '../lib/workflowTransfer.js';
+
+const promptExcerpt = (content) => `${content.replace(/\{\{\s*|\s*\}\}/g, '').slice(0, 90)}…`;
 
 export default function WorkflowDetail() {
   const { id } = useParams();
@@ -29,21 +32,24 @@ export default function WorkflowDetail() {
 
   if (loading)
     return (
-      <div style={{ padding: 28 }}>
+      <Page>
         <Spinner />
-      </div>
+      </Page>
     );
   if (error)
     return (
-      <div style={{ padding: 28 }}>
+      <Page>
         <ErrorState error={error} onRetry={reload} />
-      </div>
+      </Page>
     );
   if (!wf) return null;
 
   const levels = groupByDepth(wf.steps);
   const sel = wf.steps.find((s) => s.id === selStepId);
   const deleteState = workflowDeleteState(wf);
+  const stepLabel = (step) => step.name || 'Untitled step';
+  const boundSourceLabel = (step) =>
+    wf.steps.find((candidate) => candidate.id === step.boundSourceStepId)?.name || `step ${step.boundSourceStepId}`;
   const editWorkflowPath = (stepId) => {
     const stepQuery = stepId ? `?step=${encodeURIComponent(stepId)}` : '';
     return `/workflows/${wf.id}/edit${stepQuery}`;
@@ -69,232 +75,200 @@ export default function WorkflowDetail() {
 
   return (
     <div style={{ position: 'relative', height: '100%', minHeight: 0, overflow: 'hidden' }}>
-      <div style={{ height: '100%', minWidth: 0, overflowY: 'auto', padding: '28px 32px' }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 8 }}>
-          <div>
-            <div className="mono" style={{ fontSize: 24, fontWeight: 600, letterSpacing: '-0.01em' }}>
-              {wf.name}
-            </div>
-            <div style={{ fontSize: 13.5, color: 'var(--text-2)', marginTop: 4, maxWidth: 520 }}>{wf.description}</div>
-          </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <Button variant="ghost" style={{ height: 32 }} to={`/scans/new?workflow=${wf.id}`} disabled={deleting}>
-              Run scan
-            </Button>
-            <Button
-              variant="ghost"
-              style={{ height: 32 }}
-              disabled={deleting}
-              onClick={() => downloadWorkflowExport(wf)}
-            >
-              Export JSON
-            </Button>
-            <Button variant="subtle" style={{ height: 32 }} to={editWorkflowPath()} disabled={deleting}>
-              Edit
-            </Button>
-            {!wf.isDefault && (
-              <Button
-                variant="danger"
-                style={{ height: 32 }}
-                disabled={!deleteState.canDelete || deleting}
-                title={deleteState.canDelete ? 'Delete unused workflow' : deleteState.reason}
-                aria-describedby={!deleteState.canDelete ? 'workflow-delete-reason' : undefined}
-                onClick={deleteWorkflow}
-              >
-                {deleting ? 'Deleting…' : 'Delete'}
-              </Button>
-            )}
-          </div>
-        </div>
-
-        {!wf.isDefault && !deleteState.canDelete && (
-          <div id="workflow-delete-reason" style={{ color: 'var(--text-3)', fontSize: 12, textAlign: 'right' }}>
-            {deleteState.reason}
-          </div>
-        )}
-
-        {actionError && (
-          <div role="alert" style={{ marginTop: 18 }}>
-            <ErrorState error={actionError} />
-          </div>
-        )}
-
-        <div
-          className="mono"
-          style={{
-            display: 'flex',
-            gap: 18,
-            margin: '18px 0 26px',
-            fontSize: 12,
-            color: 'var(--text-2)',
-            flexWrap: 'wrap',
-          }}
-        >
-          <span>{wf.stepCount} steps</span>
-          <span style={{ color: 'var(--border)' }}>|</span>
-          <span>{wf.depths.length} depth levels</span>
-          <span style={{ color: 'var(--border)' }}>|</span>
-          <span>{wf.scanCount} scans run</span>
-          {wf.extra && wf.extra.length > 0 && (
-            <>
-              <span style={{ color: 'var(--border)' }}>|</span>
-              <span>
-                expects extra: <span style={{ color: 'var(--accent)' }}>{wf.extra.join(', ')}</span>
-              </span>
-            </>
-          )}
-        </div>
-
-        {/* TREE */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-          {levels.map((level, i) => {
-            const fanLabel =
-              level.steps.length > 1
-                ? `· ${level.steps.length} siblings (shared schema)`
-                : level.multiOutput
-                  ? '· multi-output ⤳'
-                  : '';
-            return (
-              <div
-                key={level.depth}
-                style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}
-              >
-                <div
-                  className="mono"
-                  style={{
-                    fontSize: 10,
-                    letterSpacing: '0.08em',
-                    color: 'var(--text-3)',
-                    marginBottom: 10,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                  }}
-                >
-                  <span
-                    style={{
-                      width: 18,
-                      height: 18,
-                      borderRadius: '50%',
-                      border: '1px solid var(--border)',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: 'var(--text-2)',
-                    }}
-                  >
-                    {level.depth}
-                  </span>
-                  DEPTH {level.depth} {fanLabel}
-                  {level.consumesAll && (
-                    <span
-                      style={{
-                        fontSize: 9.5,
-                        color: 'var(--run)',
-                        background: 'var(--run-bg)',
-                        borderRadius: 5,
-                        padding: '2px 7px',
-                        letterSpacing: '0.04em',
-                      }}
-                    >
-                      batched
+      <div style={{ height: '100%', overflowY: 'auto' }}>
+        <Page>
+          <PageHeader
+            title={wf.name}
+            meta={
+              <>
+                {wf.description && <div>{wf.description}</div>}
+                <div className="chip-row" style={{ marginTop: wf.description ? 'var(--space-3)' : 0 }}>
+                  {wf.depthChips.map((chip) => (
+                    <span key={chip.depth} className="chip">
+                      {chip.label}
                     </span>
-                  )}
-                  {level.bindPrevious && (
-                    <span
-                      style={{
-                        fontSize: 9.5,
-                        color: 'var(--accent)',
-                        background: 'var(--accent-subtle)',
-                        borderRadius: 5,
-                        padding: '2px 7px',
-                        letterSpacing: '0.04em',
-                      }}
-                    >
-                      bound 1:1
-                    </span>
+                  ))}
+                  {wf.extra.length > 0 && (
+                    <span className="chip chip--accent">expects extra: {wf.extra.join(', ')}</span>
                   )}
                 </div>
-                <div style={{ display: 'flex', gap: 18, justifyContent: 'center', flexWrap: 'wrap' }}>
-                  {level.steps.map((step) => (
-                    <div
-                      key={step.id}
-                      onClick={() => setSelStepId(step.id)}
-                      style={{
-                        width: 300,
-                        border: `1px solid ${selStepId === step.id ? 'var(--accent)' : 'var(--border)'}`,
-                        borderRadius: 11,
-                        background: 'var(--surface)',
-                        boxShadow: 'var(--shadow)',
-                        cursor: 'pointer',
-                        overflow: 'hidden',
-                      }}
-                    >
-                      <div style={{ padding: '13px 15px 11px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                          <span style={{ fontWeight: 600, fontSize: 14 }}>{step.name || 'Untitled step'}</span>
-                          {step.multiOutput && (
+              </>
+            }
+            actions={
+              <>
+                <Button variant="ghost" to={`/scans/new?workflow=${wf.id}`} disabled={deleting}>
+                  Run scan
+                </Button>
+                <Button variant="ghost" disabled={deleting} onClick={() => downloadWorkflowExport(wf)}>
+                  Export JSON
+                </Button>
+                <Button variant="subtle" to={editWorkflowPath()} disabled={deleting}>
+                  Edit
+                </Button>
+                {!wf.isDefault && (
+                  <Button
+                    variant="danger"
+                    disabled={!deleteState.canDelete || deleting}
+                    title={deleteState.canDelete ? 'Delete unused workflow' : deleteState.reason}
+                    aria-describedby={!deleteState.canDelete ? 'workflow-delete-reason' : undefined}
+                    onClick={deleteWorkflow}
+                  >
+                    {deleting ? 'Deleting…' : 'Delete'}
+                  </Button>
+                )}
+              </>
+            }
+          />
+
+          {!wf.isDefault && !deleteState.canDelete && (
+            <div
+              id="workflow-delete-reason"
+              className="field-note"
+              style={{ textAlign: 'right', marginBottom: 'var(--space-5)' }}
+            >
+              {deleteState.reason}
+            </div>
+          )}
+
+          {actionError && (
+            <div role="alert" style={{ marginBottom: 'var(--space-5)' }}>
+              <ErrorState error={actionError} />
+            </div>
+          )}
+
+          <div style={{ marginBottom: 'var(--space-6)' }}>
+            <FigureStrip>
+              <Figure label="Steps" value={wf.stepCount} />
+              <Figure label="Depth levels" value={wf.depths.length} />
+              <Figure label="Scans run" value={wf.scanCount} />
+            </FigureStrip>
+          </div>
+
+          <div className="table-wrap">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Step</th>
+                  <th>Prompt</th>
+                  <th>Output keys</th>
+                  <th aria-label="Actions" />
+                </tr>
+              </thead>
+              <tbody>
+                {levels.map((level) => (
+                  <Fragment key={level.depth}>
+                    <tr>
+                      <td
+                        colSpan={4}
+                        style={{
+                          height: 34,
+                          padding: '0 12px',
+                          background: 'var(--surface-2)',
+                          borderBottom: '1px solid var(--border-2)',
+                        }}
+                      >
+                        <div className="chip-row" style={{ alignItems: 'center' }}>
+                          <span className="chip">Depth {level.depth}</span>
+                          {level.steps.length > 1 && (
+                            <span className="chip" title="Siblings share one output schema">
+                              {level.steps.length} siblings (shared schema)
+                            </span>
+                          )}
+                          {level.consumesAll && (
                             <span
-                              className="mono"
+                              className="chip"
                               style={{
-                                fontSize: 9.5,
-                                color: 'var(--accent)',
-                                background: 'var(--accent-subtle)',
-                                padding: '2px 6px',
-                                borderRadius: 4,
+                                color: 'var(--run)',
+                                background: 'var(--run-bg)',
+                                borderColor: 'transparent',
                               }}
+                              title={`Batched: one agent receives {{multi_output_depth_${level.depth - 1}}}`}
                             >
-                              MULTI ⤳
+                              batched
+                            </span>
+                          )}
+                          {level.bindPrevious && (
+                            <span
+                              className="chip"
+                              style={{
+                                color: 'var(--accent-strong)',
+                                background: 'var(--accent-subtle)',
+                                borderColor: 'transparent',
+                              }}
+                              title={`Bound: each depth-${level.depth - 1} sibling routes only to its selected depth-${level.depth} sibling`}
+                            >
+                              bound 1:1
                             </span>
                           )}
                         </div>
-                        <div
-                          style={{
-                            fontSize: 12,
-                            color: 'var(--text-2)',
-                            marginTop: 6,
-                            lineHeight: 1.5,
-                            height: 34,
-                            overflow: 'hidden',
-                          }}
-                        >
-                          {step.content.replace(/\{\{\s*|\s*\}\}/g, '').slice(0, 90)}…
-                        </div>
-                        {step.boundSourceStepId && (
-                          <div className="mono" style={{ fontSize: 10, color: 'var(--accent)', marginTop: 7 }}>
-                            input only from{' '}
-                            {wf.steps.find((candidate) => candidate.id === step.boundSourceStepId)?.name ||
-                              `step ${step.boundSourceStepId}`}
-                          </div>
-                        )}
-                      </div>
-                      <div
-                        className="mono"
-                        style={{
-                          borderTop: '1px solid var(--border-2)',
-                          padding: '9px 15px',
-                          display: 'flex',
-                          gap: 5,
-                          flexWrap: 'wrap',
-                          background: 'var(--surface-2)',
-                        }}
-                      >
-                        {Object.keys(step.outputFormat)
-                          .slice(0, 4)
-                          .map((k) => (
-                            <span key={k} style={{ fontSize: 10, color: 'var(--text-2)' }}>
-                              {k}
+                      </td>
+                    </tr>
+                    {level.steps.map((step) => (
+                      <tr key={step.id}>
+                        <td style={{ minWidth: 240 }}>
+                          <button
+                            type="button"
+                            className="cell-main"
+                            style={{ textAlign: 'left' }}
+                            onClick={() => setSelStepId(step.id)}
+                          >
+                            {stepLabel(step)}
+                          </button>
+                          {step.multiOutput && (
+                            <span className="cell-sub" title="Fan-out: one agent per result">
+                              multi-output
                             </span>
-                          ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                {i < levels.length - 1 && <Connector level={level} next={levels[i + 1]} />}
-              </div>
-            );
-          })}
-        </div>
+                          )}
+                          {step.boundSourceStepId && (
+                            <span className="cell-sub">input only from {boundSourceLabel(step)}</span>
+                          )}
+                        </td>
+                        <td>
+                          <span
+                            style={{
+                              display: 'block',
+                              maxWidth: '56ch',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                              color: 'var(--text-2)',
+                              fontSize: 'var(--text-xs)',
+                            }}
+                          >
+                            {promptExcerpt(step.content)}
+                          </span>
+                        </td>
+                        <td>
+                          <span className="mono" style={{ color: 'var(--text-2)', fontSize: 'var(--text-2xs)' }}>
+                            {Object.keys(step.outputFormat).join(', ')}
+                          </span>
+                        </td>
+                        <td>
+                          <div className="cell-actions">
+                            <Button
+                              variant="ghost"
+                              aria-label={`View ${stepLabel(step)}`}
+                              onClick={() => setSelStepId(step.id)}
+                            >
+                              View
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              aria-label={`Edit ${stepLabel(step)}`}
+                              to={editWorkflowPath(step.id)}
+                            >
+                              Edit
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </Fragment>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Page>
       </div>
 
       <Drawer open={!!sel} onClose={() => setSelStepId(null)} width={560}>
@@ -302,47 +276,6 @@ export default function WorkflowDetail() {
           <StepPanel step={sel} steps={wf.steps} editTo={editWorkflowPath(sel.id)} onClose={() => setSelStepId(null)} />
         )}
       </Drawer>
-    </div>
-  );
-}
-
-// The link between two depths. A batched next depth converges every result of
-// this depth into a single agent; a multi (multi_output / siblings) depth that
-// isn't batched fans out into a separate agent per result.
-function Connector({ level, next }) {
-  const batched = !!next.consumesAll;
-  const bound = !!next.bindPrevious;
-  const label = bound ? 'bound 1:1' : null;
-
-  if (!label) {
-    return <div style={{ width: 1.5, height: 34, background: 'var(--border)' }} />;
-  }
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-      <div style={{ width: 1.5, height: 14, background: 'var(--border)' }} />
-      <span
-        className="mono"
-        title={
-          batched
-            ? `Batched: one agent receives {{multi_output_depth_${level.depth}}}`
-            : bound
-              ? `Bound: each depth-${level.depth} sibling routes only to its selected depth-${next.depth} sibling`
-              : 'Fan-out: one agent per result'
-        }
-        style={{
-          fontSize: 9.5,
-          letterSpacing: '0.04em',
-          padding: '3px 9px',
-          borderRadius: 20,
-          whiteSpace: 'nowrap',
-          color: bound ? 'var(--accent)' : batched ? 'var(--run)' : 'var(--text-2)',
-          background: bound ? 'var(--accent-subtle)' : batched ? 'var(--run-bg)' : 'var(--surface-2)',
-          border: `1px solid ${bound ? 'var(--accent-subtle)' : batched ? 'var(--run-bg)' : 'var(--border)'}`,
-        }}
-      >
-        {label}
-      </span>
-      <div style={{ width: 1.5, height: 14, background: 'var(--border)' }} />
     </div>
   );
 }
@@ -361,125 +294,122 @@ export function StepPanel({ step, steps, editTo, onClose }) {
     <>
       <div
         style={{
-          height: 52,
           flex: 'none',
-          borderBottom: '1px solid var(--border)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          padding: '0 18px',
+          gap: 'var(--space-4)',
+          padding: 'var(--space-4) var(--space-5)',
+          borderBottom: '1px solid var(--border)',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0 }}>
-          <span
-            className="mono"
+        <div style={{ minWidth: 0 }}>
+          <div className="field-note">Depth {step.depth}</div>
+          <div
             style={{
-              flex: 'none',
-              fontSize: 10,
-              color: 'var(--text-3)',
-              border: '1px solid var(--border)',
-              padding: '2px 6px',
-              borderRadius: 5,
+              fontSize: 'var(--text-md)',
+              fontWeight: 600,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
             }}
           >
-            DEPTH {step.depth}
-          </span>
-          <span
-            style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 600 }}
-          >
             {step.name || 'Untitled step'}
-          </span>
+          </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 7, flex: 'none' }}>
-          <Button variant="subtle" style={{ height: 30, padding: '0 11px', fontSize: 12.5 }} to={editTo}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', flex: 'none' }}>
+          <Button variant="subtle" to={editTo}>
             Edit step
           </Button>
           <button
             type="button"
+            className="btn btn--icon"
             onClick={onClose}
             aria-label="Close step details"
             title="Close step details"
-            style={{
-              width: 30,
-              height: 30,
-              padding: 0,
-              border: 'none',
-              borderRadius: 6,
-              background: 'transparent',
-              color: 'var(--text-3)',
-              cursor: 'pointer',
-              fontSize: 18,
-              lineHeight: 1,
-            }}
+            style={{ fontSize: 'var(--text-md)' }}
           >
             ×
           </button>
         </div>
       </div>
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: 18 }}>
-        <div
-          className="mono"
+      <div style={{ flex: 1, overflowY: 'auto', padding: 'var(--space-5)' }}>
+        <dl
           style={{
-            display: 'flex',
-            gap: 14,
-            marginBottom: 18,
-            fontSize: 11.5,
-            color: 'var(--text-2)',
-            flexWrap: 'wrap',
+            display: 'grid',
+            gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+            gap: 'var(--space-4) var(--space-6)',
+            margin: '0 0 var(--space-6)',
           }}
         >
-          <span>
-            multi_output:{' '}
-            <span style={{ color: step.multiOutput ? 'var(--accent)' : 'var(--text-2)' }}>
-              {String(step.multiOutput)}
-            </span>
-          </span>
-          <span>
-            consumes_all:{' '}
-            <span style={{ color: step.consumesAll ? 'var(--run)' : 'var(--text-2)' }}>
-              {String(!!step.consumesAll)}
-            </span>
-          </span>
-          <span>
-            bound_source_step_id:{' '}
-            <span style={{ color: step.boundSourceStepId ? 'var(--accent)' : 'var(--text-2)' }}>
-              {step.boundSourceStepId || 'null'}
-            </span>
-          </span>
-          <span>
-            output_table: <span style={{ color: 'var(--text)' }}>{step.outputTable}</span>
-          </span>
-        </div>
+          {[
+            {
+              label: 'multi_output:',
+              value: String(step.multiOutput),
+              tone: step.multiOutput ? 'var(--accent-strong)' : 'var(--text-2)',
+            },
+            {
+              label: 'consumes_all:',
+              value: String(!!step.consumesAll),
+              tone: step.consumesAll ? 'var(--run)' : 'var(--text-2)',
+            },
+            {
+              label: 'bound_source_step_id:',
+              value: step.boundSourceStepId || 'null',
+              tone: step.boundSourceStepId ? 'var(--accent-strong)' : 'var(--text-2)',
+            },
+            { label: 'output_table:', value: step.outputTable, tone: 'var(--text)' },
+          ].map((row) => (
+            <div key={row.label} style={{ minWidth: 0 }}>
+              <dt className="field-note mono" style={{ fontSize: 'var(--text-2xs)' }}>
+                {row.label}
+              </dt>
+              <dd
+                className="mono"
+                style={{
+                  margin: 'var(--space-1) 0 0',
+                  color: row.tone,
+                  fontSize: 'var(--text-xs)',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {row.value}
+              </dd>
+            </div>
+          ))}
+        </dl>
 
         {step.consumesAll && step.depth > 0 && (
           <div
             style={{
-              marginBottom: 18,
-              fontSize: 11.5,
-              color: 'var(--run)',
+              marginBottom: 'var(--space-5)',
+              padding: 'var(--space-4) var(--space-5)',
+              borderRadius: 'var(--radius-sm)',
               background: 'var(--run-bg)',
-              borderRadius: 8,
-              padding: '9px 12px',
-              lineHeight: 1.5,
+              color: 'var(--run)',
+              fontSize: 'var(--text-xs)',
+              lineHeight: 'var(--leading-prose)',
             }}
           >
-            ⇉ Batched input — one agent runs this depth over the full array of depth {step.depth - 1} outputs, available
-            as <span className="mono">{`{{multi_output_depth_${step.depth - 1}}}`}</span>. Individual depth-
-            {step.depth - 1} keys aren't available here or downstream.
+            Batched input: one agent runs this depth over the full array of depth {step.depth - 1} outputs, available as{' '}
+            <span className="mono">{`{{multi_output_depth_${step.depth - 1}}}`}</span>. Individual depth-
+            {step.depth - 1} keys are not available here or downstream.
           </div>
         )}
 
         {boundSource && (
           <div
             style={{
-              marginBottom: 18,
-              fontSize: 11.5,
-              color: 'var(--accent)',
+              marginBottom: 'var(--space-5)',
+              padding: 'var(--space-4) var(--space-5)',
+              borderRadius: 'var(--radius-sm)',
               background: 'var(--accent-subtle)',
-              borderRadius: 8,
-              padding: '9px 12px',
-              lineHeight: 1.5,
+              color: 'var(--accent-strong)',
+              fontSize: 'var(--text-xs)',
+              lineHeight: 'var(--leading-prose)',
             }}
           >
             Bound input - this step receives results only from{' '}
@@ -487,140 +417,130 @@ export function StepPanel({ step, steps, editTo, onClose }) {
           </div>
         )}
 
-        <SectionTitle>PROMPT CONTENT</SectionTitle>
+        <SectionLabel style={{ marginBottom: 'var(--space-3)' }}>Prompt content</SectionLabel>
         <PromptHighlight content={step.content} available={available} allowExtra />
 
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '18px 0 8px' }}>
-          <SectionTitle inline>REFERENCED KEYS</SectionTitle>
-          <span className="mono" style={{ fontSize: 10.5, color: bad ? 'var(--fail)' : 'var(--ok)' }}>
-            {bad ? `${bad} invalid` : 'all resolved'}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'baseline',
+            justifyContent: 'space-between',
+            gap: 'var(--space-4)',
+            margin: 'var(--space-6) 0 var(--space-3)',
+          }}
+        >
+          <SectionLabel>Referenced keys</SectionLabel>
+          <span className="field-note" style={{ color: bad ? 'var(--fail)' : 'var(--ok)' }}>
+            {bad ? `${bad} invalid` : 'All references resolve'}
           </span>
         </div>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        <div className="chip-row">
           {refs.map((k) => {
             const ok = refResolves(k, available, true);
             return (
               <span
                 key={k}
-                className="mono"
+                className="chip chip--code"
                 style={{
-                  fontSize: 11,
-                  padding: '3px 9px',
-                  borderRadius: 6,
                   color: ok ? 'var(--ok)' : 'var(--fail)',
                   background: ok ? 'var(--ok-bg)' : 'var(--fail-bg)',
-                  border: `1px solid ${ok ? 'var(--ok-bg)' : 'var(--fail-bg)'}`,
+                  borderColor: 'transparent',
                 }}
               >
-                {ok ? '✓' : '✕'} {k}
+                {k}
+                {!ok && <span style={{ color: 'var(--fail)' }}>invalid</span>}
               </span>
             );
           })}
           {malformedRefs.map((token, index) => (
             <span
               key={`${token}-${index}`}
-              className="mono"
-              style={{
-                fontSize: 11,
-                padding: '3px 9px',
-                borderRadius: 6,
-                color: 'var(--fail)',
-                background: 'var(--fail-bg)',
-                border: '1px solid var(--fail-bg)',
-              }}
+              className="chip chip--code"
+              style={{ color: 'var(--fail)', background: 'var(--fail-bg)', borderColor: 'transparent' }}
             >
-              ✕ {token}
+              {token}
+              <span>invalid</span>
             </span>
           ))}
-          {refs.length === 0 && malformedRefs.length === 0 && (
-            <span style={{ fontSize: 12, color: 'var(--text-3)' }}>No references.</span>
-          )}
+          {refs.length === 0 && malformedRefs.length === 0 && <span className="field-note">No references.</span>}
         </div>
 
-        <SectionTitle style={{ margin: '20px 0 8px' }}>
-          OUTPUT FORMAT <span style={{ color: 'var(--text-3)' }}>· json schema</span>
-        </SectionTitle>
-        <div style={{ border: '1px solid var(--border)', borderRadius: 9, overflow: 'hidden' }}>
+        <SectionLabel style={{ margin: 'var(--space-6) 0 var(--space-3)' }}>Output format (JSON schema)</SectionLabel>
+        <div style={{ borderTop: '1px solid var(--border-2)' }}>
           {Object.entries(step.outputFormat).map(([key, type]) => (
             <div
               key={key}
-              className="mono"
               style={{
                 display: 'flex',
-                alignItems: 'center',
+                alignItems: 'baseline',
                 justifyContent: 'space-between',
-                padding: '9px 13px',
+                gap: 'var(--space-4)',
+                padding: 'var(--space-3) 0',
                 borderBottom: '1px solid var(--border-2)',
-                fontSize: 12,
+                fontSize: 'var(--text-xs)',
               }}
             >
-              <span style={{ color: 'var(--accent)' }}>{key}</span>
-              <span style={{ color: 'var(--text-3)' }}>{type}</span>
+              <span className="mono" style={{ color: 'var(--accent-strong)' }}>
+                {key}
+              </span>
+              <span className="field-note mono">{type}</span>
             </div>
           ))}
         </div>
         {step.isLast && (
           <div
             style={{
-              marginTop: 12,
-              fontSize: 11.5,
-              color: 'var(--ok)',
+              marginTop: 'var(--space-5)',
+              padding: 'var(--space-4) var(--space-5)',
+              borderRadius: 'var(--radius-sm)',
               background: 'var(--ok-bg)',
-              borderRadius: 8,
-              padding: '9px 12px',
-              lineHeight: 1.5,
+              color: 'var(--ok)',
+              fontSize: 'var(--text-xs)',
+              lineHeight: 'var(--leading-prose)',
             }}
           >
-            ✓ Terminal step — emits all {REQUIRED_VULN_KEYS.length} required vulnerability keys to
+            Terminal step: emits all {REQUIRED_VULN_KEYS.length} required vulnerability keys to
             workflows.vulnerabilities.
           </div>
         )}
 
-        <SectionTitle style={{ margin: '20px 0 8px' }}>AVAILABLE KEYS HERE</SectionTitle>
-        <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+        <SectionLabel style={{ margin: 'var(--space-6) 0 0' }}>Available keys here</SectionLabel>
+        <div style={{ borderTop: '1px solid var(--border-2)', marginTop: 'var(--space-3)' }}>
           {[...available.entries()].map(([name, from]) => (
-            <span
+            <div
               key={name}
-              className="mono"
               style={{
-                fontSize: 10.5,
-                padding: '2px 7px',
-                borderRadius: 5,
-                color: 'var(--text-2)',
-                background: 'var(--surface-2)',
-                border: '1px solid var(--border-2)',
+                display: 'flex',
+                alignItems: 'baseline',
+                justifyContent: 'space-between',
+                gap: 'var(--space-4)',
+                padding: 'var(--space-3) 0',
+                borderBottom: '1px solid var(--border-2)',
               }}
             >
-              {name}
-              <span style={{ color: 'var(--text-3)' }}> · {from}</span>
-            </span>
+              <span className="mono" style={{ fontSize: 'var(--text-xs)' }}>
+                {name}
+              </span>
+              <span className="field-note">{from}</span>
+            </div>
           ))}
-          <span
-            className="mono"
+          <div
             style={{
-              fontSize: 10.5,
-              padding: '2px 7px',
-              borderRadius: 5,
-              color: 'var(--accent)',
-              background: 'var(--accent-subtle)',
-              border: '1px solid var(--accent-subtle)',
+              display: 'flex',
+              alignItems: 'baseline',
+              justifyContent: 'space-between',
+              gap: 'var(--space-4)',
+              padding: 'var(--space-3) 0',
+              borderBottom: '1px solid var(--border-2)',
             }}
           >
-            extra.&lt;key&gt;<span style={{ color: 'var(--text-3)' }}> · dynamic</span>
-          </span>
+            <span className="mono" style={{ fontSize: 'var(--text-xs)', color: 'var(--accent-strong)' }}>
+              extra.&lt;key&gt;
+            </span>
+            <span className="field-note">dynamic</span>
+          </div>
         </div>
       </div>
     </>
-  );
-}
-
-function SectionTitle({ children, style, inline }) {
-  return (
-    <div
-      className="mono"
-      style={{ fontSize: 10, letterSpacing: '0.07em', color: 'var(--text-3)', marginBottom: inline ? 0 : 8, ...style }}
-    >
-      {children}
-    </div>
   );
 }

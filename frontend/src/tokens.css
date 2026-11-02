@@ -1,0 +1,159 @@
+/* Hallmark · tokens · the app's one palette and scale
+ *
+ * Warm paper, coral as the only signal, Geist for text and Geist Mono for
+ * things a machine wrote. Every colour in the app resolves here.
+ */
+
+:root {
+  /* Type families: two, and the mono is only for code, ids and figures. */
+  --font-body: 'Geist', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* Fixed app scale, ratio 1.15. No fluid heads in a console. */
+  --text-2xs: 11px;
+  --text-xs: 12px;
+  --text-sm: 13px;
+  --text-base: 14px;
+  --text-md: 16px;
+  --text-lg: 20px;
+  --text-xl: 24px;
+  --text-2xl: 28px;
+  --text-3xl: 34px;
+
+  --leading-tight: 1.2;
+  --leading-base: 1.5;
+  --leading-prose: 1.6;
+  --tracking-tight: -0.015em;
+  --tracking-head: -0.025em;
+
+  /* 4px scale. */
+  --space-1: 2px;
+  --space-2: 4px;
+  --space-3: 6px;
+  --space-4: 8px;
+  --space-5: 12px;
+  --space-6: 16px;
+  --space-7: 20px;
+  --space-8: 24px;
+  --space-9: 32px;
+  --space-10: 40px;
+  --space-11: 48px;
+  --space-12: 64px;
+
+  --control-h: 32px;
+  --control-h-lg: 36px;
+  --hit: 40px;
+  --row-h: 48px;
+
+  --radius-xs: 3px;
+  --radius-sm: 5px;
+  --radius-md: 7px;
+  --radius-lg: 10px;
+  --radius-pill: 999px;
+
+  --container: 1400px;
+  --gutter: 28px;
+  --sidebar-w: 236px;
+  --topbar-h: 48px;
+
+  --dur-micro: 110ms;
+  --dur-short: 180ms;
+  --ease-out: cubic-bezier(0.2, 0.8, 0.3, 1);
+
+  --z-sticky: 20;
+  --z-nav: 40;
+  --z-overlay: 60;
+  --z-modal: 70;
+  --z-toast: 80;
+}
+
+/* Light: warm paper, ink tinted the same way, coral only where it means
+ * something (primary action, live state, current selection). */
+[data-theme='light'] {
+  --bg: oklch(0.972 0.004 45);
+  --surface: oklch(0.995 0.002 45);
+  --surface-2: oklch(0.951 0.006 45);
+  --surface-3: oklch(0.921 0.008 45);
+  --border: oklch(0.889 0.007 45);
+  --border-2: oklch(0.929 0.006 45);
+  --text: oklch(0.213 0.012 45);
+  --text-2: oklch(0.437 0.013 45);
+  --text-3: oklch(0.518 0.012 45);
+  --accent: oklch(0.664 0.192 33);
+  --accent-strong: oklch(0.548 0.171 30);
+  --accent-fg: oklch(0.185 0.024 35);
+  --accent-subtle: oklch(0.946 0.028 35);
+  --hover: oklch(0.948 0.006 45);
+  --sidebar: oklch(0.955 0.005 45);
+  --code-bg: oklch(0.945 0.005 45);
+  --focus: oklch(0.522 0.18 30);
+  --ok: oklch(0.497 0.121 152);
+  --ok-bg: oklch(0.951 0.035 152);
+  --run: oklch(0.503 0.129 247);
+  --run-bg: oklch(0.951 0.022 247);
+  --pend: oklch(0.545 0.121 73);
+  --pend-bg: oklch(0.957 0.042 83);
+  --fail: oklch(0.521 0.192 25);
+  --fail-bg: oklch(0.953 0.032 25);
+  --stop: oklch(0.487 0.011 45);
+  --stop-bg: oklch(0.939 0.005 45);
+  --depth-0: oklch(0.487 0.012 45);
+  --depth-0-bg: oklch(0.941 0.005 45);
+  --depth-1: oklch(0.472 0.088 197);
+  --depth-1-bg: oklch(0.951 0.022 197);
+  --depth-2: oklch(0.532 0.113 73);
+  --depth-2-bg: oklch(0.957 0.038 73);
+  --depth-3: oklch(0.478 0.132 300);
+  --depth-3-bg: oklch(0.949 0.028 300);
+  --depth-4: oklch(0.472 0.108 152);
+  --depth-4-bg: oklch(0.951 0.03 152);
+  --depth-5: oklch(0.512 0.152 12);
+  --depth-5-bg: oklch(0.951 0.03 12);
+  --shadow-pop: 0 1px 0 oklch(0.213 0.012 45 / 4%), 0 10px 28px oklch(0.213 0.012 45 / 12%);
+  --scrim: oklch(0.213 0.012 45 / 42%);
+}
+
+/* Dark: the same warm hue at the other end, never slate blue. */
+[data-theme='dark'] {
+  --bg: oklch(0.181 0.008 45);
+  --surface: oklch(0.213 0.009 45);
+  --surface-2: oklch(0.247 0.01 45);
+  --surface-3: oklch(0.285 0.011 45);
+  --border: oklch(0.323 0.012 45);
+  --border-2: oklch(0.263 0.01 45);
+  --text: oklch(0.941 0.006 45);
+  --text-2: oklch(0.767 0.009 45);
+  --text-3: oklch(0.657 0.009 45);
+  --accent: oklch(0.712 0.173 35);
+  --accent-strong: oklch(0.786 0.15 38);
+  --accent-fg: oklch(0.181 0.024 35);
+  --accent-subtle: oklch(0.283 0.052 32);
+  --hover: oklch(0.243 0.01 45);
+  --sidebar: oklch(0.163 0.007 45);
+  --code-bg: oklch(0.199 0.008 45);
+  --focus: oklch(0.786 0.15 38);
+  --ok: oklch(0.762 0.142 152);
+  --ok-bg: oklch(0.247 0.038 152);
+  --run: oklch(0.735 0.115 247);
+  --run-bg: oklch(0.247 0.035 247);
+  --pend: oklch(0.788 0.128 83);
+  --pend-bg: oklch(0.261 0.038 83);
+  --fail: oklch(0.722 0.152 25);
+  --fail-bg: oklch(0.259 0.045 25);
+  --stop: oklch(0.681 0.01 45);
+  --stop-bg: oklch(0.239 0.007 45);
+  --depth-0: oklch(0.681 0.01 45);
+  --depth-0-bg: oklch(0.243 0.007 45);
+  --depth-1: oklch(0.749 0.088 197);
+  --depth-1-bg: oklch(0.247 0.03 197);
+  --depth-2: oklch(0.788 0.113 73);
+  --depth-2-bg: oklch(0.259 0.036 73);
+  --depth-3: oklch(0.738 0.122 300);
+  --depth-3-bg: oklch(0.251 0.038 300);
+  --depth-4: oklch(0.762 0.108 152);
+  --depth-4-bg: oklch(0.245 0.034 152);
+  --depth-5: oklch(0.742 0.142 12);
+  --depth-5-bg: oklch(0.255 0.042 12);
+  --shadow-pop: 0 1px 0 oklch(0 0 0 / 30%), 0 12px 32px oklch(0 0 0 / 46%);
+  --scrim: oklch(0.08 0.008 45 / 62%);
+}

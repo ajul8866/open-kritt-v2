@@ -22,7 +22,7 @@ export function renderHighlighted(content, available, allowExtra = false) {
         style={{
           color: ok ? 'var(--ok)' : 'var(--fail)',
           background: ok ? 'var(--ok-bg)' : 'var(--fail-bg)',
-          borderRadius: 3,
+          borderRadius: 'var(--radius-xs)',
           textDecoration: ok ? 'none' : 'underline wavy',
         }}
       >
@@ -42,11 +42,11 @@ export function PromptHighlight({ content, available, allowExtra = false, style 
       className="mono"
       style={{
         border: '1px solid var(--border)',
-        borderRadius: 9,
+        borderRadius: 'var(--radius-sm)',
         background: 'var(--code-bg)',
-        padding: 14,
-        fontSize: 12.5,
-        lineHeight: 1.7,
+        padding: 'var(--space-5)',
+        fontSize: 'var(--text-xs)',
+        lineHeight: 'var(--leading-prose)',
         whiteSpace: 'pre-wrap',
         wordBreak: 'break-word',
         color: 'var(--text)',
@@ -220,10 +220,10 @@ export const PromptEditor = forwardRef(function PromptEditor(
     position: 'absolute',
     inset: 0,
     margin: 0,
-    padding: 13,
-    fontFamily: "'Geist Mono', ui-monospace, monospace",
-    fontSize: 12.5,
-    lineHeight: 1.7,
+    padding: 'var(--space-5)',
+    fontFamily: 'var(--font-mono)',
+    fontSize: 'var(--text-xs)',
+    lineHeight: 'var(--leading-prose)',
     whiteSpace: 'pre-wrap',
     wordBreak: 'break-word',
     overflow: 'auto',
@@ -237,7 +237,7 @@ export const PromptEditor = forwardRef(function PromptEditor(
         width: '100%',
         height: h,
         border: '1px solid var(--border)',
-        borderRadius: 9,
+        borderRadius: 'var(--radius-sm)',
         overflow: 'hidden',
         background: 'var(--code-bg)',
       }}
@@ -276,114 +276,87 @@ export const PromptEditor = forwardRef(function PromptEditor(
             type="button"
             onClick={() => setExpanded(true)}
             title="Expand editor (full screen)"
-            className="mono"
+            className="btn btn--sm"
             style={{
               position: 'absolute',
-              right: 8,
-              bottom: 8,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 5,
-              height: 24,
-              padding: '0 9px',
-              fontSize: 10.5,
-              color: 'var(--text-2)',
+              right: 'var(--space-4)',
+              bottom: 'var(--space-4)',
               background: 'var(--surface)',
-              border: '1px solid var(--border)',
-              borderRadius: 6,
-              cursor: 'pointer',
-              boxShadow: 'var(--shadow)',
+              boxShadow: 'var(--shadow-pop)',
             }}
           >
-            ⤢ expand
+            Expand
           </button>
         )}
       </div>
 
       {expanded && (
         <div
+          className="scrim"
           onClick={() => setExpanded(false)}
+          role="presentation"
           style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 60,
-            background: 'rgba(0,0,0,.45)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            padding: '4vh 4vw',
+            padding: 'var(--space-6)',
           }}
         >
           <div
+            className="dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-label={title}
             onClick={(e) => e.stopPropagation()}
             style={{
-              width: '100%',
-              maxWidth: 1100,
-              height: '92vh',
               display: 'flex',
+              width: 'min(1100px, 100%)',
+              height: '92dvh',
               flexDirection: 'column',
-              background: 'var(--surface)',
-              border: '1px solid var(--border)',
-              borderRadius: 12,
               overflow: 'hidden',
-              boxShadow: '0 20px 60px rgba(0,0,0,.4)',
-              animation: 'okslide .14s ease',
             }}
           >
-            <div
-              style={{
-                height: 50,
-                flex: 'none',
-                borderBottom: '1px solid var(--border)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '0 18px',
-              }}
-            >
-              <span className="mono" style={{ fontSize: 11, letterSpacing: '0.07em', color: 'var(--text-3)' }}>
-                {title.toUpperCase()}
-              </span>
-              <span
-                onClick={() => setExpanded(false)}
+            <div className="dialog-head" style={{ alignItems: 'center' }}>
+              <h2 className="dialog-title">{title}</h2>
+              <button
+                type="button"
+                className="btn btn--icon btn--sm"
+                aria-label="Close (Esc)"
                 title="Close (Esc)"
-                style={{ cursor: 'pointer', color: 'var(--text-3)', fontSize: 20, lineHeight: 1 }}
+                onClick={() => setExpanded(false)}
               >
                 ×
-              </span>
+              </button>
             </div>
-            <div style={{ flex: 1, minHeight: 0, padding: 18 }}>{surface(modalTaRef, modalBackRef, '100%')}</div>
+            <div style={{ flex: 1, minHeight: 0, padding: 'var(--space-6)' }}>
+              {surface(modalTaRef, modalBackRef, '100%')}
+            </div>
             {paletteChips && paletteChips.length > 0 && (
               <div
                 style={{
                   flex: 'none',
                   borderTop: '1px solid var(--border)',
-                  padding: '12px 18px',
+                  padding: 'var(--space-5) var(--space-6)',
                   maxHeight: '26vh',
                   overflowY: 'auto',
                 }}
               >
                 <div
-                  className="mono"
-                  style={{ fontSize: 10, letterSpacing: '0.07em', color: 'var(--text-3)', marginBottom: 8 }}
+                  style={{
+                    marginBottom: 'var(--space-3)',
+                    color: 'var(--text-2)',
+                    fontSize: 'var(--text-xs)',
+                  }}
                 >
-                  AVAILABLE KEYS · click to insert
+                  Available keys, click to insert
                 </div>
-                <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
                   {paletteChips.map((c, i) => (
                     <span
                       key={i}
                       onClick={() => doInsert(c.token)}
-                      className="mono"
-                      style={{
-                        fontSize: 10.5,
-                        padding: '3px 8px',
-                        borderRadius: 6,
-                        cursor: 'pointer',
-                        color: c.accent ? 'var(--accent)' : 'var(--text-2)',
-                        background: c.accent ? 'var(--accent-subtle)' : 'var(--surface-2)',
-                        border: '1px solid var(--border-2)',
-                      }}
+                      className={c.accent ? 'chip chip--code chip--accent' : 'chip chip--code'}
+                      style={{ cursor: 'pointer' }}
                     >
                       {c.label}
                     </span>
@@ -395,66 +368,71 @@ export const PromptEditor = forwardRef(function PromptEditor(
         </div>
       )}
 
-      {/* {{…}} autocomplete popup — fixed to the caret position */}
+      {/* {{…}} autocomplete popup, fixed to the caret position */}
       {ac.open && (
         <div
+          className="menu-pop"
           style={{
             position: 'fixed',
             top: ac.top,
             left: ac.left,
-            zIndex: 70,
+            right: 'auto',
+            zIndex: 'var(--z-toast)',
             width: POPUP_W,
             maxHeight: POPUP_H,
             overflowY: 'auto',
-            background: 'var(--surface)',
-            border: '1px solid var(--border)',
-            borderRadius: 8,
-            boxShadow: '0 12px 30px rgba(0,0,0,.22)',
-            padding: 4,
+            padding: 'var(--space-1)',
           }}
         >
           {ac.items.map((it, i) => (
             <div
               key={`${it.token}-${i}`}
+              className="menu-item"
               onMouseDown={(e) => {
                 e.preventDefault(); // keep textarea focus
                 acceptSuggestion(it, activeTa());
               }}
               onMouseEnter={() => setAc((a) => ({ ...a, index: i }))}
               style={{
-                display: 'flex',
-                alignItems: 'center',
+                height: 'auto',
                 justifyContent: 'space-between',
-                gap: 10,
-                padding: '5px 9px',
-                borderRadius: 6,
-                cursor: 'pointer',
+                gap: 'var(--space-4)',
+                padding: 'var(--space-2) var(--space-3)',
                 background: i === ac.index ? 'var(--accent-subtle)' : 'transparent',
               }}
             >
-              <span className="mono" style={{ fontSize: 12, color: i === ac.index ? 'var(--accent)' : 'var(--text)' }}>
+              <span
+                className="mono"
+                style={{
+                  fontSize: 'var(--text-xs)',
+                  color: i === ac.index ? 'var(--accent-strong)' : 'var(--text)',
+                }}
+              >
                 {it.label}
               </span>
-              <span className="mono" style={{ fontSize: 10, color: 'var(--text-3)' }}>
-                {it.hint}
-              </span>
+              <span style={{ fontSize: 'var(--text-2xs)', color: 'var(--text-3)' }}>{it.hint}</span>
             </div>
           ))}
           <div
-            className="mono"
             style={{
-              fontSize: 9.5,
-              color: 'var(--text-3)',
-              padding: '5px 9px 2px',
-              borderTop: '1px solid var(--border-2)',
-              marginTop: 2,
               display: 'flex',
-              gap: 10,
+              gap: 'var(--space-4)',
+              marginTop: 'var(--space-1)',
+              padding: 'var(--space-2) var(--space-3) var(--space-1)',
+              borderTop: '1px solid var(--border-2)',
+              color: 'var(--text-3)',
+              fontSize: 'var(--text-2xs)',
             }}
           >
-            <span>↑↓ navigate</span>
-            <span>⇥ insert</span>
-            <span>esc close</span>
+            <span>
+              <kbd className="kbd">up/down</kbd> navigate
+            </span>
+            <span>
+              <kbd className="kbd">tab</kbd> insert
+            </span>
+            <span>
+              <kbd className="kbd">esc</kbd> close
+            </span>
           </div>
         </div>
       )}

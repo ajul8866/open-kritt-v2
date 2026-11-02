@@ -142,10 +142,10 @@ export default function ModelConfiguration({
         style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
-          gap: 12,
+          gap: 'var(--space-5)',
         }}
       >
-        <Field label="provider">
+        <Field label="Provider">
           {(fieldId) => (
             <ProviderSelect
               id={fieldId}
@@ -156,7 +156,7 @@ export default function ModelConfiguration({
             />
           )}
         </Field>
-        <Field label="model">
+        <Field label="Model">
           {(fieldId) => (
             <div data-model-input-mode={freeTextModel ? 'autocomplete' : 'select'}>
               <SearchSelect
@@ -176,10 +176,7 @@ export default function ModelConfiguration({
                   !query || model.id.toLowerCase().includes(query) || model.label.toLowerCase().includes(query)
                 }
                 renderTrigger={(model) => (
-                  <span
-                    className="mono"
-                    style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-                  >
+                  <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {model?.label ||
                       (freeTextModel
                         ? 'Select or enter a model'
@@ -192,13 +189,16 @@ export default function ModelConfiguration({
                 )}
                 renderItem={(model) => (
                   <span style={{ minWidth: 0 }}>
-                    <span className="mono" style={{ display: 'block', fontSize: 12.5, fontWeight: 600 }}>
-                      {model.label}
-                    </span>
+                    <span style={{ display: 'block', fontSize: 'var(--text-sm)', fontWeight: 500 }}>{model.label}</span>
                     {model.label !== model.id && (
                       <span
                         className="mono"
-                        style={{ display: 'block', marginTop: 2, color: 'var(--text-3)', fontSize: 11 }}
+                        style={{
+                          display: 'block',
+                          marginTop: 'var(--space-1)',
+                          color: 'var(--text-3)',
+                          fontSize: 'var(--text-2xs)',
+                        }}
                       >
                         {model.id}
                       </span>
@@ -209,7 +209,7 @@ export default function ModelConfiguration({
             </div>
           )}
         </Field>
-        <Field label="thinking effort">
+        <Field label="Thinking effort">
           {(fieldId) => (
             <Select
               id={fieldId}
@@ -221,7 +221,7 @@ export default function ModelConfiguration({
             />
           )}
         </Field>
-        <Field label="harness">
+        <Field label="Harness">
           {(fieldId) => (
             <Select
               id={fieldId}
@@ -236,13 +236,17 @@ export default function ModelConfiguration({
       </div>
       <div
         role={selectedModel?.note ? 'note' : undefined}
-        style={{ minHeight: 20, marginTop: 7, color: 'var(--text-2)', fontSize: 12, lineHeight: 1.5 }}
+        style={{
+          minHeight: 'var(--space-7)',
+          marginTop: 'var(--space-2)',
+          color: 'var(--text-2)',
+          fontSize: 'var(--text-xs)',
+          lineHeight: 'var(--leading-base)',
+        }}
       >
         {selectedModel?.note && (
           <>
-            <span className="mono" style={{ marginRight: 7, color: 'var(--text-3)', fontSize: 10.5 }}>
-              MODEL NOTE
-            </span>
+            <span style={{ marginRight: 'var(--space-3)', color: 'var(--text-2)', fontWeight: 500 }}>MODEL NOTE</span>
             {selectedModel.note}
             {selectedModel.noteUrl && (
               <>
@@ -251,7 +255,7 @@ export default function ModelConfiguration({
                   href={selectedModel.noteUrl}
                   target="_blank"
                   rel="noreferrer noopener"
-                  style={{ color: 'var(--accent)', fontWeight: 600 }}
+                  style={{ color: 'var(--accent-strong)', fontWeight: 500 }}
                 >
                   Learn more in ChatGPT Cyber
                 </a>
@@ -263,7 +267,16 @@ export default function ModelConfiguration({
       </div>
       <ProviderVisibility configuredProviders={providers} selected={value.model_provider} />
       {showAvailabilityHelp && (unavailableProviders.length > 0 || catalogMessage) && (
-        <div style={{ marginTop: 10, color: 'var(--text-2)', fontSize: 12.5, lineHeight: 1.5 }}>
+        <div
+          style={{
+            display: 'grid',
+            gap: 'var(--space-2)',
+            marginTop: 'var(--space-4)',
+            color: 'var(--text-2)',
+            fontSize: 'var(--text-xs)',
+            lineHeight: 'var(--leading-base)',
+          }}
+        >
           {unavailableProviders.length > 0 && (
             <div>
               {providers.length === 0
@@ -271,7 +284,7 @@ export default function ModelConfiguration({
                 : `${unavailableProviders.map((provider) => PROVIDER_LABELS[provider]).join(' and ')} ${
                     unavailableProviders.length === 1 ? 'is' : 'are'
                   } greyed out because ${unavailableProviders.length === 1 ? 'it has' : 'they have'} no account.`}{' '}
-              <Link to="/accounts" style={{ color: 'var(--accent)' }}>
+              <Link to="/accounts" style={{ color: 'var(--accent-strong)' }}>
                 Add {unavailableProviders.length === 1 ? 'it' : 'them'} in Accounts
               </Link>
               .
@@ -287,12 +300,8 @@ export default function ModelConfiguration({
 function Field({ label, children }) {
   const id = useId();
   return (
-    <div style={{ minWidth: 0 }}>
-      <label
-        htmlFor={id}
-        className="mono"
-        style={{ display: 'block', fontSize: 11.5, color: 'var(--text-2)', marginBottom: 5 }}
-      >
+    <div className="field" style={{ minWidth: 0 }}>
+      <label className="field-label" htmlFor={id}>
         {label}
       </label>
       {children(id, label)}
@@ -303,25 +312,7 @@ function Field({ label, children }) {
 export function ProviderSelect({ id, value, onChange, configuredProviders, disabled }) {
   const { visible } = useProviderVisibility();
   return (
-    <select
-      id={id}
-      value={value || ''}
-      onChange={onChange}
-      disabled={disabled}
-      className="mono"
-      style={{
-        width: '100%',
-        height: 38,
-        padding: '0 11px',
-        border: '1px solid var(--border)',
-        borderRadius: 8,
-        background: 'var(--surface)',
-        fontSize: 13,
-        outline: 'none',
-        color: disabled ? 'var(--text-3)' : 'var(--text)',
-        cursor: disabled ? 'not-allowed' : 'pointer',
-      }}
-    >
+    <select id={id} value={value || ''} onChange={onChange} disabled={disabled} className="select">
       {!value && <option value="">No configured providers</option>}
       {visibleProviderIds(MODEL_PROVIDER_IDS, visible, value).map((provider) => {
         const configured = configuredProviders.includes(provider);
@@ -344,19 +335,7 @@ function Select({ id, value, onChange, options, disabled = false, emptyLabel }) 
       value={hasOptions ? value : ''}
       onChange={onChange}
       disabled={disabled || !hasOptions}
-      className="mono"
-      style={{
-        width: '100%',
-        height: 38,
-        padding: '0 11px',
-        border: '1px solid var(--border)',
-        borderRadius: 8,
-        background: 'var(--surface)',
-        fontSize: 13,
-        outline: 'none',
-        color: disabled || !hasOptions ? 'var(--text-3)' : 'var(--text)',
-        cursor: disabled || !hasOptions ? 'not-allowed' : 'pointer',
-      }}
+      className="select"
     >
       {hasOptions ? (
         options.map((option) => (

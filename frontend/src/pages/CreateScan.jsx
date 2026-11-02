@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { api, ApiError } from '../api/client.js';
 import { usePageChrome } from '../context/ui.jsx';
 import { Spinner, ErrorState, Button } from '../components/ui.jsx';
+import { Page, PageHeader } from '../components/app.jsx';
 import Markdown from '../components/Markdown.jsx';
 import SearchSelect from '../components/SearchSelect.jsx';
 import WorkflowModelConfiguration, {
@@ -352,17 +353,21 @@ export default function CreateScan() {
   const postScriptPages = usePagination(postScripts, { pageSize: 8 });
   const rankerPages = usePagination(severityRankers, { pageSize: 8 });
 
+  const pageTitle = isDuplicating ? 'Duplicate scan configuration' : 'New scan';
+
   if (loadErr)
     return (
-      <div style={{ padding: 30 }}>
+      <Page>
+        <PageHeader title={pageTitle} />
         <ErrorState error={loadErr} />
-      </div>
+      </Page>
     );
   if (!refData)
     return (
-      <div style={{ padding: 30 }}>
+      <Page>
+        <PageHeader title={pageTitle} />
         <Spinner />
-      </div>
+      </Page>
     );
 
   const set = (patch) => {
@@ -388,7 +393,7 @@ export default function CreateScan() {
   const localMeta = (r) => {
     if (!r) return '';
     const gitRef = r.isGit ? [r.branch || 'detached', r.commit].filter(Boolean).join(' ') : '';
-    return gitRef ? `${gitRef} · folder snapshot` : 'folder snapshot';
+    return gitRef ? `${gitRef}, folder snapshot` : 'folder snapshot';
   };
 
   const selectedWorkflow = refData.workflows.find((w) => w.id === form.workflowId);
@@ -592,81 +597,89 @@ export default function CreateScan() {
   };
 
   return (
-    <div
-      className="create-scan-page"
-      style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}
-    >
-      <div className="create-scan-body" style={{ flex: 1, overflowY: 'auto', padding: '30px 32px' }}>
-        <div className="create-scan-content" style={{ maxWidth: 780 }}>
-          <div style={{ fontSize: 25, fontWeight: 600, letterSpacing: '-0.02em' }}>
-            {isDuplicating ? 'Duplicate scan configuration' : 'New scan'}
-          </div>
-          <div style={{ fontSize: 14, color: 'var(--text-2)', margin: '3px 0 26px' }}>
-            {isDuplicating
+    <Page style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, paddingBottom: 0 }}>
+      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', paddingBottom: 'var(--space-8)' }}>
+        <PageHeader
+          title={pageTitle}
+          meta={
+            isDuplicating
               ? 'Review the copied configuration, make any changes, then create a new scan.'
-              : 'Point a workflow at a repository. The engine queues it and runs every step.'}
-          </div>
-
-          {duplicateSource && (
-            <div
-              role="note"
-              style={{
-                border: '1px solid var(--accent)',
-                borderRadius: 10,
-                padding: '12px 14px',
-                background: 'var(--accent-subtle)',
-                color: 'var(--text-2)',
-                fontSize: 12.5,
-                lineHeight: 1.5,
-                marginBottom: 24,
-              }}
+              : 'Point a workflow at a repository. The engine queues it and runs every step.'
+          }
+          actions={
+            <button
+              type="button"
+              className="btn btn--primary create-scan-submit"
+              onClick={create}
+              disabled={!canCreate}
             >
-              Configuration copied from{' '}
-              <Link to={`/scans/${duplicateSource.id}`} style={{ color: 'var(--accent)', fontWeight: 600 }}>
-                {duplicateSource.repoDisplay || duplicateSource.repoFull || `scan ${duplicateSource.id}`}
-              </Link>
-              . Results, logs, status, attempts, and timestamps are not copied.
-            </div>
-          )}
+              {saving ? 'Creating…' : canCreate ? 'Create scan' : blockedLabel}
+            </button>
+          }
+        />
 
-          <Label>1 · WORKFLOW</Label>
-          <div style={{ marginBottom: 28 }}>
+        {duplicateSource && (
+          <div
+            role="note"
+            style={{
+              marginBottom: 'var(--space-7)',
+              padding: 'var(--space-4) var(--space-5)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-sm)',
+              background: 'var(--surface-2)',
+              color: 'var(--text-2)',
+              fontSize: 'var(--text-sm)',
+              lineHeight: 'var(--leading-base)',
+            }}
+          >
+            Configuration copied from{' '}
+            <Link to={`/scans/${duplicateSource.id}`} style={{ color: 'var(--accent-strong)' }}>
+              {duplicateSource.repoDisplay || duplicateSource.repoFull || `scan ${duplicateSource.id}`}
+            </Link>
+            . Results, logs, status, attempts, and timestamps are not copied.
+          </div>
+        )}
+
+        <Section title="Workflow">
+          <div style={{ maxWidth: 520 }}>
             <SearchSelect
               items={workflowOptions}
               value={form.workflowId}
               onChange={setWorkflow}
+              height={32}
               placeholder="Search workflows…"
               renderTrigger={(w) => (
-                <span style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-                  <span className="mono" style={{ fontWeight: 600, fontSize: 14 }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)', minWidth: 0 }}>
+                  <span
+                    style={{
+                      fontWeight: 500,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
                     {w?.name || 'Select workflow'}
                   </span>
-                  {w && (
-                    <span className="mono" style={{ fontSize: 11, color: 'var(--text-3)' }}>
-                      {w.stepCount} steps
-                    </span>
-                  )}
+                  {w && <span style={{ color: 'var(--text-3)', fontSize: 'var(--text-xs)' }}>{w.stepCount} steps</span>}
                 </span>
               )}
               renderItem={(w) => (
                 <div style={{ minWidth: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span className="mono" style={{ fontWeight: 600, fontSize: 13 }}>
-                      {w.name}
-                    </span>
-                    <span className="mono" style={{ fontSize: 10.5, color: 'var(--text-3)' }}>
-                      {w.stepCount} steps
-                    </span>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 'var(--space-4)' }}>
+                    <span style={{ fontWeight: 500, fontSize: 'var(--text-sm)' }}>{w.name}</span>
+                    <span style={{ color: 'var(--text-3)', fontSize: 'var(--text-xs)' }}>{w.stepCount} steps</span>
                   </div>
-                  <div style={{ fontSize: 12, color: 'var(--text-2)', marginTop: 3 }}>{w.description}</div>
+                  <div style={{ color: 'var(--text-2)', fontSize: 'var(--text-xs)', marginTop: 'var(--space-1)' }}>
+                    {w.description}
+                  </div>
                 </div>
               )}
               filter={(w, q) => w.name.toLowerCase().includes(q) || (w.description || '').toLowerCase().includes(q)}
             />
           </div>
+        </Section>
 
-          {/* ===================== TARGET ===================== */}
-          <Label>2 · TARGET</Label>
+        <Section title="Target">
           <Pills
             value={form.repoKind}
             onChange={(k) => set({ repoKind: k })}
@@ -679,20 +692,24 @@ export default function CreateScan() {
           {form.repoKind === 'remote' ? (
             <div
               className="create-scan-two-column"
-              style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12, marginBottom: 12 }}
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1fr)',
+                gap: 'var(--space-6)',
+              }}
             >
-              <Field label="repository">
+              <Field label="Repository">
                 <Input
                   value={form.repoUrl}
                   onChange={(e) => set({ repoUrl: e.target.value })}
                   onBlur={() => set({ repoUrl: formatRemoteRepoInput(form.repoUrl) })}
                   placeholder="https://github.com/org/repo"
                   mono
-                  style={{ borderColor: form.repoUrl && !repoUrlValid ? 'var(--fail)' : 'var(--border)' }}
+                  aria-invalid={form.repoUrl && !repoUrlValid ? 'true' : undefined}
                 />
                 {form.repoUrl && !repoUrlValid && <FieldError>Use owner/repo or a GitHub URL.</FieldError>}
               </Field>
-              <Field label="commit_sha">
+              <Field label="Commit SHA">
                 <Input
                   value={form.commit_sha}
                   onChange={(e) => set({ commit_sha: e.target.value })}
@@ -702,22 +719,29 @@ export default function CreateScan() {
               </Field>
             </div>
           ) : (
-            <div style={{ marginBottom: 12 }}>
-              <Field label="local repository">
+            <div style={{ display: 'grid', gap: 'var(--space-4)' }}>
+              <Field label="Local repository">
                 <SearchSelect
-                  height={38}
+                  height={32}
                   items={localItems}
                   value={form.repoLocal}
                   onChange={(name) => set({ repoLocal: name })}
                   placeholder="Search local repos…"
                   emptyText="No local repos found under the configured root."
                   renderTrigger={(r) => (
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0 }}>
-                      <span className="mono" style={{ fontSize: 13, color: r ? 'var(--text)' : 'var(--text-3)' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)', minWidth: 0 }}>
+                      <span
+                        style={{
+                          color: r ? 'var(--text)' : 'var(--text-3)',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
                         {r?.name || 'Select a local repository'}
                       </span>
                       {r && (
-                        <span className="mono" style={{ fontSize: 11, color: 'var(--text-3)' }}>
+                        <span style={{ color: 'var(--text-3)', fontSize: 'var(--text-xs)', whiteSpace: 'nowrap' }}>
                           {localMeta(r)}
                         </span>
                       )}
@@ -725,11 +749,16 @@ export default function CreateScan() {
                   )}
                   renderItem={(r) => (
                     <div style={{ minWidth: 0 }}>
-                      <div className="mono" style={{ fontWeight: 600, fontSize: 12.5 }}>
-                        {r.name}
-                      </div>
-                      <div className="mono" style={{ fontSize: 10.5, color: 'var(--text-3)', marginTop: 2 }}>
-                        {r.path} · {localMeta(r) || 'not a git repo'}
+                      <div style={{ fontWeight: 500, fontSize: 'var(--text-sm)' }}>{r.name}</div>
+                      <div
+                        className="mono"
+                        style={{
+                          color: 'var(--text-3)',
+                          fontSize: 'var(--text-2xs)',
+                          marginTop: 'var(--space-1)',
+                        }}
+                      >
+                        {r.path}, {localMeta(r) || 'not a git repo'}
                       </div>
                     </div>
                   )}
@@ -742,85 +771,68 @@ export default function CreateScan() {
                 configuration={form.configuration}
                 onRetry={() => setLocalRepoFileStatsRetry((attempt) => attempt + 1)}
               />
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  gap: 7,
-                  fontSize: 11.5,
-                  color: 'var(--text-3)',
-                  marginTop: 7,
-                  lineHeight: 1.5,
-                }}
-              >
-                <span style={{ flex: 'none' }}>ⓘ</span>
+              <p className="field-note">
                 At scan start, open·kritt takes one snapshot of this folder, including modified and untracked files but
                 excluding .git. Git is not required. The selected model provider receives the snapshot contents; create
                 a new scan to capture later changes.
-              </div>
+              </p>
             </div>
           )}
 
-          <div style={{ marginBottom: 28 }}>
-            <Field label="repo_scope">
+          <div style={{ maxWidth: 360 }}>
+            <Field label="Repository scope">
               <Input value={form.repo_scope} onChange={(e) => set({ repo_scope: e.target.value })} />
             </Field>
           </div>
+        </Section>
 
-          {/* ===================== DEPENDENCIES ===================== */}
-          <Label>
-            3 · DEPENDENCIES{' '}
-            <span style={{ textTransform: 'none', letterSpacing: 0, color: 'var(--text-3)' }}>
-              · optional · scanned alongside the target
-            </span>
-          </Label>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 10 }}>
+        <Section title="Dependencies" note="Optional, scanned alongside the target.">
+          <div style={{ display: 'grid', gap: 'var(--space-5)' }}>
             {form.dependencies.map((dep, i) => (
               <div
                 key={i}
                 style={{
-                  border: '1px solid var(--border)',
-                  borderRadius: 11,
-                  background: 'var(--surface-2)',
-                  padding: 14,
+                  display: 'grid',
+                  gap: 'var(--space-5)',
+                  paddingTop: i === 0 ? 0 : 'var(--space-5)',
+                  borderTop: i === 0 ? 0 : '1px solid var(--border-2)',
                 }}
               >
                 <div
-                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 'var(--space-4)',
+                  }}
                 >
                   <Pills
-                    small
                     value={dep.kind || 'remote'}
                     onChange={(kind) => updateDep(i, { kind, repo_full: '', commit_sha: '' })}
                     options={[
                       ['remote', 'Remote'],
                       ['local', 'Local'],
                     ]}
-                    noMargin
                   />
                   <button
                     type="button"
                     onClick={() => removeDep(i)}
                     aria-label={`Remove dependency ${i + 1}`}
-                    style={{
-                      color: 'var(--text-3)',
-                      fontSize: 18,
-                      cursor: 'pointer',
-                      lineHeight: 1,
-                      border: 0,
-                      background: 'transparent',
-                      padding: 4,
-                    }}
+                    className="btn btn--quiet btn--sm"
                   >
-                    ×
+                    Remove
                   </button>
                 </div>
                 {(dep.kind || 'remote') === 'remote' ? (
                   <div
                     className="create-scan-two-column"
-                    style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 10 }}
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1fr)',
+                      gap: 'var(--space-6)',
+                    }}
                   >
-                    <Field label="dependency repository" small>
+                    <Field label="Dependency repository">
                       <Input
                         value={dep.repo_full || ''}
                         onChange={(e) => updateDep(i, { repo_full: e.target.value })}
@@ -828,47 +840,48 @@ export default function CreateScan() {
                         onKeyDown={(e) => addDepOnEnter(e, dep)}
                         placeholder="org/lib"
                         mono
-                        small
-                        style={{
-                          borderColor:
-                            dep.repo_full && !isValidRemoteRepo(dep.repo_full) ? 'var(--fail)' : 'var(--border)',
-                        }}
+                        aria-invalid={dep.repo_full && !isValidRemoteRepo(dep.repo_full) ? 'true' : undefined}
                       />
                       {dep.repo_full && !isValidRemoteRepo(dep.repo_full) && (
                         <FieldError>Use owner/repo or a GitHub URL.</FieldError>
                       )}
                     </Field>
-                    <Field label="commit_sha" small>
+                    <Field label="Commit SHA">
                       <Input
                         value={dep.commit_sha || ''}
                         onChange={(e) => updateDep(i, { commit_sha: e.target.value })}
                         onKeyDown={(e) => addDepOnEnter(e, dep)}
                         placeholder="HEAD"
                         mono
-                        small
                       />
                     </Field>
                   </div>
                 ) : (
-                  <div>
-                    <Field label="local repository" small>
+                  <div style={{ display: 'grid', gap: 'var(--space-3)' }}>
+                    <Field label="Local repository">
                       <SearchSelect
-                        height={36}
+                        height={32}
                         items={localItems}
                         value={dep.repo_full || ''}
                         onChange={(name) => updateDep(i, { repo_full: name, commit_sha: null })}
                         placeholder="Search local repos…"
                         emptyText="No local repos found."
                         renderTrigger={(r) => (
-                          <span style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0 }}>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)', minWidth: 0 }}>
                             <span
-                              className="mono"
-                              style={{ fontSize: 12.5, color: r ? 'var(--text)' : 'var(--text-3)' }}
+                              style={{
+                                color: r ? 'var(--text)' : 'var(--text-3)',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                              }}
                             >
                               {r?.name || 'Select a local repository'}
                             </span>
                             {r && (
-                              <span className="mono" style={{ fontSize: 10.5, color: 'var(--text-3)' }}>
+                              <span
+                                style={{ color: 'var(--text-3)', fontSize: 'var(--text-xs)', whiteSpace: 'nowrap' }}
+                              >
                                 {localMeta(r)}
                               </span>
                             )}
@@ -876,180 +889,122 @@ export default function CreateScan() {
                         )}
                         renderItem={(r) => (
                           <div style={{ minWidth: 0 }}>
-                            <div className="mono" style={{ fontWeight: 600, fontSize: 12 }}>
-                              {r.name}
-                            </div>
-                            <div className="mono" style={{ fontSize: 10, color: 'var(--text-3)', marginTop: 2 }}>
-                              {r.path} · {localMeta(r)}
+                            <div style={{ fontWeight: 500, fontSize: 'var(--text-sm)' }}>{r.name}</div>
+                            <div
+                              className="mono"
+                              style={{
+                                color: 'var(--text-3)',
+                                fontSize: 'var(--text-2xs)',
+                                marginTop: 'var(--space-1)',
+                              }}
+                            >
+                              {r.path}, {localMeta(r)}
                             </div>
                           </div>
                         )}
                         filter={(r, q) => r.name.toLowerCase().includes(q)}
                       />
                     </Field>
-                    <div style={{ marginTop: 5, fontSize: 10.5, lineHeight: 1.45, color: 'var(--text-3)' }}>
+                    <p className="field-note">
                       Snapshotted once with the target when the scan starts. A new scan captures later changes.
-                    </div>
+                    </p>
                   </div>
                 )}
               </div>
             ))}
-            {form.dependencies.length === 0 && (
-              <div style={{ fontSize: 12.5, color: 'var(--text-3)', padding: '2px 2px 4px' }}>
-                No dependencies added.
-              </div>
-            )}
-          </div>
-
-          <button
-            type="button"
-            onClick={addDep}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 7,
-              height: 36,
-              padding: '0 15px',
-              border: '1px dashed var(--border)',
-              borderRadius: 9,
-              fontSize: 12.5,
-              color: 'var(--text-2)',
-              cursor: 'pointer',
-              marginBottom: 28,
-              background: 'transparent',
-              font: 'inherit',
-            }}
-          >
-            + add dependency
-          </button>
-
-          {/* ===================== CONFIGURATION ===================== */}
-          <Label>4 · CONFIGURATION</Label>
-          <div style={{ marginBottom: 28 }}>
-            <textarea
-              value={form.configuration}
-              onChange={(e) => set({ configuration: e.target.value })}
-              spellCheck={false}
-              className="mono"
-              style={{
-                width: '100%',
-                height: 88,
-                padding: 12,
-                border: '1px solid var(--border)',
-                borderRadius: 8,
-                background: 'var(--code-bg)',
-                color: 'var(--text)',
-                fontSize: 12,
-                lineHeight: 1.6,
-                outline: 'none',
-                resize: 'vertical',
-              }}
-            />
-            <div style={{ marginTop: 12, maxWidth: 280 }}>
-              <Field label="maximum model jobs · optional">
-                <Input
-                  value={form.jobLimit}
-                  onChange={(e) => set({ jobLimit: e.target.value })}
-                  type="number"
-                  min="1"
-                  max="1000000"
-                  step="1"
-                  placeholder="unlimited"
-                  mono
-                  style={{ borderColor: jobLimitValid ? 'var(--border)' : 'var(--fail)' }}
-                />
-                <div style={{ fontSize: 11, lineHeight: 1.45, color: 'var(--text-3)', marginTop: 6 }}>
-                  Exact cap across workflow and post-processing jobs. Internal retries do not consume extra jobs.
-                </div>
-                {!jobLimitValid && <FieldError>Enter a whole number from 1 to 1,000,000.</FieldError>}
-              </Field>
+            {form.dependencies.length === 0 && <p className="field-note">No dependencies added.</p>}
+            <div>
+              <button type="button" className="btn" onClick={addDep}>
+                + Add dependency
+              </button>
             </div>
           </div>
+        </Section>
 
-          {/* ===================== EXTRA ===================== */}
-          <Label>5 · EXTRA</Label>
-          <div style={{ marginBottom: 28 }}>
-            {expectedExtra.length > 0 ? (
-              <>
-                <div style={{ fontSize: 12.5, color: 'var(--text-2)', margin: '-4px 0 12px' }}>
-                  The selected workflow and post-scripts reference{' '}
-                  <span className="mono" style={{ color: 'var(--accent)' }}>
-                    {'{{extra.…}}'}
-                  </span>{' '}
-                  keys. Provide a value for each.
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 12 }}>
-                  {expectedExtra.map((k) => (
-                    <Field key={k} label={`extra.${k}`}>
-                      <textarea
-                        value={extraInputText(form.extra[k])}
-                        onChange={(e) => setExtra(k, e.target.value)}
-                        placeholder="required"
-                        spellCheck={false}
-                        className="mono"
-                        style={{
-                          width: '100%',
-                          minHeight: 180,
-                          padding: 12,
-                          border: '1px solid var(--border)',
-                          borderRadius: 8,
-                          background: 'var(--code-bg)',
-                          color: 'var(--text)',
-                          fontSize: 12,
-                          lineHeight: 1.6,
-                          outline: 'none',
-                          resize: 'vertical',
-                          borderColor: hasExtraValue(form.extra[k]) ? 'var(--border)' : 'var(--fail)',
-                        }}
-                      />
-                    </Field>
-                  ))}
-                </div>
-              </>
-            ) : (
-              <div
-                style={{
-                  fontSize: 12.5,
-                  color: 'var(--text-3)',
-                  border: '1px dashed var(--border)',
-                  borderRadius: 8,
-                  padding: '12px 14px',
-                }}
-              >
-                {selectedWorkflow ? (
-                  <>
-                    The selected workflow and post-scripts don’t reference any{' '}
-                    <span className="mono">{'{{extra.…}}'}</span> keys — nothing to fill in here.
-                  </>
-                ) : (
-                  'Select a workflow to see its extra keys.'
-                )}
-              </div>
-            )}
+        <Section title="Configuration">
+          <textarea
+            value={form.configuration}
+            onChange={(e) => set({ configuration: e.target.value })}
+            spellCheck={false}
+            className="textarea mono"
+            style={{ minHeight: 96, background: 'var(--code-bg)' }}
+          />
+          <div style={{ maxWidth: 300 }}>
+            <Field label="Maximum model jobs" unit="Optional">
+              <Input
+                value={form.jobLimit}
+                onChange={(e) => set({ jobLimit: e.target.value })}
+                type="number"
+                min="1"
+                max="1000000"
+                step="1"
+                placeholder="unlimited"
+                mono
+                aria-invalid={jobLimitValid ? undefined : 'true'}
+              />
+              <p className="field-note">
+                Exact cap across workflow and post-processing jobs. Internal retries do not consume extra jobs.
+              </p>
+              {!jobLimitValid && <FieldError>Enter a whole number from 1 to 1,000,000.</FieldError>}
+            </Field>
           </div>
+        </Section>
 
-          {/* ===================== MODEL & HARNESS ===================== */}
-          <Label>6 · MODEL &amp; HARNESS</Label>
-          <div style={{ marginBottom: 28 }}>
-            <WorkflowModelConfiguration
-              value={form}
-              onChange={(configuration) => {
-                setDirty(true);
-                setForm((current) => ({ ...current, ...configuration }));
-              }}
-              providers={modelProviders}
-              catalog={refData.modelCatalog}
-              catalogError={modelCatalogError}
-              depths={selectedWorkflowDepths}
-              depthChips={selectedWorkflow?.depthChips || []}
-            />
-          </div>
+        <Section title="Extra">
+          {expectedExtra.length > 0 ? (
+            <div style={{ display: 'grid', gap: 'var(--space-6)' }}>
+              <p className="field-note">
+                The selected workflow and post-scripts reference <span className="mono">{'{{extra.…}}'}</span> keys.
+                Provide a value for each.
+              </p>
+              {expectedExtra.map((k) => (
+                <Field key={k} label={<span className="mono">{`extra.${k}`}</span>}>
+                  <textarea
+                    value={extraInputText(form.extra[k])}
+                    onChange={(e) => setExtra(k, e.target.value)}
+                    placeholder="required"
+                    spellCheck={false}
+                    className="textarea mono"
+                    style={{
+                      minHeight: 160,
+                      background: 'var(--code-bg)',
+                      borderColor: hasExtraValue(form.extra[k]) ? 'var(--border)' : 'var(--fail)',
+                    }}
+                    aria-invalid={hasExtraValue(form.extra[k]) ? undefined : 'true'}
+                  />
+                </Field>
+              ))}
+            </div>
+          ) : (
+            <p className="field-note">
+              {selectedWorkflow ? (
+                <>
+                  The selected workflow and post-scripts don’t reference any{' '}
+                  <span className="mono">{'{{extra.…}}'}</span> keys, so there is nothing to fill in here.
+                </>
+              ) : (
+                'Select a workflow to see its extra keys.'
+              )}
+            </p>
+          )}
+        </Section>
 
-          {/* ===================== AGENT SKILLS ===================== */}
-          <Label>
-            7 · AGENT SKILLS{' '}
-            <span style={{ textTransform: 'none', letterSpacing: 0, color: 'var(--text-3)' }}>· optional</span>
-          </Label>
+        <Section title="Model and harness">
+          <WorkflowModelConfiguration
+            value={form}
+            onChange={(configuration) => {
+              setDirty(true);
+              setForm((current) => ({ ...current, ...configuration }));
+            }}
+            providers={modelProviders}
+            catalog={refData.modelCatalog}
+            catalogError={modelCatalogError}
+            depths={selectedWorkflowDepths}
+            depthChips={selectedWorkflow?.depthChips || []}
+          />
+        </Section>
+
+        <Section title="Agent skills" note="Optional.">
           {agentSkills.length > 0 && (
             <AgentSkillSearchInput
               value={agentSkillQuery}
@@ -1061,14 +1016,7 @@ export default function CreateScan() {
             id="create-scan-agent-skills"
             role="group"
             aria-label="Agent skills"
-            style={{
-              border: '1px solid var(--border)',
-              borderRadius: 10,
-              background: 'var(--surface)',
-              overflowY: 'auto',
-              maxHeight: 360,
-              marginBottom: 8,
-            }}
+            style={{ borderTop: '1px solid var(--border-2)', overflowY: 'auto', maxHeight: 360 }}
           >
             {agentSkillPages.pageItems.map((skill) => {
               const active = form.agentSkillIds.includes(skill.id);
@@ -1089,56 +1037,66 @@ export default function CreateScan() {
                     style={{
                       display: 'flex',
                       alignItems: 'flex-start',
-                      gap: 11,
-                      padding: '11px 13px',
-                      cursor: 'pointer',
-                      border: 0,
-                      background: 'transparent',
-                      color: 'inherit',
+                      gap: 'var(--space-4)',
+                      padding: 'var(--space-4) var(--space-5)',
                       flex: 1,
                       minWidth: 0,
-                      font: 'inherit',
                       textAlign: 'left',
+                      color: 'inherit',
                     }}
                   >
                     <span
+                      aria-hidden="true"
                       className="mono"
                       style={{
-                        width: 18,
-                        height: 18,
-                        borderRadius: 5,
-                        border: `1px solid ${active ? 'var(--accent)' : 'var(--border)'}`,
-                        background: active ? 'var(--accent)' : 'var(--surface)',
-                        color: 'var(--accent-fg)',
+                        width: 16,
+                        height: 16,
+                        flex: 'none',
+                        marginTop: 1,
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        fontSize: 12,
-                        flex: 'none',
-                        marginTop: 1,
+                        border: `1px solid ${active ? 'var(--accent)' : 'var(--border)'}`,
+                        borderRadius: 'var(--radius-xs)',
+                        background: active ? 'var(--accent)' : 'var(--surface)',
+                        color: 'var(--accent-fg)',
+                        fontSize: 'var(--text-2xs)',
                       }}
                     >
                       {active ? '✓' : ''}
                     </span>
-                    <div style={{ minWidth: 0, flex: 1 }}>
-                      <div className="mono" style={{ fontWeight: 600, fontSize: 13 }}>
+                    <span style={{ minWidth: 0, flex: 1 }}>
+                      <span style={{ display: 'block', fontWeight: 500, fontSize: 'var(--text-sm)' }}>
                         {skill.name}
-                      </div>
-                      <div style={{ fontSize: 12, color: 'var(--text-2)', marginTop: 3 }}>{skill.description}</div>
-                      <div
-                        className="mono"
+                      </span>
+                      <span
                         style={{
-                          fontSize: 10.5,
-                          color: 'var(--text-3)',
-                          marginTop: 4,
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
+                          display: 'block',
+                          color: 'var(--text-2)',
+                          fontSize: 'var(--text-xs)',
+                          marginTop: 'var(--space-1)',
                         }}
                       >
-                        {[skill.slug, skill.licenseSpdx].filter(Boolean).join(' · ')}
-                      </div>
-                    </div>
+                        {skill.description}
+                      </span>
+                      <span
+                        className="mono"
+                        style={{
+                          display: 'flex',
+                          gap: 'var(--space-4)',
+                          color: 'var(--text-3)',
+                          fontSize: 'var(--text-2xs)',
+                          marginTop: 'var(--space-1)',
+                          overflow: 'hidden',
+                          whiteSpace: 'nowrap',
+                          textOverflow: 'ellipsis',
+                        }}
+                      >
+                        {[skill.slug, skill.licenseSpdx].filter(Boolean).map((value) => (
+                          <span key={value}>{value}</span>
+                        ))}
+                      </span>
+                    </span>
                   </button>
                   {skill.sourceUrl && (
                     <a
@@ -1146,55 +1104,45 @@ export default function CreateScan() {
                       target="_blank"
                       rel="noreferrer"
                       style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        height: 21,
-                        padding: '0 8px',
-                        margin: '11px 13px 0 0',
-                        borderRadius: 6,
-                        border: '1px solid var(--accent)',
-                        background: 'var(--accent-subtle)',
-                        color: 'var(--accent)',
-                        fontWeight: 700,
-                        fontSize: 10.5,
-                        textDecoration: 'none',
-                        cursor: 'pointer',
                         flex: 'none',
+                        margin: 'var(--space-4) var(--space-5) 0 0',
+                        color: 'var(--accent-strong)',
+                        fontSize: 'var(--text-xs)',
+                        textDecoration: 'underline',
+                        textUnderlineOffset: 2,
                       }}
                     >
-                      source
+                      Source
                     </a>
                   )}
                 </div>
               );
             })}
             {agentSkills.length === 0 && (
-              <div style={{ fontSize: 12.5, color: 'var(--text-3)', padding: 13 }}>No agent skills defined.</div>
+              <div style={{ color: 'var(--text-3)', fontSize: 'var(--text-sm)', padding: 'var(--space-5)' }}>
+                No agent skills defined.
+              </div>
             )}
             {agentSkills.length > 0 && filteredAgentSkills.length === 0 && (
-              <div role="status" aria-live="polite" style={{ fontSize: 12.5, color: 'var(--text-3)', padding: 13 }}>
+              <div
+                role="status"
+                aria-live="polite"
+                style={{ color: 'var(--text-3)', fontSize: 'var(--text-sm)', padding: 'var(--space-5)' }}
+              >
                 No agent skills match “{agentSkillQuery.trim()}”.
               </div>
             )}
           </div>
           <Pagination {...agentSkillPages} itemLabel="skills" compact />
-          <div className="mono" style={{ fontSize: 11, color: 'var(--text-3)', marginBottom: 28 }}>
+          <p className="field-note">
             {form.agentSkillIds.length} selected.
-            {agentSkillQuery.trim() ? ` ${filteredAgentSkills.length} of ${agentSkills.length} skills match. ` : ' '}
+            {agentSkillQuery.trim() ? ` ${filteredAgentSkills.length} of ${agentSkills.length} skills match.` : ''}{' '}
             Selected skills are installed into each executor agent for this scan.
-          </div>
+          </p>
+        </Section>
 
-          {/* ===================== POST-SCRIPT ===================== */}
-          <Label>8 · POST-SCRIPTS</Label>
-          <div
-            style={{
-              border: '1px solid var(--border)',
-              borderRadius: 10,
-              background: 'var(--surface)',
-              overflowY: 'auto',
-              maxHeight: 360,
-            }}
-          >
+        <Section title="Post-scripts">
+          <div style={{ borderTop: '1px solid var(--border-2)', overflowY: 'auto', maxHeight: 360 }}>
             {postScriptPages.pageItems.map((p) => {
               const active = selectedPostScriptIds.includes(p.id);
               return (
@@ -1206,78 +1154,82 @@ export default function CreateScan() {
                   style={{
                     display: 'flex',
                     alignItems: 'flex-start',
-                    gap: 11,
-                    padding: '11px 13px',
-                    cursor: 'pointer',
-                    borderBottom: '1px solid var(--border-2)',
-                    borderTop: 0,
-                    borderLeft: 0,
-                    borderRight: 0,
-                    background: active ? 'var(--accent-subtle)' : 'transparent',
+                    gap: 'var(--space-4)',
                     width: '100%',
+                    padding: 'var(--space-4) var(--space-5)',
+                    borderBottom: '1px solid var(--border-2)',
+                    background: active ? 'var(--accent-subtle)' : 'transparent',
                     color: 'inherit',
-                    font: 'inherit',
                     textAlign: 'left',
                   }}
                 >
                   <span
+                    aria-hidden="true"
                     className="mono"
                     style={{
-                      width: 18,
-                      height: 18,
-                      borderRadius: 5,
-                      border: `1px solid ${active ? 'var(--accent)' : 'var(--border)'}`,
-                      background: active ? 'var(--accent)' : 'var(--surface)',
-                      color: 'var(--accent-fg)',
+                      width: 16,
+                      height: 16,
+                      flex: 'none',
+                      marginTop: 1,
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      fontSize: 12,
-                      flex: 'none',
-                      marginTop: 1,
+                      border: `1px solid ${active ? 'var(--accent)' : 'var(--border)'}`,
+                      borderRadius: 'var(--radius-xs)',
+                      background: active ? 'var(--accent)' : 'var(--surface)',
+                      color: 'var(--accent-fg)',
+                      fontSize: 'var(--text-2xs)',
                     }}
                   >
                     {active ? '✓' : ''}
                   </span>
-                  <div style={{ minWidth: 0, flex: 1 }}>
-                    <div className="mono" style={{ fontWeight: 600, fontSize: 13 }}>
-                      {p.name}
-                    </div>
-                    <div style={{ fontSize: 12, color: 'var(--text-2)', marginTop: 3 }}>{p.description}</div>
+                  <span style={{ minWidth: 0, flex: 1 }}>
+                    <span style={{ display: 'block', fontWeight: 500, fontSize: 'var(--text-sm)' }}>{p.name}</span>
+                    <span
+                      style={{
+                        display: 'block',
+                        color: 'var(--text-2)',
+                        fontSize: 'var(--text-xs)',
+                        marginTop: 'var(--space-1)',
+                      }}
+                    >
+                      {p.description}
+                    </span>
                     {(p.keys || []).length > 0 && (
-                      <div
+                      <span
                         className="mono"
                         style={{
-                          fontSize: 10.5,
+                          display: 'block',
                           color: 'var(--text-3)',
-                          marginTop: 4,
-                          whiteSpace: 'nowrap',
+                          fontSize: 'var(--text-2xs)',
+                          marginTop: 'var(--space-1)',
                           overflow: 'hidden',
+                          whiteSpace: 'nowrap',
                           textOverflow: 'ellipsis',
                         }}
                       >
-                        {p.keys.join(' · ')}
-                      </div>
+                        {p.keys.join(', ')}
+                      </span>
                     )}
-                  </div>
+                  </span>
                 </button>
               );
             })}
           </div>
           <Pagination {...postScriptPages} itemLabel="post-scripts" compact />
-          <div className="mono" style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 7 }}>
+          <p className="field-note">
             {selectedPostScriptIds.length} selected. The first selected script is stored as the scan primary; all
             selected scripts run after ranking.
-          </div>
+          </p>
+        </Section>
 
-          {/* ===================== SEVERITY RANKER ===================== */}
-          <Label style={{ marginTop: 28 }}>9 · SEVERITY RANKER</Label>
-          <div style={{ fontSize: 12.5, color: 'var(--text-2)', marginBottom: 12 }}>
-            Pick any number of rankers — their rules are concatenated, then your scan-specific rules are appended.
-          </div>
+        <Section
+          title="Severity ranker"
+          note="Pick any number of rankers. Their rules are concatenated, then your scan-specific rules are appended."
+        >
           <div
             className="create-scan-ranker-grid"
-            style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}
+            style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 'var(--space-4)' }}
           >
             {rankerPages.pageItems.map((r) => {
               const on = form.rankerIds.includes(r.id);
@@ -1289,95 +1241,81 @@ export default function CreateScan() {
                   onClick={() => toggleScanRanker(r.id)}
                   aria-pressed={on}
                   style={{
-                    border: `1.5px solid ${on ? 'var(--accent)' : 'var(--border)'}`,
-                    background: on ? 'var(--accent-subtle)' : 'var(--surface)',
-                    borderRadius: 10,
-                    padding: '13px 14px',
-                    cursor: 'pointer',
                     display: 'flex',
-                    gap: 11,
                     alignItems: 'flex-start',
+                    gap: 'var(--space-4)',
                     width: '100%',
+                    padding: 'var(--space-4) var(--space-5)',
+                    border: `1px solid ${on ? 'var(--accent)' : 'var(--border)'}`,
+                    borderRadius: 'var(--radius-sm)',
+                    background: on ? 'var(--accent-subtle)' : 'transparent',
                     color: 'inherit',
-                    font: 'inherit',
                     textAlign: 'left',
                   }}
                 >
                   <span
                     className="mono"
                     style={{
-                      width: 20,
-                      height: 20,
-                      borderRadius: 6,
-                      border: `1.5px solid ${on ? 'var(--accent)' : 'var(--border)'}`,
-                      background: on ? 'var(--accent)' : 'transparent',
-                      color: on ? 'var(--accent-fg)' : 'var(--text-3)',
+                      width: 18,
                       flex: 'none',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: 10.5,
-                      fontWeight: 600,
                       marginTop: 1,
+                      color: on ? 'var(--accent-strong)' : 'var(--text-3)',
+                      fontSize: 'var(--text-xs)',
+                      fontWeight: 600,
                     }}
                   >
                     {order}
                   </span>
-                  <div style={{ minWidth: 0 }}>
-                    <div className="mono" style={{ fontWeight: 600, fontSize: 13 }}>
+                  <span style={{ minWidth: 0 }}>
+                    <span style={{ display: 'block', fontWeight: 500, fontSize: 'var(--text-sm)' }}>
                       {r.name}
                       {r.isDefault ? (
-                        <span style={{ color: 'var(--accent)', fontSize: 10.5, marginLeft: 7 }}>default</span>
+                        <span
+                          style={{
+                            color: 'var(--accent-strong)',
+                            fontSize: 'var(--text-2xs)',
+                            marginLeft: 'var(--space-3)',
+                          }}
+                        >
+                          default
+                        </span>
                       ) : null}
-                    </div>
-                    <div style={{ fontSize: 11.5, color: 'var(--text-2)', marginTop: 3, lineHeight: 1.45 }}>
+                    </span>
+                    <span
+                      style={{
+                        display: 'block',
+                        color: 'var(--text-2)',
+                        fontSize: 'var(--text-xs)',
+                        marginTop: 'var(--space-1)',
+                        lineHeight: 'var(--leading-base)',
+                      }}
+                    >
                       {r.description}
-                    </div>
-                  </div>
+                    </span>
+                  </span>
                 </button>
               );
             })}
             {refData.severityRankers.length === 0 && (
-              <div style={{ fontSize: 12.5, color: 'var(--text-3)', padding: '2px 0' }}>
-                No saved rankers — add scan-specific rules below, or create one under Severity rankers.
-              </div>
+              <p className="field-note">
+                No saved rankers, add scan-specific rules below, or create one under Severity rankers.
+              </p>
             )}
           </div>
-          <Pagination {...rankerPages} itemLabel="rankers" compact style={{ marginBottom: 16 }} />
+          <Pagination {...rankerPages} itemLabel="rankers" compact />
 
-          <div className="mono" style={{ fontSize: 11.5, color: 'var(--text-2)', marginBottom: 5 }}>
-            scan-specific rules <span style={{ color: 'var(--text-3)' }}>· optional · markdown</span>
-          </div>
-          <textarea
-            value={form.rankerExtra}
-            onChange={(e) => set({ rankerExtra: e.target.value })}
-            spellCheck={false}
-            placeholder="e.g. Treat anything reachable from the public checkout flow as at least High."
-            className="mono"
-            style={{
-              width: '100%',
-              height: 84,
-              padding: 12,
-              border: '1px solid var(--border)',
-              borderRadius: 8,
-              background: 'var(--code-bg)',
-              color: 'var(--text)',
-              fontSize: 12,
-              lineHeight: 1.6,
-              outline: 'none',
-              resize: 'vertical',
-            }}
-          />
+          <Field label="Scan-specific rules" unit="Optional, Markdown">
+            <textarea
+              value={form.rankerExtra}
+              onChange={(e) => set({ rankerExtra: e.target.value })}
+              spellCheck={false}
+              placeholder="e.g. Treat anything reachable from the public checkout flow as at least High."
+              className="textarea mono"
+              style={{ minHeight: 84, background: 'var(--code-bg)' }}
+            />
+          </Field>
 
-          <div
-            style={{
-              marginTop: 12,
-              border: '1px solid var(--border)',
-              borderRadius: 9,
-              background: 'var(--surface)',
-              overflow: 'hidden',
-            }}
-          >
+          <div>
             <button
               type="button"
               onClick={() => setRankerPreviewOpen((o) => !o)}
@@ -1386,35 +1324,41 @@ export default function CreateScan() {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                padding: '11px 14px',
-                cursor: 'pointer',
+                gap: 'var(--space-5)',
                 width: '100%',
-                border: 0,
-                background: 'transparent',
-                color: 'inherit',
-                font: 'inherit',
+                padding: 'var(--space-4) 0',
+                borderTop: '1px solid var(--border-2)',
+                borderBottom: '1px solid var(--border-2)',
                 textAlign: 'left',
+                whiteSpace: 'nowrap',
               }}
             >
-              <span style={{ display: 'flex', alignItems: 'center', gap: 9, fontSize: 12.5, color: 'var(--text)' }}>
-                <span style={{ color: 'var(--text-3)', fontSize: 10 }}>{rankerPreviewOpen ? '▾' : '▸'}</span>
-                Combined ruleset{' '}
-                <span className="mono" style={{ fontSize: 10.5, color: 'var(--text-3)' }}>
+              <span
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 'var(--space-3)',
+                  fontSize: 'var(--text-sm)',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                Combined ruleset
+                <span className="mono" style={{ color: 'var(--text-3)', fontSize: 'var(--text-2xs)' }}>
                   severity_ranker
                 </span>
               </span>
-              <span className="mono" style={{ fontSize: 10.5, color: 'var(--text-3)' }}>
+              <span className="mono" style={{ color: 'var(--text-3)', fontSize: 'var(--text-2xs)' }}>
                 {form.rankerIds.length} ranker{form.rankerIds.length === 1 ? '' : 's'}
-                {form.rankerExtra.trim() ? ' + custom rules' : ''} ·{' '}
-                {combinedRanker.length ? `${combinedRanker.length} chars` : 'empty'}
+                {form.rankerExtra.trim() ? ', custom rules' : ''}
+                {combinedRanker.length ? `, ${combinedRanker.length} chars` : ', empty'}
               </span>
             </button>
             {rankerPreviewOpen && (
               <div
                 style={{
-                  borderTop: '1px solid var(--border-2)',
-                  padding: '16px 18px',
-                  background: 'var(--bg)',
+                  borderBottom: '1px solid var(--border-2)',
+                  background: 'var(--surface-2)',
+                  padding: 'var(--space-5)',
                   maxHeight: 300,
                   overflowY: 'auto',
                 }}
@@ -1422,18 +1366,22 @@ export default function CreateScan() {
                 {combinedRanker.trim() ? (
                   <Markdown source={combinedRanker} />
                 ) : (
-                  <div style={{ fontSize: 13, color: 'var(--text-3)' }}>
-                    No rules selected yet. Add a ranker or scan-specific rules.
-                  </div>
+                  <p className="field-note">No rules selected yet. Add a ranker or scan-specific rules.</p>
                 )}
               </div>
             )}
           </div>
+        </Section>
 
-          {serverErrors.length > 0 && (
-            <div style={{ marginTop: 18, color: 'var(--fail)', fontSize: 12.5 }}>{serverErrors.join(' · ')}</div>
-          )}
-        </div>
+        {serverErrors.length > 0 && (
+          <div role="alert" style={{ marginTop: 'var(--space-7)', display: 'grid', gap: 'var(--space-1)' }}>
+            {serverErrors.map((message, index) => (
+              <div key={`${message}-${index}`} className="field-error">
+                {message}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {pendingScan && (
@@ -1441,47 +1389,28 @@ export default function CreateScan() {
       )}
 
       <div
-        className="create-scan-footer"
         style={{
           flex: 'none',
           borderTop: '1px solid var(--border)',
           background: 'var(--bg)',
-          padding: '13px 32px',
+          padding: 'var(--space-5) 0',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'flex-end',
         }}
       >
-        <button
-          type="button"
-          className="create-scan-submit"
-          onClick={create}
-          disabled={!canCreate}
-          style={{
-            height: 36,
-            padding: '0 20px',
-            display: 'flex',
-            alignItems: 'center',
-            borderRadius: 9,
-            fontSize: 13.5,
-            fontWeight: 500,
-            cursor: canCreate ? 'pointer' : 'default',
-            border: 0,
-            background: canCreate ? 'var(--accent)' : 'var(--surface-2)',
-            color: canCreate ? 'var(--accent-fg)' : 'var(--text-3)',
-          }}
-        >
+        <button type="button" className="btn btn--primary create-scan-submit" onClick={create} disabled={!canCreate}>
           {saving ? 'Creating…' : canCreate ? 'Create scan' : blockedLabel}
         </button>
       </div>
-    </div>
+    </Page>
   );
 }
 
 // ---- small building blocks ----
 export function AgentSkillSearchInput({ value, onChange, listId }) {
   return (
-    <div style={{ position: 'relative', marginBottom: 8 }}>
+    <div style={{ position: 'relative' }}>
       <Input
         type="text"
         role="searchbox"
@@ -1498,7 +1427,7 @@ export function AgentSkillSearchInput({ value, onChange, listId }) {
         maxLength={200}
         placeholder="Search by name, slug, description, or license…"
         mono
-        style={{ height: 36, paddingRight: value ? 34 : 12 }}
+        style={{ paddingRight: value ? 36 : undefined }}
       />
       {value && (
         <button
@@ -1509,16 +1438,16 @@ export function AgentSkillSearchInput({ value, onChange, listId }) {
           style={{
             position: 'absolute',
             top: '50%',
-            right: 8,
+            right: 'var(--space-3)',
             transform: 'translateY(-50%)',
             width: 24,
             height: 24,
-            border: 0,
-            borderRadius: 6,
-            background: 'transparent',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            borderRadius: 'var(--radius-xs)',
             color: 'var(--text-3)',
-            cursor: 'pointer',
-            fontSize: 16,
+            fontSize: 'var(--text-md)',
             lineHeight: 1,
           }}
         >
@@ -1534,18 +1463,19 @@ export function LocalRepoFilePreflight({ stats, repoName, configuration, onRetry
   if (!visibleStats || visibleStats.status === 'idle') return null;
 
   const panelStyle = {
+    display: 'grid',
+    gap: 'var(--space-2)',
+    padding: 'var(--space-4) var(--space-5)',
     border: '1px solid var(--border)',
-    borderRadius: 9,
-    padding: '11px 12px',
-    marginTop: 9,
+    borderRadius: 'var(--radius-sm)',
     background: 'var(--surface-2)',
-    fontSize: 12,
-    lineHeight: 1.45,
+    fontSize: 'var(--text-xs)',
+    lineHeight: 'var(--leading-base)',
   };
 
   if (visibleStats.status === 'loading') {
     return (
-      <div role="status" aria-live="polite" className="mono" style={{ ...panelStyle, color: 'var(--text-2)' }}>
+      <div role="status" aria-live="polite" style={{ ...panelStyle, color: 'var(--text-2)' }}>
         Counting snapshot files…
       </div>
     );
@@ -1557,22 +1487,16 @@ export function LocalRepoFilePreflight({ stats, repoName, configuration, onRetry
         <div style={{ color: 'var(--text-2)' }}>
           Couldn’t count files. You can still create the scan, but the preflight check is unavailable.
         </div>
-        <button
-          type="button"
-          onClick={onRetry}
-          className="mono"
-          style={{
-            border: 0,
-            background: 'transparent',
-            color: 'var(--accent)',
-            cursor: 'pointer',
-            padding: '5px 0 0',
-            fontSize: 11.5,
-            fontWeight: 600,
-          }}
-        >
-          Retry count
-        </button>
+        <div>
+          <button
+            type="button"
+            onClick={onRetry}
+            className="btn btn--quiet btn--sm"
+            style={{ color: 'var(--accent-strong)' }}
+          >
+            Retry count
+          </button>
+        </div>
       </div>
     );
   }
@@ -1613,13 +1537,20 @@ export function LocalRepoFilePreflight({ stats, repoName, configuration, onRetry
         <div
           data-file-count-progress
           aria-hidden="true"
-          style={{ height: 4, borderRadius: 999, background: 'var(--border)', overflow: 'hidden', margin: '8px 0' }}
+          style={{
+            height: 4,
+            borderRadius: 'var(--radius-pill)',
+            background: 'var(--border)',
+            overflow: 'hidden',
+          }}
         >
-          <div style={{ width: `${progress}%`, height: '100%', borderRadius: 999, background: tone }} />
+          <div
+            style={{ width: `${progress}%`, height: '100%', borderRadius: 'var(--radius-pill)', background: tone }}
+          />
         </div>
       )}
       {snapshotIncompatible && (
-        <div style={{ color: 'var(--fail)', fontWeight: 600, marginTop: progress === null ? 7 : 0 }}>
+        <div style={{ color: 'var(--fail)', fontWeight: 600 }}>
           This folder contains{' '}
           {invalidSymlink && specialFile
             ? 'absolute or out-of-root symlinks and unsupported special files'
@@ -1630,8 +1561,8 @@ export function LocalRepoFilePreflight({ stats, repoName, configuration, onRetry
           removed.
         </div>
       )}
-      <div style={{ color: 'var(--text-2)', marginTop: snapshotIncompatible ? 5 : 0 }}>{preflight.detail}</div>
-      <div style={{ color: 'var(--text-3)', fontSize: 10.5, marginTop: 4 }}>
+      <div style={{ color: 'var(--text-2)' }}>{preflight.detail}</div>
+      <div style={{ color: 'var(--text-3)', fontSize: 'var(--text-2xs)' }}>
         This count reflects the folder now; the fixed scan snapshot is taken when the scan starts.
       </div>
     </div>
@@ -1642,20 +1573,7 @@ export function ScanLaunchDialog({ saving = false, onClose, onChoose }) {
   const dialogRef = useModalDialog(onClose);
 
   return (
-    <div
-      role="presentation"
-      onMouseDown={() => !saving && onClose()}
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 60,
-        background: 'rgba(0,0,0,.32)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 20,
-      }}
-    >
+    <div role="presentation" className="dialog-wrap" onMouseDown={() => !saving && onClose()}>
       <div
         ref={dialogRef}
         role="dialog"
@@ -1663,23 +1581,20 @@ export function ScanLaunchDialog({ saving = false, onClose, onChoose }) {
         aria-labelledby="scan-launch-title"
         tabIndex={-1}
         onMouseDown={(event) => event.stopPropagation()}
-        style={{
-          width: 500,
-          maxWidth: '100%',
-          padding: 22,
-          background: 'var(--surface)',
-          border: '1px solid var(--border)',
-          borderRadius: 10,
-          boxShadow: '0 18px 50px rgba(0,0,0,.28)',
-        }}
+        className="dialog"
+        style={{ width: 500, maxWidth: '100%' }}
       >
-        <div id="scan-launch-title" style={{ fontSize: 17, fontWeight: 600 }}>
-          A scan is already running
+        <div className="dialog-head">
+          <h2 id="scan-launch-title" className="dialog-title">
+            A scan is already running
+          </h2>
         </div>
-        <div style={{ marginTop: 8, color: 'var(--text-2)', fontSize: 13.5, lineHeight: 1.55 }}>
-          Start this scan in the concurrent pool, or place it behind immediate scans until capacity is available.
+        <div className="dialog-body">
+          <p style={{ color: 'var(--text-2)', fontSize: 'var(--text-sm)', lineHeight: 'var(--leading-prose)' }}>
+            Start this scan in the concurrent pool, or place it behind immediate scans until capacity is available.
+          </p>
         </div>
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 9, marginTop: 22 }}>
+        <div className="dialog-foot">
           <Button variant="ghost" disabled={saving} onClick={() => onChoose('queue')}>
             Queue
           </Button>
@@ -1692,66 +1607,43 @@ export function ScanLaunchDialog({ saving = false, onClose, onChoose }) {
   );
 }
 
-function Label({ children, style }) {
+function Section({ title, note, children }) {
   return (
-    <div
-      className="mono"
-      style={{ fontSize: 10, letterSpacing: '0.07em', color: 'var(--text-3)', marginBottom: 10, ...style }}
-    >
-      {children}
-    </div>
+    <section style={{ marginTop: 'var(--space-9)' }}>
+      <div className="section-head">
+        <div>
+          <h2>{title}</h2>
+          {note && <p className="panel-note">{note}</p>}
+        </div>
+      </div>
+      <div style={{ display: 'grid', gap: 'var(--space-6)', paddingTop: 'var(--space-5)' }}>{children}</div>
+    </section>
   );
 }
-function Field({ label, children, small }) {
+
+function Field({ label, unit, children }) {
   return (
-    <div>
-      <div className="mono" style={{ fontSize: small ? 11 : 11.5, color: 'var(--text-2)', marginBottom: 5 }}>
-        {label}
+    <div className="field">
+      <div className="field-label">
+        <span>{label}</span>
+        {unit && <span className="field-unit">{unit}</span>}
       </div>
       {children}
     </div>
   );
 }
+
 function FieldError({ children }) {
-  return (
-    <div className="mono" style={{ fontSize: 10.5, color: 'var(--fail)', marginTop: 5 }}>
-      {children}
-    </div>
-  );
+  return <div className="field-error">{children}</div>;
 }
-function Input({ mono, small, style, ...props }) {
-  return (
-    <input
-      {...props}
-      spellCheck={false}
-      className={mono ? 'mono' : undefined}
-      style={{
-        width: '100%',
-        height: small ? 36 : 38,
-        padding: '0 12px',
-        border: '1px solid var(--border)',
-        borderRadius: small ? 7 : 8,
-        background: 'var(--surface)',
-        color: 'var(--text)',
-        fontSize: small ? 12.5 : 13,
-        outline: 'none',
-        ...style,
-      }}
-    />
-  );
+
+function Input({ mono, style, ...props }) {
+  return <input {...props} spellCheck={false} className={mono ? 'input mono' : 'input'} style={style} />;
 }
-function Pills({ value, onChange, options, small, noMargin }) {
+
+function Pills({ value, onChange, options }) {
   return (
-    <div
-      style={{
-        display: 'inline-flex',
-        background: small ? 'var(--bg)' : 'var(--surface-2)',
-        border: small ? '1px solid var(--border)' : 'none',
-        borderRadius: small ? 8 : 9,
-        padding: 3,
-        marginBottom: noMargin ? 0 : 14,
-      }}
-    >
+    <div className="filters" style={{ width: 'fit-content', justifySelf: 'start' }}>
       {options.map(([val, label]) => {
         const active = value === val;
         return (
@@ -1760,17 +1652,7 @@ function Pills({ value, onChange, options, small, noMargin }) {
             key={val}
             onClick={() => onChange(val)}
             aria-pressed={active}
-            style={{
-              fontSize: small ? 12 : 12.5,
-              padding: small ? '5px 12px' : '6px 14px',
-              borderRadius: small ? 6 : 7,
-              border: 0,
-              cursor: 'pointer',
-              background: active ? 'var(--surface)' : 'transparent',
-              color: active ? 'var(--text)' : 'var(--text-2)',
-              boxShadow: active ? 'var(--shadow)' : 'none',
-              font: 'inherit',
-            }}
+            className={active ? 'filter is-active' : 'filter'}
           >
             {label}
           </button>

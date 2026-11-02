@@ -21,6 +21,6 @@ describe('sidebar community links', () => {
 
     expect(html).toContain('Support open·kritt');
     expect(html).toContain('type="button"');
-    expect(html).not.toContain('↗');
+    expect(html).not.toContain('\u2197');
   });
 });

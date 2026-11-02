@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 
 import { api, apiErrorMessages } from '../api/client.js';
 import { Button, ErrorState, Spinner } from '../components/ui.jsx';
+import { Page, PageHeader } from '../components/app.jsx';
 import { usePageChrome } from '../context/ui.jsx';
 import { runtimeSettingsDraft, runtimeSettingsIssues, runtimeSettingsPatch } from '../lib/runtimeSettings.js';
 import { useFetch } from '../lib/useFetch.js';
@@ -229,39 +230,51 @@ export default function Settings() {
   };
 
   return (
-    <div className="settings-page">
-      <div className="settings-heading">
-        <div>
-          <h1>Settings</h1>
-          <p>
+    <Page>
+      <PageHeader
+        title="Settings"
+        meta={
+          <>
             Tune non-secret engine runtime behavior. Provider credentials remain isolated under{' '}
-            <Link to="/accounts">Accounts</Link> and are never returned here.
-          </p>
-        </div>
-        {data && <div className="mono settings-updated-at">Loaded {new Date(data.generatedAt).toLocaleString()}</div>}
-      </div>
+            <Link
+              to="/accounts"
+              style={{ color: 'var(--accent-strong)', textDecoration: 'underline', textUnderlineOffset: 2 }}
+            >
+              Accounts
+            </Link>{' '}
+            and are never returned here.
+          </>
+        }
+        aside={data ? <span className="page-sub">Loaded {new Date(data.generatedAt).toLocaleString()}</span> : null}
+      />
 
       {loading && !data && <Spinner label="Loading settings…" />}
       {error && <ErrorState error={error} onRetry={reload} />}
       {saveError && <SettingsError error={saveError} />}
-      {notice && <div className="settings-notice">{notice}</div>}
+      {notice && (
+        <div className="state-block" style={{ marginBottom: 'var(--space-5)', borderStyle: 'solid' }}>
+          <div className="state-note">{notice}</div>
+        </div>
+      )}
 
       {data && draft && (
         <>
           {!data.persistence.projectEnvironment && (
-            <div className="settings-warning">
-              The project environment file is unavailable. Live values can be updated, but an engine recreation may
-              restore deployment-provided values.
+            <div className="state-block state-block--error" style={{ marginBottom: 'var(--space-5)' }}>
+              <div className="state-note">
+                The project environment file is unavailable. Live values can be updated, but an engine recreation may
+                restore deployment-provided values.
+              </div>
             </div>
           )}
 
-          <section className="settings-section">
-            <div className="settings-section-heading">
+          <section>
+            <div className="section-head">
               <div>
                 <h2>Engine runtime</h2>
-                <p>Only whitelisted, non-secret settings are exposed by the API.</p>
+                <p className="panel-note">Only whitelisted, non-secret settings are exposed by the API.</p>
               </div>
-              <div className="settings-actions">
+              <div className="page-actions">
                 <Button variant="ghost" onClick={reset} disabled={!dirty || saving}>
                   Reset
                 </Button>
@@ -280,32 +293,32 @@ export default function Settings() {
             <RuntimeSettingsFields data={data} draft={draft} issues={issues} saving={saving} onChange={set} />
           </section>
 
-          <section className="settings-section">
-            <div className="settings-section-heading">
+          <section style={{ marginTop: 'var(--space-9)' }}>
+            <div className="section-head">
               <div>
                 <h2>Scheduling roadmap</h2>
-                <p>Additional lifecycle behavior that remains intentionally manual.</p>
+                <p className="panel-note">Additional lifecycle behavior that remains intentionally manual.</p>
               </div>
             </div>
-            <div className="settings-capability-grid">
-              {CAPABILITIES.map((capability) => {
-                const state = data.capabilities[capability.key];
-                return (
-                  <div className="settings-capability" key={capability.key}>
-                    <div className="settings-card-topline">
-                      <h3>{capability.label}</h3>
-                      <span className="settings-badge settings-badge-muted">Not available</span>
+            {CAPABILITIES.map((capability) => {
+              const state = data.capabilities[capability.key];
+              return (
+                <div className="setting-row" key={capability.key}>
+                  <div className="setting-main">
+                    <div className="setting-label">
+                      <h3 className="setting-name">{capability.label}</h3>
+                      <span className="status status--stop">Not available</span>
                     </div>
-                    <p>{capability.description}</p>
-                    <div className="mono settings-env-key">Tracked by {state.trackedBy}</div>
+                    <p className="field-note">{capability.description}</p>
+                    <div className="setting-meta">Tracked by {state.trackedBy}</div>
                   </div>
-                );
-              })}
-            </div>
+                </div>
+              );
+            })}
           </section>
         </>
       )}
-    </div>
+    </Page>
   );
 }
 
@@ -317,12 +330,14 @@ export function RuntimeSettingsFields({ data, draft, issues, saving, onChange })
   return (
     <>
       {missingLabels.length > 0 && (
-        <div className="settings-warning">
-          Some settings are unavailable from the running backend and have been hidden: {missingLabels.join(', ')}.
-          Restart the backend to load the current settings schema.
+        <div className="state-block" style={{ marginBottom: 'var(--space-4)', borderStyle: 'solid' }}>
+          <div className="state-note">
+            Some settings are unavailable from the running backend and have been hidden: {missingLabels.join(', ')}.
+            Restart the backend to load the current settings schema.
+          </div>
         </div>
       )}
-      <div className="settings-grid">
+      <div className="settings-list">
         {availableEntries.map(([key, presentation]) =>
           data.settings[key].type === 'boolean' ? (
             <BooleanRuntimeSetting
@@ -354,38 +369,49 @@ export function RuntimeSettingsFields({ data, draft, issues, saving, onChange })
   );
 }
 
+function SettingMeta({ setting, extra }) {
+  return (
+    <div className="setting-meta">
+      <code>{setting.envKey}</code>
+      <span>{SOURCE_LABELS[setting.source] || setting.source}</span>
+      {extra}
+    </div>
+  );
+}
+
 function BooleanRuntimeSetting({ name, presentation, setting, value, issue, disabled, onChange }) {
   return (
-    <article className="settings-card">
-      <div className="settings-card-topline">
-        <h3>{presentation.label}</h3>
-        <span className="settings-badge settings-badge-live">Live</span>
+    <div className="setting-row">
+      <div className="setting-main">
+        <div className="setting-label">
+          <h3 className="setting-name">{presentation.label}</h3>
+          <span className="status status--ok">Live</span>
+        </div>
+        <p className="field-note">{presentation.description}</p>
+        {issue && <div className="field-error">{issue}</div>}
+        {!setting.valid && !issue && (
+          <div className="field-error">The stored value was invalid; the safe default is shown.</div>
+        )}
+        <SettingMeta setting={setting} extra={<span>Default {setting.defaultValue ? 'enabled' : 'disabled'}</span>} />
       </div>
-      <p>{presentation.description}</p>
-      <label className="settings-toggle-row" htmlFor={`setting-${name}`}>
-        <span>
-          <strong>{value ? 'Enabled' : 'Disabled'}</strong>
-          <small>{value ? presentation.enabledDescription : presentation.disabledDescription}</small>
-        </span>
-        <input
-          id={`setting-${name}`}
-          type="checkbox"
-          checked={value}
-          disabled={disabled}
-          aria-invalid={Boolean(issue) || !setting.valid}
-          onChange={(event) => onChange(event.target.checked)}
-        />
-      </label>
-      {issue && <div className="settings-field-error">{issue}</div>}
-      {!setting.valid && !issue && (
-        <div className="settings-field-error">The stored value was invalid; the safe default is shown.</div>
-      )}
-      <div className="settings-card-meta">
-        <span className="mono settings-env-key">{setting.envKey}</span>
-        <span>{SOURCE_LABELS[setting.source] || setting.source}</span>
-        <span>Default {setting.defaultValue ? 'enabled' : 'disabled'}</span>
+      <div className="setting-control">
+        <label className="switch-row" htmlFor={`setting-${name}`}>
+          <input
+            id={`setting-${name}`}
+            className="checkbox"
+            type="checkbox"
+            checked={value}
+            disabled={disabled}
+            aria-invalid={Boolean(issue) || !setting.valid}
+            onChange={(event) => onChange(event.target.checked)}
+          />
+          <span>
+            <strong>{value ? 'Enabled' : 'Disabled'}</strong>
+            <small>{value ? presentation.enabledDescription : presentation.disabledDescription}</small>
+          </span>
+        </label>
       </div>
-    </article>
+    </div>
   );
 }
 
@@ -396,63 +422,70 @@ function RuntimeSetting({ name, presentation, setting, value, issue, disabled, i
   const paused = name === 'workerCount' && numericValue === 0;
   const cyberRetryEnabled = name === 'cyberSafetyRetryCount' && numericValue !== null && numericValue > 0;
   return (
-    <article className="settings-card">
-      <div className="settings-card-topline">
-        <h3>{presentation.label}</h3>
-        <span className={`settings-badge ${setting.apply === 'live' ? 'settings-badge-live' : ''}`}>
-          {setting.apply === 'live' ? 'Live' : 'Engine recreation'}
-        </span>
-      </div>
-      <p>{presentation.description}</p>
-      <label className="settings-input-label" htmlFor={`setting-${name}`}>
-        <span>Value</span>
-        <span className="mono">{presentation.unit}</span>
-      </label>
-      <input
-        id={`setting-${name}`}
-        className="mono settings-number-input"
-        aria-label={`${presentation.label}${presentation.unit ? ` (${presentation.unit})` : ''}`}
-        type="number"
-        inputMode={setting.type === 'number' ? 'decimal' : 'numeric'}
-        min={setting.min}
-        max={setting.max}
-        step={setting.step || 1}
-        value={value}
-        disabled={disabled}
-        aria-invalid={Boolean(issue) || !setting.valid}
-        onChange={(event) => onChange(event.target.value)}
-      />
-      {issue && <div className="settings-field-error">{issue}</div>}
-      {!setting.valid && !issue && (
-        <div className="settings-field-error">The stored value was invalid; the safe default is shown.</div>
-      )}
-      {(aboveRecommendation || paused || ignored || cyberRetryEnabled) && !issue && (
-        <div className="settings-field-warning">
-          {ignored
-            ? 'This threshold is preserved but not enforced while the low-storage safeguard is ignored.'
-            : paused
-              ? 'New engine work will remain queued until worker slots are raised above zero.'
-              : cyberRetryEnabled
-                ? `A blocked request may run up to ${numericValue + 1} total attempts. The provider may reject every attempt.`
-                : `Above the conservative recommendation of ${setting.recommendedMax}; verify provider and host capacity.`}
+    <div className="setting-row">
+      <div className="setting-main">
+        <div className="setting-label">
+          <h3 className="setting-name">{presentation.label}</h3>
+          <span className={setting.apply === 'live' ? 'status status--ok' : 'status status--stop'}>
+            {setting.apply === 'live' ? 'Live' : 'Engine recreation'}
+          </span>
         </div>
-      )}
-      <div className="settings-card-meta">
-        <span className="mono settings-env-key">{setting.envKey}</span>
-        <span>{SOURCE_LABELS[setting.source] || setting.source}</span>
-        <span>
-          Range {setting.min}–{setting.max}
-        </span>
+        <p className="field-note">{presentation.description}</p>
+        {issue && <div className="field-error">{issue}</div>}
+        {!setting.valid && !issue && (
+          <div className="field-error">The stored value was invalid; the safe default is shown.</div>
+        )}
+        {(aboveRecommendation || paused || ignored || cyberRetryEnabled) && !issue && (
+          <div className="setting-warning">
+            {ignored
+              ? 'This threshold is preserved but not enforced while the low-storage safeguard is ignored.'
+              : paused
+                ? 'New engine work will remain queued until worker slots are raised above zero.'
+                : cyberRetryEnabled
+                  ? `A blocked request may run up to ${numericValue + 1} total attempts. The provider may reject every attempt.`
+                  : `Above the conservative recommendation of ${setting.recommendedMax}; verify provider and host capacity.`}
+          </div>
+        )}
+        <SettingMeta
+          setting={setting}
+          extra={
+            <span>
+              Range {setting.min}-{setting.max}
+            </span>
+          }
+        />
       </div>
-    </article>
+      <div className="setting-control">
+        <label className="setting-input-wrap" htmlFor={`setting-${name}`}>
+          <span className="sr-only">{presentation.label}</span>
+          <input
+            id={`setting-${name}`}
+            className="input num"
+            aria-label={`${presentation.label}${presentation.unit ? ` (${presentation.unit})` : ''}`}
+            type="number"
+            inputMode={setting.type === 'number' ? 'decimal' : 'numeric'}
+            min={setting.min}
+            max={setting.max}
+            step={setting.step || 1}
+            value={value}
+            disabled={disabled}
+            aria-invalid={Boolean(issue) || !setting.valid}
+            onChange={(event) => onChange(event.target.value)}
+          />
+          {presentation.unit && <span className="setting-unit">{presentation.unit}</span>}
+        </label>
+      </div>
+    </div>
   );
 }
 
 function SettingsError({ error }) {
   return (
-    <div className="settings-error">
+    <div className="state-block state-block--error" style={{ marginBottom: 'var(--space-4)' }} role="alert">
       {apiErrorMessages(error).map((message) => (
-        <div key={message}>{message}</div>
+        <div className="state-note" key={message}>
+          {message}
+        </div>
       ))}
     </div>
   );

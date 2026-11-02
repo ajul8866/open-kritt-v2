@@ -90,14 +90,14 @@ export function parseMarkdownBlocks(md) {
 }
 
 const codeStyle = {
-  fontFamily: "'Geist Mono', ui-monospace, monospace",
+  fontFamily: 'var(--font-mono)',
   fontSize: '0.86em',
   background: 'var(--surface-2)',
   border: '1px solid var(--border-2)',
-  borderRadius: 4,
-  padding: '1px 5px',
+  borderRadius: 'var(--radius-xs)',
+  padding: '1px var(--space-2)',
 };
-const linkStyle = { color: 'var(--accent)', textDecoration: 'underline' };
+const linkStyle = { color: 'var(--accent-strong)', textDecoration: 'underline' };
 
 // Render inline markdown (code, bold, italic, links) within a text string.
 function inline(text) {
@@ -136,7 +136,14 @@ function inline(text) {
   return out;
 }
 
-const HEADING_SIZE = { 1: 22, 2: 18, 3: 15.5, 4: 14, 5: 13, 6: 12.5 };
+const HEADING_SIZE = {
+  1: 'var(--text-lg)',
+  2: 'var(--text-md)',
+  3: 'var(--text-base)',
+  4: 'var(--text-sm)',
+  5: 'var(--text-sm)',
+  6: 'var(--text-xs)',
+};
 
 function renderBlock(block, i) {
   switch (block.type) {
@@ -148,8 +155,8 @@ function renderBlock(block, i) {
           style={{
             fontSize: HEADING_SIZE[block.level],
             fontWeight: 600,
-            lineHeight: 1.3,
-            margin: i === 0 ? '0 0 12px' : '24px 0 12px',
+            lineHeight: 'var(--leading-tight)',
+            margin: i === 0 ? '0 0 var(--space-5)' : 'var(--space-6) 0 var(--space-4)',
             color: 'var(--text)',
           }}
         >
@@ -164,24 +171,29 @@ function renderBlock(block, i) {
           style={{
             background: 'var(--code-bg)',
             border: '1px solid var(--border)',
-            borderRadius: 8,
-            padding: '12px 14px',
+            borderRadius: 'var(--radius-sm)',
+            padding: 'var(--space-5) var(--space-6)',
             overflowX: 'auto',
-            margin: '0 0 16px',
-            fontSize: 12.5,
-            lineHeight: 1.55,
+            margin: '0 0 var(--space-5)',
+            fontSize: 'var(--text-xs)',
+            lineHeight: 'var(--leading-prose)',
           }}
         >
-          <code style={{ fontFamily: "'Geist Mono', ui-monospace, monospace", color: 'var(--text)' }}>
-            {block.text}
-          </code>
+          <code style={{ fontFamily: 'var(--font-mono)', color: 'var(--text)' }}>{block.text}</code>
         </pre>
       );
     case 'ul':
       return (
-        <ul key={i} style={{ margin: '0 0 16px', paddingLeft: 22, lineHeight: 1.6 }}>
+        <ul
+          key={i}
+          style={{
+            margin: '0 0 var(--space-5)',
+            paddingLeft: 'var(--space-7)',
+            lineHeight: 'var(--leading-prose)',
+          }}
+        >
           {block.items.map((it, j) => (
-            <li key={j} style={{ marginBottom: 4 }}>
+            <li key={j} style={{ marginBottom: 'var(--space-1)' }}>
               {inline(it)}
             </li>
           ))}
@@ -189,9 +201,16 @@ function renderBlock(block, i) {
       );
     case 'ol':
       return (
-        <ol key={i} style={{ margin: '0 0 16px', paddingLeft: 22, lineHeight: 1.6 }}>
+        <ol
+          key={i}
+          style={{
+            margin: '0 0 var(--space-5)',
+            paddingLeft: 'var(--space-7)',
+            lineHeight: 'var(--leading-prose)',
+          }}
+        >
           {block.items.map((it, j) => (
-            <li key={j} style={{ marginBottom: 4 }}>
+            <li key={j} style={{ marginBottom: 'var(--space-1)' }}>
               {inline(it)}
             </li>
           ))}
@@ -202,9 +221,10 @@ function renderBlock(block, i) {
         <blockquote
           key={i}
           style={{
-            margin: '0 0 16px',
-            padding: '4px 14px',
-            borderLeft: '3px solid var(--border)',
+            margin: '0 0 var(--space-5)',
+            padding: 'var(--space-4) var(--space-5)',
+            borderRadius: 'var(--radius-sm)',
+            background: 'var(--surface-2)',
             color: 'var(--text-2)',
           }}
         >
@@ -214,10 +234,12 @@ function renderBlock(block, i) {
         </blockquote>
       );
     case 'hr':
-      return <hr key={i} style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '20px 0' }} />;
+      return (
+        <hr key={i} style={{ border: 'none', borderTop: '1px solid var(--border)', margin: 'var(--space-6) 0' }} />
+      );
     default:
       return (
-        <p key={i} style={{ margin: '0 0 14px', lineHeight: 1.65, color: 'var(--text)' }}>
+        <p key={i} style={{ margin: '0 0 var(--space-5)', lineHeight: 'var(--leading-prose)', color: 'var(--text)' }}>
           {block.text.split('\n').map((l, j) => (
             <span key={j}>
               {j > 0 && <br />}
@@ -232,11 +254,11 @@ function renderBlock(block, i) {
 export default function Markdown({ source, style }) {
   const blocks = parseMarkdownBlocks(source);
   return (
-    <div style={{ fontSize: 13.5, color: 'var(--text)', ...style }}>
+    <div style={{ fontSize: 'var(--text-base)', lineHeight: 'var(--leading-prose)', color: 'var(--text)', ...style }}>
       {blocks.length ? (
         blocks.map(renderBlock)
       ) : (
-        <div style={{ color: 'var(--text-3)', fontSize: 13 }}>Nothing to display.</div>
+        <div style={{ color: 'var(--text-3)', fontSize: 'var(--text-sm)' }}>Nothing to display.</div>
       )}
     </div>
   );

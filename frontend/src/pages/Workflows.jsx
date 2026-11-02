@@ -3,7 +3,8 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { api, ApiError, apiErrorMessages } from '../api/client.js';
 import { useFetch } from '../lib/useFetch.js';
 import { usePageChrome } from '../context/ui.jsx';
-import { CardLinkOverlay, Spinner, ErrorState, EmptyState, Button } from '../components/ui.jsx';
+import { Spinner, ErrorState, EmptyState, Button } from '../components/ui.jsx';
+import { Page, PageHeader } from '../components/app.jsx';
 import { useModalDialog } from '../lib/useModalDialog.js';
 import { useNewestFirst, usePagination } from '../lib/usePagination.js';
 import { downloadWorkflowExport, parseWorkflowImport, WORKFLOW_IMPORT_MAX_BYTES } from '../lib/workflowTransfer.js';
@@ -84,18 +85,16 @@ export default function Workflows() {
   };
 
   return (
-    <div style={{ padding: '30px 32px', maxWidth: 1180 }}>
-      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 22 }}>
-        <div>
-          <div style={{ fontSize: 27, fontWeight: 600, letterSpacing: '-0.02em' }}>Workflows</div>
-          <div style={{ fontSize: 14, color: 'var(--text-2)', marginTop: 3 }}>
-            Reusable scan blueprints — chains of AI analysis steps.
-          </div>
-        </div>
-        <Button variant="ghost" disabled={importing} onClick={chooseWorkflowFile}>
-          {importing ? 'Importing…' : 'Import JSON'}
-        </Button>
-      </div>
+    <Page>
+      <PageHeader
+        title="Workflows"
+        meta="Reusable scan blueprints, chains of AI analysis steps."
+        actions={
+          <Button variant="ghost" disabled={importing} onClick={chooseWorkflowFile}>
+            {importing ? 'Importing…' : 'Import JSON'}
+          </Button>
+        }
+      />
       <input
         ref={importInputRef}
         type="file"
@@ -137,21 +136,37 @@ export default function Workflows() {
       )}
       {data && data.length > 0 && (
         <>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-            {workflowPages.pageItems.map((w) => (
-              <WorkflowCard
-                key={w.id}
-                workflow={w}
-                busy={busyWorkflowId !== null}
-                deleting={busyWorkflowId === w.id}
-                onDelete={deleteWorkflow}
-              />
-            ))}
+          <div className="table-wrap">
+            <table className="data-table workflow-table">
+              <thead>
+                <tr>
+                  <th>Workflow</th>
+                  <th>Depth</th>
+                  <th className="cell-num">Scans</th>
+                  <th>Last used</th>
+                  <th className="cell-num">Steps</th>
+                  <th aria-label="Actions" />
+                </tr>
+              </thead>
+              <tbody>
+                {workflowPages.pageItems.map((w) => (
+                  <WorkflowCard
+                    key={w.id}
+                    workflow={w}
+                    busy={busyWorkflowId !== null}
+                    deleting={busyWorkflowId === w.id}
+                    onDelete={deleteWorkflow}
+                  />
+                ))}
+              </tbody>
+            </table>
           </div>
-          <Pagination {...workflowPages} itemLabel="workflows" />
+          <div style={{ marginTop: 'var(--space-4)' }}>
+            <Pagination {...workflowPages} itemLabel="workflows" />
+          </div>
         </>
       )}
-    </div>
+    </Page>
   );
 }
 
@@ -159,38 +174,33 @@ export function WorkflowCard({ workflow: w, busy, deleting, onDelete }) {
   const deleteState = workflowDeleteState(w);
 
   return (
-    <div
-      style={{
-        position: 'relative',
-        border: '1px solid var(--border)',
-        borderRadius: 12,
-        padding: 18,
-        background: 'var(--surface)',
-        boxShadow: 'var(--shadow)',
-        cursor: 'pointer',
-      }}
-    >
-      <CardLinkOverlay to={`/workflows/${w.id}`} label={`Open workflow ${w.name}`} />
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-        <div>
-          <div className="mono" style={{ fontWeight: 600, fontSize: 15.5 }}>
-            {w.name}
-          </div>
-          <div style={{ fontSize: 13, color: 'var(--text-2)', marginTop: 5, maxWidth: 320 }}>{w.description}</div>
+    <tr>
+      <td style={{ minWidth: 260 }}>
+        <Link className="cell-main" to={`/workflows/${w.id}`}>
+          {w.name}
+        </Link>
+        {w.description && (
+          <span className="cell-sub" title={w.description}>
+            {w.description.length > 96 ? `${w.description.slice(0, 93).trimEnd()}...` : w.description}
+          </span>
+        )}
+      </td>
+      <td>
+        <div className="chip-row">
+          {w.depthChips.map((d) => (
+            <span key={d.label} className="chip">
+              {d.label}
+            </span>
+          ))}
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 7, flex: 'none' }}>
-          {deleteState.canDelete && (
-            <Button
-              variant="danger"
-              aria-label={`Delete ${w.name}`}
-              title="Delete unused workflow"
-              disabled={busy}
-              onClick={(event) => onDelete(event, w)}
-              style={{ position: 'relative', zIndex: 2, height: 27, padding: '0 9px', fontSize: 11.5 }}
-            >
-              {deleting ? 'Deleting…' : 'Delete'}
-            </Button>
-          )}
+      </td>
+      <td className="cell-num">{w.scanCount}</td>
+      <td className="cell-muted" style={{ whiteSpace: 'nowrap' }}>
+        {w.lastUsed || 'never'}
+      </td>
+      <td className="cell-num">{w.stepCount}</td>
+      <td>
+        <div className="cell-actions">
           <Button
             variant="ghost"
             aria-label={`Export ${w.name}`}
@@ -200,58 +210,23 @@ export function WorkflowCard({ workflow: w, busy, deleting, onDelete }) {
               event.stopPropagation();
               downloadWorkflowExport(w);
             }}
-            style={{ position: 'relative', zIndex: 2, height: 27, padding: '0 9px', fontSize: 11.5 }}
           >
             Export
           </Button>
-          <span
-            className="mono"
-            style={{
-              fontSize: 11,
-              color: 'var(--text-3)',
-              border: '1px solid var(--border)',
-              padding: '3px 8px',
-              borderRadius: 6,
-            }}
-          >
-            {w.stepCount} steps
-          </span>
+          {deleteState.canDelete && (
+            <Button
+              variant="danger"
+              aria-label={`Delete ${w.name}`}
+              title="Delete unused workflow"
+              disabled={busy}
+              onClick={(event) => onDelete(event, w)}
+            >
+              {deleting ? 'Deleting…' : 'Delete'}
+            </Button>
+          )}
         </div>
-      </div>
-      <div style={{ display: 'flex', gap: 6, marginTop: 16, flexWrap: 'wrap' }}>
-        {w.depthChips.map((d) => (
-          <span
-            key={d.label}
-            className="mono"
-            style={{
-              fontSize: 10.5,
-              color: 'var(--text-2)',
-              background: 'var(--surface-2)',
-              padding: '3px 8px',
-              borderRadius: 5,
-            }}
-          >
-            {d.label}
-          </span>
-        ))}
-      </div>
-      <div
-        style={{
-          display: 'flex',
-          gap: 20,
-          marginTop: 16,
-          paddingTop: 14,
-          borderTop: '1px solid var(--border-2)',
-          fontSize: 12,
-          color: 'var(--text-3)',
-        }}
-      >
-        <span>
-          <span style={{ color: 'var(--text)', fontWeight: 600 }}>{w.scanCount}</span> scans
-        </span>
-        <span>last used {w.lastUsed || '—'}</span>
-      </div>
-    </div>
+      </td>
+    </tr>
   );
 }
 
@@ -263,19 +238,7 @@ function NewWorkflowDialog({ workflows, onClose, onImport, importing, importErro
   const duplicatePages = usePagination(workflows, { pageSize: 6, resetKey: mode });
 
   return (
-    <div
-      onClick={onClose}
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 60,
-        background: 'rgba(0,0,0,.32)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 20,
-      }}
-    >
+    <div className="dialog-wrap" onClick={onClose}>
       <div
         ref={dialogRef}
         role="dialog"
@@ -283,45 +246,19 @@ function NewWorkflowDialog({ workflows, onClose, onImport, importing, importErro
         aria-labelledby="new-workflow-title"
         tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
-        style={{
-          width: 460,
-          maxWidth: '100%',
-          background: 'var(--surface)',
-          border: '1px solid var(--border)',
-          borderRadius: 8,
-          boxShadow: '0 18px 50px rgba(0,0,0,.28)',
-          overflow: 'hidden',
-        }}
+        className="dialog"
+        style={{ width: 460 }}
       >
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '16px 20px',
-            borderBottom: '1px solid var(--border-2)',
-          }}
-        >
-          <div id="new-workflow-title" style={{ fontSize: 16, fontWeight: 600 }}>
+        <div className="dialog-head">
+          <h2 className="dialog-title" id="new-workflow-title">
             New workflow
-          </div>
-          <button
-            type="button"
-            aria-label="Close"
-            onClick={onClose}
-            style={{
-              border: 'none',
-              background: 'transparent',
-              cursor: 'pointer',
-              color: 'var(--text-3)',
-              fontSize: 20,
-            }}
-          >
+          </h2>
+          <button type="button" className="btn btn--icon btn--sm" aria-label="Close" onClick={onClose}>
             ×
           </button>
         </div>
 
-        <div style={{ padding: 20 }}>
+        <div className="dialog-body">
           {mode !== 'duplicate' ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <OptionCard
@@ -359,71 +296,34 @@ function NewWorkflowDialog({ workflows, onClose, onImport, importing, importErro
             </div>
           ) : (
             <div>
-              <div style={{ fontSize: 12.5, color: 'var(--text-2)', marginBottom: 10 }}>
-                Pick a workflow to copy — it opens as a new, unsaved draft.
+              <div className="field-note" style={{ marginBottom: 'var(--space-4)' }}>
+                Pick a workflow to copy. It opens as a new, unsaved draft.
               </div>
-              <div style={{ maxHeight: 280, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div
+                style={{
+                  maxHeight: 280,
+                  overflowY: 'auto',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 'var(--space-2)',
+                }}
+              >
                 {duplicatePages.pageItems.map((w) => (
                   <button
                     key={w.id}
                     type="button"
                     onClick={() => setSel(w.id)}
-                    style={{
-                      width: '100%',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      gap: 10,
-                      padding: '10px 12px',
-                      borderRadius: 9,
-                      cursor: 'pointer',
-                      border: `1.5px solid ${sel === w.id ? 'var(--accent)' : 'var(--border)'}`,
-                      background: sel === w.id ? 'var(--accent-subtle)' : 'var(--surface)',
-                      color: 'var(--text)',
-                      font: 'inherit',
-                      textAlign: 'left',
-                    }}
+                    className={sel === w.id ? 'pick-row is-selected' : 'pick-row'}
                   >
                     <div style={{ minWidth: 0 }}>
-                      <div
-                        className="mono"
-                        style={{
-                          fontSize: 13.5,
-                          fontWeight: 600,
-                          whiteSpace: 'nowrap',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                        }}
-                      >
-                        {w.name}
-                      </div>
+                      <span className="cell-main">{w.name}</span>
                       {w.description && (
-                        <div
-                          style={{
-                            fontSize: 12,
-                            color: 'var(--text-3)',
-                            whiteSpace: 'nowrap',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                          }}
-                        >
-                          {w.description}
-                        </div>
+                        <span className="cell-sub" title={w.description}>
+                          {w.description.length > 96 ? `${w.description.slice(0, 93).trimEnd()}...` : w.description}
+                        </span>
                       )}
                     </div>
-                    <span
-                      className="mono"
-                      style={{
-                        flex: 'none',
-                        fontSize: 10.5,
-                        color: 'var(--text-3)',
-                        border: '1px solid var(--border)',
-                        padding: '2px 7px',
-                        borderRadius: 6,
-                      }}
-                    >
-                      {w.stepCount} steps
-                    </span>
+                    <span className="chip">{w.stepCount} steps</span>
                   </button>
                 ))}
               </div>
@@ -437,20 +337,9 @@ function NewWorkflowDialog({ workflows, onClose, onImport, importing, importErro
                 itemLabel="workflows"
                 compact
               />
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 18 }}>
-                <button
-                  type="button"
-                  onClick={() => setMode(null)}
-                  style={{
-                    border: 0,
-                    padding: 0,
-                    background: 'transparent',
-                    fontSize: 12.5,
-                    color: 'var(--text-2)',
-                    cursor: 'pointer',
-                  }}
-                >
-                  ← back
+              <div className="dialog-foot" style={{ marginTop: 'var(--space-5)', paddingInline: 0, paddingBottom: 0 }}>
+                <button type="button" className="btn btn--quiet" onClick={() => setMode(null)}>
+                  Back
                 </button>
                 <Button to={sel ? `/workflows/new?from=${sel}` : undefined} disabled={!sel}>
                   Duplicate &amp; edit
@@ -467,32 +356,25 @@ function NewWorkflowDialog({ workflows, onClose, onImport, importing, importErro
 function OptionCard({ title, sub, to, onClick, disabled, autoFocus = false }) {
   const content = (
     <>
-      <div style={{ fontSize: 14, fontWeight: 600 }}>{title}</div>
-      <div style={{ fontSize: 12.5, color: 'var(--text-2)', marginTop: 4, lineHeight: 1.45 }}>{sub}</div>
+      <div className="option-title">{title}</div>
+      <div className="option-note">{sub}</div>
     </>
   );
-  const style = {
-    width: '100%',
-    padding: '14px 16px',
-    borderRadius: 8,
-    border: '1px solid var(--border)',
-    background: 'var(--surface)',
-    color: 'var(--text)',
-    cursor: disabled ? 'not-allowed' : 'pointer',
-    opacity: disabled ? 0.5 : 1,
-    textAlign: 'left',
-    font: 'inherit',
-    textDecoration: 'none',
-  };
   if (to) {
     return (
-      <Link to={to} data-autofocus={autoFocus || undefined} style={style}>
+      <Link to={to} data-autofocus={autoFocus || undefined} className="option-card">
         {content}
       </Link>
     );
   }
   return (
-    <button type="button" data-autofocus={autoFocus || undefined} disabled={disabled} onClick={onClick} style={style}>
+    <button
+      type="button"
+      data-autofocus={autoFocus || undefined}
+      disabled={disabled}
+      onClick={onClick}
+      className="option-card"
+    >
       {content}
     </button>
   );

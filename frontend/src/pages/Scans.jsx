@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
+import { MoreHorizontal } from 'lucide-react';
 import { api } from '../api/client.js';
 import { useFetch } from '../lib/useFetch.js';
 import { usePageChrome } from '../context/ui.jsx';
-import { CardLinkOverlay, Spinner, ErrorState, EmptyState, StatusBadge, Button } from '../components/ui.jsx';
+import { Spinner, ErrorState, EmptyState, StatusBadge, Button } from '../components/ui.jsx';
+import { Page, PageHeader, Toolbar } from '../components/app.jsx';
 import LinkifiedText from '../components/LinkifiedText.jsx';
 import ResourceNotice from '../components/ResourceNotice.jsx';
 import { duplicateScanPath } from '../lib/scanDuplication.js';
@@ -110,43 +112,38 @@ export default function Scans() {
   };
 
   return (
-    <div className="scans-page" style={{ padding: '30px 32px', maxWidth: 1180 }}>
-      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 18 }}>
-        <div>
-          <div style={{ fontSize: 27, fontWeight: 600, letterSpacing: '-0.02em' }}>Scans</div>
-          <div style={{ fontSize: 14, color: 'var(--text-2)', marginTop: 3 }}>
-            {pageData
-              ? `${pageData.totalItems} scan${pageData.totalItems === 1 ? '' : 's'} · ${pageData.runningCount} running now`
-              : ' '}
-          </div>
-        </div>
-      </div>
-
-      <div style={{ display: 'flex', gap: 6, marginBottom: 18 }}>
-        {FILTERS.map(([k, label]) => (
-          <span
-            key={k}
-            onClick={() => {
-              setFilter(k);
-              setPage(1);
-            }}
-            style={{
-              fontSize: 12.5,
-              padding: '5px 12px',
-              borderRadius: 7,
-              cursor: 'pointer',
-              background: filter === k ? 'var(--text)' : 'var(--surface-2)',
-              color: filter === k ? 'var(--bg)' : 'var(--text-2)',
-            }}
-          >
-            {label}
-          </span>
-        ))}
-      </div>
+    <Page>
+      <PageHeader
+        title="Scans"
+        meta={
+          pageData
+            ? `${pageData.totalItems} scan${pageData.totalItems === 1 ? '' : 's'}, ${pageData.runningCount} running now`
+            : undefined
+        }
+      />
 
       {dialogOpen && <NewScanDialog onClose={closeDialog} />}
 
-      {loading && <Spinner />}
+      <Toolbar end={scanPages ? <Pagination {...scanPages} itemLabel="scans" /> : null}>
+        <div className="filters" role="group" aria-label="Filter scans">
+          {FILTERS.map(([k, label]) => (
+            <button
+              key={k}
+              type="button"
+              className={filter === k ? 'filter is-active' : 'filter'}
+              aria-pressed={filter === k}
+              onClick={() => {
+                setFilter(k);
+                setPage(1);
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </Toolbar>
+
+      {loading && !pageData && <Spinner />}
       {error && <ErrorState error={error} onRetry={reload} />}
       {actionError && <ErrorState error={actionError} />}
       {pageData && pageData.totalItems === 0 && (
@@ -157,25 +154,35 @@ export default function Scans() {
         />
       )}
       {pageData && pageData.totalItems > 0 && (
-        <>
-          <div className="scans-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-            {scans.map((s) => (
-              <ScanCard
-                key={s.id}
-                scan={s}
-                to={`/scans/${s.id}`}
-                busy={busyScanId === s.id}
-                errorExpanded={expandedErrorIds.has(s.id)}
-                onResume={(event) => resumeScan(event, s.id)}
-                onToggleError={(event) => toggleError(event, s.id)}
-                onDelete={(event) => deleteScan(event, s)}
-              />
-            ))}
-          </div>
-          {scanPages && <Pagination {...scanPages} itemLabel="scans" />}
-        </>
+        <div className="table-wrap">
+          <table className="data-table scan-table">
+            <thead>
+              <tr>
+                <th>Repository</th>
+                <th>Workflow</th>
+                <th className="cell-num">Findings</th>
+                <th>Updated</th>
+                <th>State</th>
+              </tr>
+            </thead>
+            <tbody>
+              {scans.map((s) => (
+                <ScanCard
+                  key={s.id}
+                  scan={s}
+                  to={`/scans/${s.id}`}
+                  busy={busyScanId === s.id}
+                  errorExpanded={expandedErrorIds.has(s.id)}
+                  onResume={(event) => resumeScan(event, s.id)}
+                  onToggleError={(event) => toggleError(event, s.id)}
+                  onDelete={(event) => deleteScan(event, s)}
+                />
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
-    </div>
+    </Page>
   );
 }
 
@@ -205,19 +212,7 @@ function NewScanDialog({ onClose }) {
         : 'No existing scans yet to duplicate.';
 
   return (
-    <div
-      onClick={onClose}
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 60,
-        background: 'rgba(0,0,0,.32)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 20,
-      }}
-    >
+    <div className="dialog-wrap" onClick={onClose}>
       <div
         ref={dialogRef}
         role="dialog"
@@ -225,45 +220,19 @@ function NewScanDialog({ onClose }) {
         aria-labelledby="new-scan-title"
         tabIndex={-1}
         onClick={(event) => event.stopPropagation()}
-        style={{
-          width: 500,
-          maxWidth: '100%',
-          background: 'var(--surface)',
-          border: '1px solid var(--border)',
-          borderRadius: 8,
-          boxShadow: '0 18px 50px rgba(0,0,0,.28)',
-          overflow: 'hidden',
-        }}
+        className="dialog"
+        style={{ width: 500 }}
       >
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '16px 20px',
-            borderBottom: '1px solid var(--border-2)',
-          }}
-        >
-          <div id="new-scan-title" style={{ fontSize: 16, fontWeight: 600 }}>
+        <div className="dialog-head">
+          <h2 className="dialog-title" id="new-scan-title">
             New scan
-          </div>
-          <button
-            type="button"
-            aria-label="Close"
-            onClick={onClose}
-            style={{
-              border: 'none',
-              background: 'transparent',
-              cursor: 'pointer',
-              color: 'var(--text-3)',
-              fontSize: 20,
-            }}
-          >
+          </h2>
+          <button type="button" className="btn btn--icon btn--sm" aria-label="Close" onClick={onClose}>
             ×
           </button>
         </div>
 
-        <div style={{ padding: 20 }}>
+        <div className="dialog-body">
           {mode !== 'duplicate' ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <ScanCreationOption
@@ -281,8 +250,8 @@ function NewScanDialog({ onClose }) {
             </div>
           ) : (
             <div>
-              <div style={{ fontSize: 12.5, color: 'var(--text-2)', marginBottom: 10 }}>
-                Pick a scan to copy — only its editable configuration is carried into the new draft.
+              <div className="field-note" style={{ marginBottom: 'var(--space-4)' }}>
+                Pick a scan to copy. Only its editable configuration is carried into the new draft.
               </div>
 
               {loading && !data && <Spinner label="Loading previous scans…" />}
@@ -306,56 +275,18 @@ function NewScanDialog({ onClose }) {
                         scan.age ? `${scan.age} ago` : null,
                       ]
                         .filter(Boolean)
-                        .join(' · ');
+                        .join(' / ');
                       return (
                         <button
                           key={scanId}
                           type="button"
                           aria-pressed={selected}
                           onClick={() => setSelectedId(scanId)}
-                          style={{
-                            width: '100%',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            gap: 12,
-                            padding: '10px 12px',
-                            borderRadius: 9,
-                            cursor: 'pointer',
-                            border: `1.5px solid ${selected ? 'var(--accent)' : 'var(--border)'}`,
-                            background: selected ? 'var(--accent-subtle)' : 'var(--surface)',
-                            color: 'var(--text)',
-                            font: 'inherit',
-                            textAlign: 'left',
-                          }}
+                          className={selected ? 'pick-row is-selected' : 'pick-row'}
                         >
                           <div style={{ minWidth: 0 }}>
-                            <div
-                              style={{
-                                fontSize: 13.5,
-                                fontWeight: 600,
-                                whiteSpace: 'nowrap',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                              }}
-                            >
-                              {label}
-                            </div>
-                            {detail && (
-                              <div
-                                className="mono"
-                                style={{
-                                  marginTop: 3,
-                                  fontSize: 10.5,
-                                  color: 'var(--text-3)',
-                                  whiteSpace: 'nowrap',
-                                  overflow: 'hidden',
-                                  textOverflow: 'ellipsis',
-                                }}
-                              >
-                                {detail}
-                              </div>
-                            )}
+                            <span className="cell-main">{label}</span>
+                            {detail && <span className="cell-sub">{detail}</span>}
                           </div>
                           <StatusBadge status={scan.status} reasoning={scan.reasoning} size="sm" />
                         </button>
@@ -375,25 +306,14 @@ function NewScanDialog({ onClose }) {
                 </>
               )}
               {data && !hasScans && (
-                <div style={{ padding: '24px 0', textAlign: 'center', color: 'var(--text-3)', fontSize: 12.5 }}>
-                  No existing scans to duplicate.
+                <div className="state-block" style={{ marginTop: 'var(--space-4)' }}>
+                  <div className="state-note">No existing scans to duplicate.</div>
                 </div>
               )}
 
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 18 }}>
-                <button
-                  type="button"
-                  onClick={() => setMode(null)}
-                  style={{
-                    border: 0,
-                    padding: 0,
-                    background: 'transparent',
-                    fontSize: 12.5,
-                    color: 'var(--text-2)',
-                    cursor: 'pointer',
-                  }}
-                >
-                  ← back
+              <div className="dialog-foot" style={{ marginTop: 'var(--space-5)', paddingInline: 0, paddingBottom: 0 }}>
+                <button type="button" className="btn btn--quiet" onClick={() => setMode(null)}>
+                  Back
                 </button>
                 <Button
                   to={!loading && selectedId ? duplicateScanPath(selectedId) : undefined}
@@ -413,32 +333,25 @@ function NewScanDialog({ onClose }) {
 function ScanCreationOption({ title, sub, to, onClick, disabled, autoFocus = false }) {
   const content = (
     <>
-      <div style={{ fontSize: 14, fontWeight: 600 }}>{title}</div>
-      <div style={{ fontSize: 12.5, color: 'var(--text-2)', marginTop: 4, lineHeight: 1.45 }}>{sub}</div>
+      <div className="option-title">{title}</div>
+      <div className="option-note">{sub}</div>
     </>
   );
-  const style = {
-    width: '100%',
-    padding: '14px 16px',
-    borderRadius: 8,
-    border: '1px solid var(--border)',
-    background: 'var(--surface)',
-    color: 'var(--text)',
-    cursor: disabled ? 'not-allowed' : 'pointer',
-    opacity: disabled ? 0.5 : 1,
-    textAlign: 'left',
-    font: 'inherit',
-    textDecoration: 'none',
-  };
   if (to) {
     return (
-      <Link to={to} data-autofocus={autoFocus || undefined} style={style}>
+      <Link to={to} data-autofocus={autoFocus || undefined} className="option-card">
         {content}
       </Link>
     );
   }
   return (
-    <button type="button" data-autofocus={autoFocus || undefined} disabled={disabled} onClick={onClick} style={style}>
+    <button
+      type="button"
+      data-autofocus={autoFocus || undefined}
+      disabled={disabled}
+      onClick={onClick}
+      className="option-card"
+    >
       {content}
     </button>
   );
@@ -463,209 +376,146 @@ export function ScanCard({ scan, to, onResume, onToggleError, onDelete, busy, er
     ? `Failed after ${currentFailedAttempts} failed attempt${currentFailedAttempts === 1 ? '' : 's'}`
     : 'Failed';
   const modelOverrideCount = Object.keys(scan.modelOverrides || {}).length;
+  const repoLabel = scan.repoDisplay || scan.repoFull || `Scan ${scan.id}`;
+  const stateNote = isRunning
+    ? scan.progressLabel ||
+      (scan.status === 'prewarming_cache'
+        ? 'prewarming checkout cache'
+        : scan.status === 'post_processing'
+          ? 'post-processing'
+          : 'running')
+    : isPaused
+      ? 'completed work preserved'
+      : isFailed
+        ? failedLabel
+        : isQueued
+          ? 'starts after active scans'
+          : isRateLimited
+            ? rateLimit.label
+            : isPending
+              ? 'waiting for the engine'
+              : null;
+  const showDetail = Boolean(
+    providerAutoscale || scan.resourceNotice || storageWarning || isRunning || isFailed || isRateLimited
+  );
 
   return (
-    <div
-      style={{
-        position: 'relative',
-        border: '1px solid var(--border)',
-        borderRadius: 12,
-        padding: 18,
-        background: 'var(--surface)',
-        boxShadow: 'var(--shadow)',
-        cursor: 'pointer',
-      }}
-    >
-      <CardLinkOverlay to={to} label={`Open scan ${scan.repoDisplay || scan.repoFull || scan.id}`} />
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-        <div style={{ fontWeight: 600, fontSize: 15 }}>{scan.repoDisplay || scan.repoFull}</div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-          <ScanActionsMenu scan={scan} onDelete={onDelete} busy={busy} />
-          <StatusBadge status={scan.status} reasoning={scan.reasoning} size="sm" />
-        </div>
-      </div>
-      <div className="mono" style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 6 }}>
-        {scan.workflowName} · {scan.model}
-        {modelOverrideCount
-          ? ` · ${modelOverrideCount} depth override${modelOverrideCount === 1 ? '' : 's'}`
-          : ''} · {scan.repoKind === 'local' ? 'local snapshot' : scan.commitShort}
-      </div>
-
-      {providerAutoscale && (
-        <div
-          className="mono"
-          style={{ marginTop: 10, color: 'var(--run)', fontSize: 10.5, fontWeight: 600 }}
-          title={providerAutoscale.message}
-        >
-          {providerAutoscale.compact} · {providerAutoscale.reductions}{' '}
-          {providerAutoscale.reductions === 1 ? 'reduction' : 'reductions'}
-        </div>
-      )}
-
-      <ResourceNotice notice={scan.resourceNotice} />
-      <ResourceNotice notice={storageWarning} />
-
-      {isRunning && (
-        <div style={{ marginTop: 18, paddingTop: 14, borderTop: '1px solid var(--border-2)' }}>
-          <div style={{ height: 6, background: 'var(--surface-2)', borderRadius: 4, overflow: 'hidden' }}>
-            <div style={{ height: '100%', width: scan.progress || '40%', background: 'var(--run)' }} />
-          </div>
-          <div className="mono" style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 8 }}>
-            {scan.progressLabel ||
-              (scan.status === 'prewarming_cache'
-                ? 'prewarming checkout cache…'
-                : scan.status === 'post_processing'
-                  ? 'post-processing…'
-                  : 'running…')}
-          </div>
-          <StatusMini scan={scan} />
-        </div>
-      )}
-      {isDone && (
-        <div
-          style={{
-            display: 'flex',
-            flexWrap: 'wrap',
-            gap: 26,
-            marginTop: 18,
-            paddingTop: 14,
-            borderTop: '1px solid var(--border-2)',
-          }}
-        >
-          <Stat value={scan.rawCandidates ?? scan.findings} label="raw candidates" />
-          <Stat value={scan.findings} label="findings listed" color="var(--accent)" />
-          <Stat value={scan.exploitable} label="exploitable" />
-          <Stat value={scan.age} label="ago" />
-        </div>
-      )}
-      {isPaused && (
-        <div
-          style={{
-            marginTop: 18,
-            paddingTop: 14,
-            borderTop: '1px solid var(--border-2)',
-            fontSize: 12.5,
-            color: 'var(--text-2)',
-          }}
-        >
-          <div>Paused — completed work is preserved.</div>
-          <div onClick={(event) => event.stopPropagation()} style={{ position: 'relative', zIndex: 2, marginTop: 10 }}>
-            <Button variant="subtle" style={{ height: 30, padding: '0 12px' }} onClick={onResume} disabled={busy}>
-              {busy ? '…' : 'Resume'}
-            </Button>
-          </div>
-        </div>
-      )}
-      {isFailed && (
-        <div
-          style={{
-            marginTop: 18,
-            paddingTop: 14,
-            borderTop: '1px solid var(--border-2)',
-            fontSize: 12.5,
-            color: 'var(--text-2)',
-          }}
-        >
-          <div style={{ color: 'var(--fail)', fontWeight: 600 }}>{failedLabel}</div>
-          <FailedErrorPreview error={latestError} expanded={errorExpanded} onToggle={onToggleError} />
-          <div
-            onClick={(event) => event.stopPropagation()}
-            style={{
-              position: 'relative',
-              zIndex: 2,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: 12,
-              marginTop: 12,
-            }}
-          >
-            <StatusMini scan={scan} />
-            <Button
-              variant="subtle"
-              style={{ height: 30, padding: '0 12px', flex: 'none' }}
-              onClick={onResume}
-              disabled={busy}
-              title="Continue from completed steps and retry failed work"
-            >
-              {busy ? '…' : 'Resume'}
-            </Button>
-          </div>
-        </div>
-      )}
-      {isPending && !scan.resourceNotice && (
-        <div
-          style={{
-            marginTop: 18,
-            paddingTop: 14,
-            borderTop: '1px solid var(--border-2)',
-            fontSize: 12.5,
-            color: 'var(--text-2)',
-          }}
-        >
-          Pending — waiting for the engine. No specific waiting reason has been reported.
-        </div>
-      )}
-      {isQueued && (
-        <div
-          style={{
-            marginTop: 18,
-            paddingTop: 14,
-            borderTop: '1px solid var(--border-2)',
-            fontSize: 12.5,
-            color: 'var(--text-2)',
-          }}
-        >
-          Queued — this scan will start after active scans finish.
-        </div>
-      )}
-      {isRateLimited && (
-        <div
-          style={{
-            marginTop: 18,
-            paddingTop: 14,
-            borderTop: '1px solid var(--border-2)',
-            fontSize: 12.5,
-            color: 'var(--text-2)',
-          }}
-        >
-          <div style={{ color: 'var(--pend)', fontWeight: 600 }}>
-            {rateLimit.accountRelated ? (
-              <Link
-                to="/accounts"
-                onClick={(event) => event.stopPropagation()}
-                style={{ position: 'relative', zIndex: 2, color: 'inherit' }}
-              >
-                {rateLimit.label}.
-              </Link>
-            ) : (
-              `${rateLimit.label}.`
-            )}
-          </div>
-          <div style={{ marginTop: 4 }}>{rateLimit.message}</div>
-          {rateLimit.accountRelated && (
-            <Link
-              to="/accounts"
-              onClick={(event) => event.stopPropagation()}
-              style={{
-                position: 'relative',
-                zIndex: 2,
-                display: 'inline-block',
-                marginTop: 6,
-                color: 'var(--accent)',
-                fontWeight: 600,
-              }}
-            >
-              View usage and provider limits in Accounts
-            </Link>
+    <>
+      <tr className={isRunning ? 'is-live' : undefined}>
+        <td style={{ minWidth: 200 }}>
+          <Link className="cell-main" to={to}>
+            {repoLabel}
+          </Link>
+          <span className="cell-sub">
+            {scan.repoKind === 'local' ? 'local snapshot' : scan.commitShort} / scan #{scan.id}
+          </span>
+        </td>
+        <td style={{ minWidth: 180 }}>
+          <span className="cell-main" style={{ fontWeight: 400 }}>
+            {scan.workflowName}
+          </span>
+          <span className="cell-sub mono" style={{ fontFamily: 'var(--font-mono)' }}>
+            {scan.model}
+            {modelOverrideCount ? ` +${modelOverrideCount}` : ''}
+          </span>
+        </td>
+        <td className="cell-num">
+          {isDone ? (
+            <>
+              <span className="cell-main" style={{ fontWeight: 600 }}>
+                {scan.findings}
+              </span>
+              <span className="cell-sub">
+                {scan.rawCandidates ?? scan.findings} raw / {scan.exploitable} exploitable
+              </span>
+            </>
+          ) : (
+            <span className="cell-muted">Pending</span>
           )}
-          <div className="mono" style={{ marginTop: 6, fontSize: 11.5 }}>
-            {rateLimitRetryText(scan.reasoning)}
+        </td>
+        <td className="cell-muted" style={{ whiteSpace: 'nowrap' }}>
+          {scan.age ? `${scan.age} ago` : 'Pending'}
+        </td>
+        <td>
+          <div className="scan-state">
+            <div style={{ minWidth: 0 }}>
+              <StatusBadge status={scan.status} reasoning={scan.reasoning} size="sm" />
+              {stateNote && <span className="cell-sub">{stateNote}</span>}
+            </div>
+            <div className="cell-actions">
+              {(isPaused || isFailed) && (
+                <Button
+                  variant="subtle"
+                  onClick={onResume}
+                  disabled={busy}
+                  title={isFailed ? 'Continue from completed steps and retry failed work' : 'Continue this paused scan'}
+                >
+                  {busy ? '…' : 'Resume'}
+                </Button>
+              )}
+              <ScanActionsMenu scan={scan} onDelete={onDelete} busy={busy} />
+            </div>
           </div>
-          <StatusMini scan={scan} />
-        </div>
+        </td>
+      </tr>
+      {showDetail && (
+        <tr className="scan-detail-row">
+          <td colSpan={5} className="scan-detail-cell">
+            {providerAutoscale && (
+              <div style={{ color: 'var(--run)', fontSize: 'var(--text-xs)' }} title={providerAutoscale.message}>
+                {providerAutoscale.compact}, {providerAutoscale.reductions}{' '}
+                {providerAutoscale.reductions === 1 ? 'reduction' : 'reductions'}
+              </div>
+            )}
+            <ResourceNotice notice={scan.resourceNotice} />
+            <ResourceNotice notice={storageWarning} />
+            {isRunning && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)' }}>
+                <div className="scan-progress" aria-hidden="true">
+                  <div style={{ width: scan.progress || '40%' }} />
+                </div>
+                <StatusMini scan={scan} />
+              </div>
+            )}
+            {isFailed && (
+              <div>
+                <FailedErrorPreview error={latestError} expanded={errorExpanded} onToggle={onToggleError} />
+                <div onClick={(event) => event.stopPropagation()}>
+                  <StatusMini scan={scan} />
+                </div>
+              </div>
+            )}
+            {isRateLimited && (
+              <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-2)' }}>
+                <div style={{ color: 'var(--pend)', fontWeight: 500 }}>
+                  {rateLimit.accountRelated ? (
+                    <Link to="/accounts" onClick={(event) => event.stopPropagation()} style={{ color: 'inherit' }}>
+                      {rateLimit.label}.
+                    </Link>
+                  ) : (
+                    `${rateLimit.label}.`
+                  )}
+                </div>
+                <div style={{ marginTop: 2 }}>{rateLimit.message}</div>
+                {rateLimit.accountRelated && (
+                  <Link
+                    to="/accounts"
+                    onClick={(event) => event.stopPropagation()}
+                    style={{ display: 'inline-block', marginTop: 4, color: 'var(--accent-strong)' }}
+                  >
+                    View usage and provider limits in Accounts
+                  </Link>
+                )}
+                <div className="mono" style={{ marginTop: 4, fontSize: 'var(--text-xs)' }}>
+                  {rateLimitRetryText(scan.reasoning)}
+                </div>
+                <StatusMini scan={scan} />
+              </div>
+            )}
+          </td>
+        </tr>
       )}
-    </div>
+    </>
   );
 }
 
@@ -698,51 +548,21 @@ function ScanActionsMenu({ scan, onDelete, busy }) {
   }, [open]);
 
   return (
-    <div
-      ref={containerRef}
-      onClick={(event) => event.stopPropagation()}
-      style={{ position: 'relative', zIndex: 2, display: 'inline-flex' }}
-    >
+    <div ref={containerRef} className="row-menu">
       <button
         ref={triggerRef}
         type="button"
+        className="btn btn--icon"
         aria-label={`Actions for scan #${scan.id}`}
         aria-haspopup="menu"
         aria-expanded={open}
         title="Scan actions"
         onClick={() => setOpen((current) => !current)}
-        style={{
-          width: 28,
-          height: 26,
-          padding: 0,
-          border: '1px solid var(--border)',
-          borderRadius: 7,
-          background: open ? 'var(--surface-2)' : 'var(--surface)',
-          color: 'var(--text-2)',
-          cursor: 'pointer',
-          fontSize: 18,
-          lineHeight: 1,
-        }}
       >
-        ⋯
+        <MoreHorizontal size={15} strokeWidth={1.75} />
       </button>
       {open && (
-        <div
-          role="menu"
-          aria-label={`Scan #${scan.id} actions`}
-          style={{
-            position: 'absolute',
-            top: 31,
-            right: 0,
-            zIndex: 20,
-            width: 154,
-            padding: 5,
-            border: '1px solid var(--border)',
-            borderRadius: 8,
-            background: 'var(--surface)',
-            boxShadow: '0 10px 30px rgba(0,0,0,.18)',
-          }}
-        >
+        <div role="menu" aria-label={`Scan #${scan.id} actions`} className="menu-pop">
           <ScanMenuItem
             to={duplicateScanPath(scan.id)}
             onClick={() => {
@@ -769,32 +589,16 @@ function ScanActionsMenu({ scan, onDelete, busy }) {
 }
 
 function ScanMenuItem({ children, danger = false, disabled = false, onClick, title, to }) {
-  const style = {
-    width: '100%',
-    height: 32,
-    padding: '0 10px',
-    border: 0,
-    borderRadius: 6,
-    background: 'transparent',
-    color: disabled ? 'var(--text-3)' : danger ? 'var(--fail)' : 'var(--text)',
-    cursor: disabled ? 'not-allowed' : 'pointer',
-    opacity: disabled ? 0.55 : 1,
-    font: 'inherit',
-    fontSize: 12.5,
-    textAlign: 'left',
-    textDecoration: 'none',
-    display: 'flex',
-    alignItems: 'center',
-  };
+  const className = danger ? 'menu-item menu-item--danger' : 'menu-item';
   if (to) {
     return (
-      <Link to={to} role="menuitem" title={title} onClick={onClick} style={style}>
+      <Link to={to} role="menuitem" title={title} onClick={onClick} className={className}>
         {children}
       </Link>
     );
   }
   return (
-    <button type="button" role="menuitem" disabled={disabled} title={title} onClick={onClick} style={style}>
+    <button type="button" role="menuitem" disabled={disabled} title={title} onClick={onClick} className={className}>
       {children}
     </button>
   );
@@ -805,39 +609,10 @@ function FailedErrorPreview({ error, expanded, onToggle }) {
   if (!message) return null;
   const knownError = error?.knownError;
   return (
-    <div
-      onClick={(event) => event.stopPropagation()}
-      style={{
-        position: 'relative',
-        zIndex: 2,
-        marginTop: 9,
-        border: '1px solid var(--fail-bg)',
-        borderRadius: 8,
-        background: 'var(--fail-bg)',
-        padding: '8px 9px',
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 5 }}>
-        <span
-          className="mono"
-          style={{ fontSize: 10, letterSpacing: '0.05em', color: 'var(--fail)', textTransform: 'uppercase' }}
-        >
-          Latest error
-        </span>
-        <button
-          type="button"
-          onClick={onToggle}
-          style={{
-            height: 24,
-            padding: '0 8px',
-            borderRadius: 6,
-            border: '1px solid var(--border)',
-            background: 'var(--surface)',
-            color: 'var(--text-2)',
-            fontSize: 11.5,
-            cursor: 'pointer',
-          }}
-        >
+    <div className="scan-error" onClick={(event) => event.stopPropagation()}>
+      <div className="scan-error-head">
+        <span style={{ color: 'var(--fail)', fontSize: 'var(--text-xs)', fontWeight: 500 }}>Latest error</span>
+        <button type="button" className="btn btn--sm" onClick={onToggle}>
           {expanded ? 'Hide' : 'Show'}
         </button>
       </div>
@@ -846,8 +621,8 @@ function FailedErrorPreview({ error, expanded, onToggle }) {
         className="mono"
         style={{
           color: 'var(--text-2)',
-          fontSize: 11.5,
-          lineHeight: 1.45,
+          fontSize: 'var(--text-xs)',
+          lineHeight: 1.5,
           overflowWrap: 'anywhere',
           whiteSpace: 'pre-wrap',
           ...(expanded
@@ -865,19 +640,7 @@ function FailedErrorPreview({ error, expanded, onToggle }) {
 function KnownErrorBadge({ knownError }) {
   if (!knownError?.title) return null;
   return (
-    <span
-      className="mono"
-      style={{
-        display: 'inline-flex',
-        marginBottom: 6,
-        padding: '2px 7px',
-        borderRadius: 999,
-        border: '1px solid var(--fail)',
-        background: 'var(--surface)',
-        color: 'var(--fail)',
-        fontSize: 10.5,
-      }}
-    >
+    <span className="chip" style={{ marginBottom: 6, borderColor: 'var(--fail)', color: 'var(--fail)' }}>
       {knownError.title}
     </span>
   );
@@ -887,14 +650,10 @@ function ErrorFixLinks({ knownError }) {
   const links = knownError?.fixLinks || [];
   if (!links.length) return null;
   return (
-    <div className="mono" style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 7, fontSize: 11 }}>
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 7, fontSize: 'var(--text-xs)' }}>
       {links.map((link) =>
         link.internal || link.url?.startsWith('/') ? (
-          <Link
-            key={`${link.label}-${link.url}`}
-            to={link.url}
-            style={{ color: 'var(--accent)', textDecoration: 'none', borderBottom: '1px solid var(--accent)' }}
-          >
+          <Link key={`${link.label}-${link.url}`} to={link.url} style={{ color: 'var(--accent-strong)' }}>
             {link.label || link.url}
           </Link>
         ) : (
@@ -903,7 +662,7 @@ function ErrorFixLinks({ knownError }) {
             href={link.url}
             target="_blank"
             rel="noreferrer"
-            style={{ color: 'var(--accent)', textDecoration: 'none', borderBottom: '1px solid var(--accent)' }}
+            style={{ color: 'var(--accent-strong)' }}
           >
             {link.label || link.url}
           </a>
@@ -923,10 +682,7 @@ function StatusMini({ scan }) {
   const expectedLineages = summary.expectedStepLineages ?? summary.stepAttempts ?? 0;
   if (!summary.totalAttempts && !active.length && !summary.latestError) return null;
   return (
-    <div
-      className="mono"
-      style={{ display: 'flex', flexWrap: 'wrap', gap: 9, marginTop: 9, fontSize: 11.2, color: 'var(--text-3)' }}
-    >
+    <div className="status-meta">
       {first && (
         <span style={{ color: 'var(--run)' }}>
           {first.phaseLabel}: {first.title}
@@ -944,15 +700,6 @@ function StatusMini({ scan }) {
         </span>
       )}
       {summary.postRunningAttempts > 0 && <span>{summary.postRunningAttempts} post running</span>}
-    </div>
-  );
-}
-
-function Stat({ value, label, color = 'var(--text)' }) {
-  return (
-    <div>
-      <div style={{ fontSize: 20, fontWeight: 600, color }}>{value}</div>
-      <div style={{ fontSize: 11, color: 'var(--text-3)' }}>{label}</div>
     </div>
   );
 }

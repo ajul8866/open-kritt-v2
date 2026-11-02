@@ -78,3 +78,6 @@ local_repos/*
 
 OPEN_SOURCE_READINESS.md
 webinar
+
+# Hallmark design working artifacts (screenshots, before/after records)
+.hallmark/

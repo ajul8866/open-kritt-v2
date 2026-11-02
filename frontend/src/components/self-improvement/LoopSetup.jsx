@@ -45,10 +45,11 @@ export default function LoopSetup({ scan, references, onEnable, busy }) {
       <fieldset disabled={busy}>
         <p>Analyze this scan after it completes, then propose a new workflow. Every rerun requires your approval.</p>
         <div className="sil-grid">
-          <label htmlFor="sil-max">
+          <label className="field" htmlFor="sil-max">
             Maximum iterations
             <input
               id="sil-max"
+              className="input"
               type="number"
               min="1"
               max="10"
@@ -57,18 +58,24 @@ export default function LoopSetup({ scan, references, onEnable, busy }) {
               required
             />
           </label>
-          <label htmlFor="sil-target">
+          <label className="field" htmlFor="sil-target">
             Target class
-            <select id="sil-target" value={targetClass} onChange={(event) => setTargetClass(event.target.value)}>
+            <select
+              id="sil-target"
+              className="select"
+              value={targetClass}
+              onChange={(event) => setTargetClass(event.target.value)}
+            >
               <option value="bounty">Bug bounty</option>
               <option value="production">Production</option>
               <option value="lab">Lab</option>
             </select>
           </label>
-          <label htmlFor="sil-metric">
+          <label className="field" htmlFor="sil-metric">
             Evaluation metric
             <select
               id="sil-metric"
+              className="select"
               value={metric}
               onChange={(event) => {
                 setMetric(event.target.value);
@@ -79,10 +86,11 @@ export default function LoopSetup({ scan, references, onEnable, busy }) {
               <option value="confidence">Reviewer confidence</option>
             </select>
           </label>
-          <label htmlFor="sil-minimum">
+          <label className="field" htmlFor="sil-minimum">
             Minimum improvement
             <input
               id="sil-minimum"
+              className="input"
               type="number"
               min={metric === 'confidence' ? 0.01 : 1}
               step={metric === 'confidence' ? 0.01 : 1}

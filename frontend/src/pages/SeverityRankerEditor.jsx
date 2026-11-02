@@ -2,12 +2,36 @@ import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../api/client.js';
 import { usePageChrome } from '../context/ui.jsx';
-import { ErrorState, Spinner } from '../components/ui.jsx';
+import { ErrorState, Spinner, Button } from '../components/ui.jsx';
+import { Page, PageHeader } from '../components/app.jsx';
 import Markdown from '../components/Markdown.jsx';
 import { rankerDescOf } from '../lib/severityRanker.js';
 import { useUnsavedChangesPrompt } from '../lib/useUnsavedChangesPrompt.js';
 
 const STARTER = '# Ranking rules\n\n1. ';
+
+const EDITOR_GRID = {
+  display: 'grid',
+  maxWidth: 880,
+  gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 360px), 1fr))',
+  gap: 'var(--space-8)',
+  alignItems: 'start',
+};
+
+const FOOTER = {
+  maxWidth: 880,
+  position: 'sticky',
+  bottom: 0,
+  zIndex: 2,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: 'var(--space-5)',
+  marginTop: 'var(--space-9)',
+  padding: 'var(--space-4) 0',
+  borderTop: '1px solid var(--border)',
+  background: 'var(--bg)',
+};
 
 function newSeverityRankerForm() {
   return { name: 'new-severity-ranker', content: STARTER };
@@ -71,16 +95,16 @@ export default function SeverityRankerEditor() {
 
   if (loadError)
     return (
-      <div style={{ padding: 26 }}>
+      <Page>
         <ErrorState error={loadError} onRetry={() => window.location.reload()} />
-      </div>
+      </Page>
     );
 
   if (!loaded)
     return (
-      <div style={{ padding: 26 }}>
+      <Page>
         <Spinner />
-      </div>
+      </Page>
     );
 
   const set = (patch) => setForm((f) => ({ ...f, ...patch }));
@@ -107,117 +131,71 @@ export default function SeverityRankerEditor() {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
-      <div style={{ flex: 1, overflowY: 'auto', padding: '26px 32px' }}>
-        <div style={{ maxWidth: 980, margin: '0 auto' }}>
-          <input
-            value={form.name}
-            onChange={(e) => set({ name: e.target.value })}
-            spellCheck={false}
-            placeholder="severity-ranker-name"
-            className="mono"
-            style={{
-              border: 'none',
-              outline: 'none',
-              background: 'transparent',
-              fontSize: 22,
-              fontWeight: 600,
-              color: 'var(--text)',
-              letterSpacing: '-0.01em',
-              width: '100%',
-              padding: 0,
-            }}
-          />
-          <div style={{ fontSize: 13.5, color: 'var(--text-2)', margin: '6px 0 24px' }}>
-            A set of markdown rules the model applies when ranking each finding&rsquo;s severity. Write them as numbered
-            or bulleted instructions.
-          </div>
+    <Page style={{ paddingBottom: 0 }}>
+      <PageHeader
+        title={id ? 'Edit severity ranker' : 'New severity ranker'}
+        meta="A set of markdown rules the model applies when ranking each finding's severity. Write them as numbered or bulleted instructions."
+      />
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, alignItems: 'start' }}>
-            <div>
-              <Label>
-                RULES <span style={{ textTransform: 'none', letterSpacing: 0 }}>· markdown</span>
-              </Label>
-              <textarea
-                value={form.content}
-                onChange={(e) => set({ content: e.target.value })}
-                spellCheck={false}
-                placeholder="1. If the finding requires non-trivial privileges, downgrade by 1 rank."
-                className="mono"
-                style={{
-                  width: '100%',
-                  height: 440,
-                  padding: 14,
-                  border: '1px solid var(--border)',
-                  borderRadius: 9,
-                  background: 'var(--code-bg)',
-                  color: 'var(--text)',
-                  fontSize: 12.5,
-                  lineHeight: 1.7,
-                  outline: 'none',
-                  resize: 'vertical',
-                }}
-              />
-            </div>
-            <div>
-              <Label>PREVIEW</Label>
-              <div
-                style={{
-                  border: '1px solid var(--border)',
-                  borderRadius: 9,
-                  background: 'var(--surface)',
-                  padding: '18px 20px',
-                  minHeight: 440,
-                }}
-              >
-                {form.content.trim() ? (
-                  <Markdown source={form.content} />
-                ) : (
-                  <div style={{ color: 'var(--text-3)', fontSize: 13 }}>Start typing rules to preview them.</div>
-                )}
-              </div>
-            </div>
+      <div className="field" style={{ maxWidth: 520, marginBottom: 'var(--space-8)' }}>
+        <label className="field-label" htmlFor="severity-ranker-name">
+          Name
+        </label>
+        <input
+          id="severity-ranker-name"
+          className="input mono"
+          value={form.name}
+          onChange={(e) => set({ name: e.target.value })}
+          spellCheck={false}
+          placeholder="severity-ranker-name"
+        />
+      </div>
+
+      <div style={EDITOR_GRID}>
+        <div className="field">
+          <div className="field-label">
+            <label htmlFor="severity-ranker-content">Rules</label>
+            <span className="field-unit">Markdown</span>
+          </div>
+          <textarea
+            id="severity-ranker-content"
+            className="textarea mono"
+            value={form.content}
+            onChange={(e) => set({ content: e.target.value })}
+            spellCheck={false}
+            placeholder="1. If the finding requires non-trivial privileges, downgrade by 1 rank."
+            style={{ height: 440 }}
+          />
+        </div>
+
+        <div>
+          <div className="field-label" style={{ marginBottom: 'var(--space-3)' }}>
+            <span>Preview</span>
+          </div>
+          <div
+            style={{
+              minHeight: 440,
+              padding: 'var(--space-6)',
+              borderRadius: 'var(--radius-md)',
+              background: 'var(--surface-2)',
+            }}
+          >
+            {form.content.trim() ? (
+              <Markdown source={form.content} />
+            ) : (
+              <p className="field-note" style={{ margin: 0 }}>
+                Start typing rules to preview them.
+              </p>
+            )}
           </div>
         </div>
       </div>
 
-      <div
-        style={{
-          flex: 'none',
-          borderTop: '1px solid var(--border)',
-          background: 'var(--bg)',
-          padding: '13px 32px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-        }}
-      >
-        <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: 'var(--text-2)' }}>
-          <span
-            style={{
-              width: 7,
-              height: 7,
-              borderRadius: '50%',
-              background: errs.length || serverErrors.length ? 'var(--fail)' : 'var(--ok)',
-            }}
-          />
+      <div style={FOOTER}>
+        <span className="field-note" role="status">
           {serverErrors[0] || errs[0] || 'Severity ranker is valid.'}
         </span>
-        <div
-          onClick={save}
-          style={{
-            height: 36,
-            padding: '0 20px',
-            display: 'flex',
-            alignItems: 'center',
-            borderRadius: 9,
-            fontSize: 13.5,
-            fontWeight: 500,
-            cursor: canSave ? 'pointer' : 'default',
-            background: canSave ? 'var(--accent)' : 'var(--surface-2)',
-            color: canSave ? 'var(--accent-fg)' : 'var(--text-3)',
-          }}
-        >
+        <Button onClick={save} disabled={!canSave}>
           {saving
             ? 'Saving…'
             : errs.length
@@ -225,16 +203,8 @@ export default function SeverityRankerEditor() {
               : id
                 ? 'Save changes'
                 : 'Create severity ranker'}
-        </div>
+        </Button>
       </div>
-    </div>
-  );
-}
-
-function Label({ children }) {
-  return (
-    <div className="mono" style={{ fontSize: 10, letterSpacing: '0.07em', color: 'var(--text-3)', marginBottom: 8 }}>
-      {children}
-    </div>
+    </Page>
   );
 }

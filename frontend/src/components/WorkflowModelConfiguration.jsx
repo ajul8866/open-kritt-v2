@@ -67,18 +67,14 @@ export function workflowModelConfigurationIsValid(value, depths, providers, cata
   );
 }
 
-function modeButtonStyle(active, disabled) {
-  return {
-    minHeight: 34,
-    padding: '0 12px',
-    border: `1px solid ${active ? 'var(--accent)' : 'var(--border)'}`,
-    borderRadius: 8,
-    background: active ? 'var(--accent-subtle)' : 'var(--surface)',
-    color: disabled ? 'var(--text-3)' : active ? 'var(--accent)' : 'var(--text-2)',
-    fontSize: 12,
-    fontWeight: 600,
-    cursor: disabled ? 'not-allowed' : 'pointer',
-  };
+function modeButtonStyle(active) {
+  return active
+    ? {
+        borderColor: 'var(--accent)',
+        background: 'var(--accent-subtle)',
+        color: 'var(--accent-strong)',
+      }
+    : undefined;
 }
 
 export default function WorkflowModelConfiguration({
@@ -117,70 +113,62 @@ export default function WorkflowModelConfiguration({
       <div
         role="group"
         aria-label="Workflow model strategy"
-        style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}
+        style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-3)', marginBottom: 'var(--space-5)' }}
       >
         <button
           type="button"
+          className="btn btn--sm"
           aria-pressed={!customized}
           disabled={disabled}
           onClick={useSingleModel}
-          style={modeButtonStyle(!customized, disabled)}
+          style={modeButtonStyle(!customized)}
         >
           One model for all depths
         </button>
         <button
           type="button"
+          className="btn btn--sm"
           aria-pressed={customized}
           disabled={disabled || !canCustomize}
           onClick={customizeByDepth}
-          style={modeButtonStyle(customized, disabled || !canCustomize)}
+          style={modeButtonStyle(customized)}
         >
           Customize by depth
         </button>
       </div>
 
-      <div
-        style={{
-          border: customized ? '1px solid var(--border)' : 0,
-          borderRadius: 9,
-          padding: customized ? 13 : 0,
-          background: customized ? 'var(--surface-2)' : 'transparent',
-        }}
-      >
-        {customized && (
-          <div className="mono" style={{ fontSize: 10.5, color: 'var(--text-3)', marginBottom: 9 }}>
-            DEFAULT WORKFLOW MODEL
-          </div>
-        )}
-        <ModelConfiguration
-          value={value}
-          onChange={(configuration) => onChange({ ...value, ...configuration })}
-          providers={providers}
-          catalog={catalog}
-          catalogError={catalogError}
-          disabled={disabled}
-        />
-      </div>
+      {customized && (
+        <div className="field-label" style={{ marginBottom: 'var(--space-4)' }}>
+          DEFAULT WORKFLOW MODEL
+        </div>
+      )}
+      <ModelConfiguration
+        value={value}
+        onChange={(configuration) => onChange({ ...value, ...configuration })}
+        providers={providers}
+        catalog={catalog}
+        catalogError={catalogError}
+        disabled={disabled}
+      />
 
       <div
         style={{
-          marginTop: 12,
-          border: '1px solid var(--border)',
-          borderRadius: 9,
-          padding: 13,
-          background: 'var(--surface-2)',
+          marginTop: 'var(--space-7)',
+          paddingTop: 'var(--space-6)',
+          borderTop: '1px solid var(--border)',
         }}
       >
-        <span className="mono" style={{ display: 'block', fontSize: 10.5, color: 'var(--text-3)', marginBottom: 7 }}>
+        <div className="field-label" style={{ marginBottom: 'var(--space-4)' }}>
           POST-PROCESSING MODEL
-        </span>
+        </div>
         <div
           role="group"
           aria-label="Post-processing model strategy"
-          style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}
+          style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-3)', marginBottom: 'var(--space-5)' }}
         >
           <button
             type="button"
+            className="btn btn--sm"
             aria-pressed={!postProcessingModelOverride}
             disabled={disabled}
             onClick={() =>
@@ -192,12 +180,13 @@ export default function WorkflowModelConfiguration({
                 post_processing_harness: value.harness,
               })
             }
-            style={modeButtonStyle(!postProcessingModelOverride, disabled)}
+            style={modeButtonStyle(!postProcessingModelOverride)}
           >
             Use scan model
           </button>
           <button
             type="button"
+            className="btn btn--sm"
             aria-pressed={postProcessingModelOverride}
             disabled={disabled}
             onClick={() =>
@@ -209,7 +198,7 @@ export default function WorkflowModelConfiguration({
                 post_processing_harness: postProcessingConfiguration.harness,
               })
             }
-            style={modeButtonStyle(postProcessingModelOverride, disabled)}
+            style={modeButtonStyle(postProcessingModelOverride)}
           >
             Use different model
           </button>
@@ -235,24 +224,13 @@ export default function WorkflowModelConfiguration({
             showAvailabilityHelp={false}
           />
         ) : (
-          <label style={{ display: 'block', maxWidth: 280 }}>
-            <span className="mono" style={{ display: 'block', fontSize: 10, color: 'var(--text-3)', marginBottom: 6 }}>
-              THINKING EFFORT
-            </span>
+          <label className="field" style={{ maxWidth: 280 }}>
+            <span className="field-label">Thinking effort</span>
             <select
-              className="mono"
+              className="select"
               value={postProcessingConfiguration.thinking_effort}
               disabled={disabled || postProcessingEfforts.length === 0}
               onChange={(event) => onChange({ ...value, post_processing_thinking_effort: event.target.value })}
-              style={{
-                width: '100%',
-                height: 36,
-                padding: '0 10px',
-                borderRadius: 7,
-                border: '1px solid var(--border)',
-                background: 'var(--surface)',
-                color: 'var(--text)',
-              }}
             >
               {postProcessingEfforts.map((effort) => (
                 <option key={effort} value={effort}>
@@ -265,7 +243,7 @@ export default function WorkflowModelConfiguration({
       </div>
 
       {customized && (
-        <div style={{ display: 'grid', gap: 12, marginTop: 12 }}>
+        <div style={{ marginTop: 'var(--space-7)', borderTop: '1px solid var(--border)' }}>
           {depths.map((depth) => {
             const chip = depthLabels.get(depth);
             const configuration = resolvedModelConfiguration(value, depth);
@@ -273,22 +251,19 @@ export default function WorkflowModelConfiguration({
               <div
                 key={depth}
                 style={{
-                  border: '1px solid var(--border)',
-                  borderRadius: 9,
-                  padding: 13,
-                  background: 'var(--surface)',
+                  padding: 'var(--space-6) 0',
+                  borderBottom: '1px solid var(--border-2)',
                 }}
               >
                 <div
-                  className="mono"
                   style={{
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
-                    gap: 10,
-                    fontSize: 10.5,
-                    color: 'var(--text-3)',
-                    marginBottom: 9,
+                    gap: 'var(--space-4)',
+                    marginBottom: 'var(--space-4)',
+                    color: 'var(--text-2)',
+                    fontSize: 'var(--text-xs)',
                   }}
                 >
                   <span>DEPTH {depth}</span>
@@ -322,7 +297,7 @@ export default function WorkflowModelConfiguration({
       )}
 
       {!canCustomize && (
-        <div style={{ marginTop: 8, color: 'var(--text-3)', fontSize: 11.5 }}>
+        <div style={{ marginTop: 'var(--space-4)', color: 'var(--text-3)', fontSize: 'var(--text-xs)' }}>
           Select a workflow to configure models by depth.
         </div>
       )}

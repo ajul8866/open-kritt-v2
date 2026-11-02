@@ -142,8 +142,8 @@ describe('supplemental post-script runs', () => {
     expect(html).toContain('extra.network');
     expect(html).toContain('value="mainnet"');
     expect(html).toContain('Queue for 2 findings');
-    expect(html).toContain('2/4 · 50%');
-    expect(html).toContain('EXECUTION MODEL');
+    expect(html).toContain('2/4 (50%)');
+    expect(html).toContain('Execution model');
     expect(html).toContain('gpt-5-codex');
   });
 
@@ -535,7 +535,7 @@ describe('active worker presentation', () => {
     expect(html).toContain('Workflow depth 2 worker');
     expect(html).toContain('D2');
     expect(html).toContain('longest 56m');
-    expect(html).toContain('extended · 56m');
+    expect(html).toContain('extended, 56m');
     expect(html).toContain('2 · Derive concrete exploit candidates');
     expect(html).toContain('Model: gpt-5.6-luna; Harness: Codex CLI');
     expect(html).toContain('gpt-5.6-luna');

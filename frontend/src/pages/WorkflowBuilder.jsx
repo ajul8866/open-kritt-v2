@@ -4,7 +4,8 @@ import { api, ApiError, apiErrorMessages } from '../api/client.js';
 import { usePageChrome } from '../context/ui.jsx';
 import { useUnsavedChangesPrompt } from '../lib/useUnsavedChangesPrompt.js';
 import { useModalDialog } from '../lib/useModalDialog.js';
-import { Button, ErrorState, Spinner, Toggle } from '../components/ui.jsx';
+import { Button, ErrorState, Spinner, Toggle, SectionLabel } from '../components/ui.jsx';
+import { Page } from '../components/app.jsx';
 import { PromptEditor } from '../components/PromptEditor.jsx';
 import SchemaEditor from '../components/SchemaEditor.jsx';
 import { resultFromCompletedGeneration, workflowBuilderFromGeneration } from '../lib/generationDraft.js';
@@ -497,15 +498,15 @@ export default function WorkflowBuilder() {
 
   if (loadError)
     return (
-      <div style={{ padding: 26 }}>
+      <Page>
         <ErrorState error={loadError} onRetry={() => window.location.reload()} />
-      </div>
+      </Page>
     );
   if (!b)
     return (
-      <div style={{ padding: 26 }}>
+      <Page>
         <Spinner />
-      </div>
+      </Page>
     );
 
   const mut = (fn) => {
@@ -732,74 +733,104 @@ export default function WorkflowBuilder() {
   const sortedLevels = [...b.levels].sort((a, c) => a.depth - c.depth);
 
   return (
-    <div
-      className="workflow-builder"
-      style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}
-    >
-      <div className="workflow-builder-body" style={{ flex: 1, display: 'flex', minHeight: 0 }}>
-        {/* LEFT: meta + editable tree */}
-        <div
-          className="workflow-builder-tree"
-          style={{ flex: 1, minWidth: 0, overflowY: 'auto', padding: '26px 30px' }}
-        >
-          <input
-            value={b.name}
-            onChange={(e) => mut((n) => (n.name = e.target.value))}
-            spellCheck={false}
-            placeholder="workflow-name"
-            className="mono"
-            style={{
-              border: 'none',
-              outline: 'none',
-              background: 'transparent',
-              fontSize: 23,
-              fontWeight: 600,
-              color: 'var(--text)',
-              letterSpacing: 0,
-              width: '100%',
-              padding: 0,
-            }}
-          />
+    <Page style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, paddingBottom: 0 }}>
+      <header className="page-head" style={{ marginBottom: 'var(--space-5)' }}>
+        <div className="page-head-main" style={{ flex: 1, minWidth: 0 }}>
+          <h1 className="sr-only">{id ? 'Edit workflow' : 'New workflow'}</h1>
+          <div className="page-title-row">
+            <input
+              value={b.name}
+              onChange={(e) => mut((n) => (n.name = e.target.value))}
+              spellCheck={false}
+              placeholder="workflow-name"
+              aria-label="Workflow name"
+              style={{
+                width: '100%',
+                padding: 0,
+                border: 0,
+                background: 'transparent',
+                outline: 'none',
+                color: 'var(--text)',
+                fontSize: 'var(--text-xl)',
+                fontWeight: 600,
+                letterSpacing: 'var(--tracking-head)',
+                lineHeight: 'var(--leading-tight)',
+              }}
+            />
+          </div>
           <input
             value={b.description}
             onChange={(e) => mut((n) => (n.description = e.target.value))}
             placeholder="Describe what this workflow looks for…"
+            aria-label="Workflow description"
             style={{
-              border: 'none',
-              outline: 'none',
-              background: 'transparent',
-              fontSize: 13.5,
-              color: 'var(--text-2)',
               width: '100%',
-              marginTop: 6,
+              marginTop: 'var(--space-2)',
               padding: 0,
+              border: 0,
+              background: 'transparent',
+              outline: 'none',
+              color: 'var(--text-2)',
+              fontSize: 'var(--text-sm)',
+              lineHeight: 'var(--leading-base)',
             }}
           />
-
-          {generationId && (
-            <div
+        </div>
+        <div className="page-actions" style={{ minWidth: 0, maxWidth: 440 }}>
+          {errors.length === 0 && serverErrors.length === 0 ? (
+            <span style={{ color: 'var(--ok)', fontSize: 'var(--text-xs)', lineHeight: 'var(--leading-base)' }}>
+              Workflow is valid and ready to save.
+            </span>
+          ) : (
+            <span
+              title={(serverErrors.length ? serverErrors : errors).join('; ')}
               style={{
-                marginTop: 18,
-                padding: '10px 12px',
-                border: '1px solid var(--run-bg)',
-                borderRadius: 8,
-                background: 'var(--run-bg)',
-                color: 'var(--run)',
-                fontSize: 12.5,
-                lineHeight: 1.5,
+                color: 'var(--fail)',
+                fontSize: 'var(--text-xs)',
+                lineHeight: 'var(--leading-base)',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
               }}
             >
-              AI-generated draft. Review the steps, prompts, variables, and output schemas before saving.
-            </div>
+              {(serverErrors.length ? serverErrors : errors).slice(0, 3).join('; ')}
+            </span>
           )}
+        </div>
+      </header>
 
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: 28 }}>
+      {generationId && (
+        <div
+          style={{
+            marginBottom: 'var(--space-5)',
+            padding: 'var(--space-3) var(--space-4)',
+            border: '1px solid var(--run-bg)',
+            borderRadius: 'var(--radius-sm)',
+            background: 'var(--run-bg)',
+            color: 'var(--run)',
+            fontSize: 'var(--text-xs)',
+            lineHeight: 'var(--leading-base)',
+          }}
+        >
+          AI-generated draft. Review the steps, prompts, variables, and output schemas before saving.
+        </div>
+      )}
+
+      <div
+        className="workflow-builder-body"
+        style={{ flex: 1, display: 'flex', minHeight: 0, borderTop: '1px solid var(--border)' }}
+      >
+        <div
+          className="workflow-builder-tree"
+          style={{ flex: 1, minWidth: 0, overflowY: 'auto', padding: 'var(--space-7) 0 var(--space-9)' }}
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
             {sortedLevels.map((level, i) => {
               const fanLabel =
                 level.steps.length > 1
-                  ? `· ${level.steps.length} siblings · shared schema`
+                  ? `${level.steps.length} sibling steps, shared schema`
                   : level.multiOutput
-                    ? '· multi-output ⤳'
+                    ? 'multi-output'
                     : '';
               return (
                 <div
@@ -808,53 +839,23 @@ export default function WorkflowBuilder() {
                 >
                   <div
                     className="workflow-builder-level-heading"
-                    style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 11 }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      flexWrap: 'wrap',
+                      gap: 'var(--space-3)',
+                      marginBottom: 'var(--space-3)',
+                    }}
                   >
-                    <span
-                      className="mono"
-                      style={{
-                        width: 18,
-                        height: 18,
-                        borderRadius: '50%',
-                        border: '1px solid var(--border)',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: 10,
-                        color: 'var(--text-2)',
-                      }}
-                    >
-                      {level.depth}
+                    <span style={{ color: 'var(--text-2)', fontSize: 'var(--text-xs)', fontWeight: 500 }}>
+                      Depth {level.depth}
                     </span>
-                    <span className="mono" style={{ fontSize: 10, letterSpacing: '0.08em', color: 'var(--text-3)' }}>
-                      DEPTH {level.depth} {fanLabel}
-                    </span>
-                    {levelConsumesAll(level) && (
-                      <span
-                        className="mono"
-                        style={{
-                          fontSize: 9.5,
-                          color: 'var(--run)',
-                          background: 'var(--run-bg)',
-                          borderRadius: 5,
-                          padding: '2px 7px',
-                          letterSpacing: '0.04em',
-                        }}
-                      >
-                        batched
-                      </span>
-                    )}
+                    {fanLabel && <span style={{ color: 'var(--text-3)', fontSize: 'var(--text-xs)' }}>{fanLabel}</span>}
+                    {levelConsumesAll(level) && <span className="status status--run">batched</span>}
                     {level.bindPrevious && (
                       <span
-                        className="mono"
-                        style={{
-                          fontSize: 9.5,
-                          color: 'var(--accent)',
-                          background: 'var(--accent-subtle)',
-                          borderRadius: 5,
-                          padding: '2px 7px',
-                          letterSpacing: '0.04em',
-                        }}
+                        className="status"
+                        style={{ background: 'var(--accent-subtle)', color: 'var(--accent-strong)' }}
                       >
                         bound 1:1
                       </span>
@@ -862,41 +863,40 @@ export default function WorkflowBuilder() {
                     <button
                       type="button"
                       onClick={() => insertLevelBefore(level.depth)}
-                      className="mono"
+                      className="btn btn--quiet btn--sm"
                       title={`Insert a new step at depth ${level.depth} and shift this depth and everything below it down`}
-                      style={{
-                        fontSize: 10,
-                        color: 'var(--text-2)',
-                        cursor: 'pointer',
-                        border: '1px dashed var(--border)',
-                        borderRadius: 5,
-                        padding: '1px 6px',
-                        background: 'transparent',
-                      }}
                     >
-                      + insert before
+                      + Insert before
                     </button>
-                    <span
+                    <button
+                      type="button"
                       onClick={() => addSibling(level.depth)}
-                      className="mono"
-                      style={{
-                        fontSize: 10,
-                        color: 'var(--accent)',
-                        cursor: 'pointer',
-                        border: '1px dashed var(--accent)',
-                        borderRadius: 5,
-                        padding: '1px 6px',
-                      }}
+                      className="btn btn--quiet btn--sm"
+                      style={{ color: 'var(--accent-strong)' }}
                     >
-                      + sibling
-                    </span>
+                      + Sibling
+                    </button>
                   </div>
-                  <div style={{ display: 'flex', gap: 14, justifyContent: 'center', flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', gap: 'var(--space-5)', justifyContent: 'center', flexWrap: 'wrap' }}>
                     {level.steps.map((step) => {
                       const valid = stepValid(level, step);
                       const selected = b.selStepId === step.id;
                       const bindingMarkers = workflowStepBindingMarkers(b.levels, level.depth, step.id);
                       const primaryBindingMarker = bindingMarkers.incoming || bindingMarkers.outgoing;
+                      const cardBorder = !valid
+                        ? 'var(--fail)'
+                        : selected
+                          ? 'var(--accent)'
+                          : primaryBindingMarker
+                            ? primaryBindingMarker.color
+                            : 'var(--border)';
+                      const cardBackground = !valid
+                        ? 'var(--fail-bg)'
+                        : selected
+                          ? 'var(--accent-subtle)'
+                          : primaryBindingMarker
+                            ? `color-mix(in srgb, ${primaryBindingMarker.background} 45%, var(--surface))`
+                            : 'var(--surface)';
                       return (
                         <div
                           key={step.id}
@@ -904,27 +904,10 @@ export default function WorkflowBuilder() {
                           style={{
                             width: 268,
                             position: 'relative',
-                            border: `${valid ? 1.5 : 2}px solid ${
-                              valid
-                                ? primaryBindingMarker
-                                  ? primaryBindingMarker.color
-                                  : selected
-                                    ? 'var(--accent)'
-                                    : 'var(--border)'
-                                : 'var(--fail)'
-                            }`,
-                            borderRadius: 11,
-                            background:
-                              valid && primaryBindingMarker
-                                ? `color-mix(in srgb, ${primaryBindingMarker.background} 45%, var(--surface))`
-                                : valid
-                                  ? 'var(--surface)'
-                                  : 'var(--fail-bg)',
-                            boxShadow: valid
-                              ? selected && primaryBindingMarker
-                                ? '0 0 0 2px var(--accent-subtle), var(--shadow)'
-                                : 'var(--shadow)'
-                              : `0 0 0 2px ${selected ? 'var(--accent)' : 'transparent'}`,
+                            display: 'grid',
+                            border: `1px solid ${cardBorder}`,
+                            borderRadius: 'var(--radius-sm)',
+                            background: cardBackground,
                             cursor: 'pointer',
                             overflow: 'hidden',
                           }}
@@ -935,7 +918,7 @@ export default function WorkflowBuilder() {
                               style={{
                                 position: 'absolute',
                                 inset: '0 0 auto',
-                                height: 4,
+                                height: 3,
                                 background: bindingMarkers.incoming.color,
                                 zIndex: 2,
                               }}
@@ -947,7 +930,7 @@ export default function WorkflowBuilder() {
                               style={{
                                 position: 'absolute',
                                 inset: 'auto 0 0',
-                                height: 4,
+                                height: 3,
                                 background: bindingMarkers.outgoing.color,
                                 zIndex: 2,
                               }}
@@ -956,68 +939,64 @@ export default function WorkflowBuilder() {
                           {!valid && (
                             <div
                               style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 6,
-                                padding: '5px 14px',
-                                background: 'var(--fail)',
-                                color: '#fff',
-                                fontSize: 10.5,
+                                padding: 'var(--space-1) var(--space-4)',
+                                borderBottom: '1px solid var(--fail)',
+                                color: 'var(--fail)',
+                                fontSize: 'var(--text-2xs)',
                                 fontWeight: 600,
-                                letterSpacing: '0.02em',
                               }}
                             >
-                              <span style={{ fontSize: 11, lineHeight: 1 }}>⚠</span>
-                              <span>INVALID - template key reference</span>
+                              Invalid template key reference
                             </div>
                           )}
-                          <div style={{ padding: '12px 14px' }}>
+                          <div style={{ padding: 'var(--space-4)' }}>
                             <div
-                              style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                gap: 'var(--space-3)',
+                              }}
                             >
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-                                <span
-                                  style={{
-                                    width: 7,
-                                    height: 7,
-                                    borderRadius: '50%',
-                                    flex: 'none',
-                                    background: valid ? 'var(--ok)' : 'var(--fail)',
-                                  }}
-                                />
-                                <span
-                                  style={{
-                                    fontWeight: 600,
-                                    fontSize: 13.5,
-                                    whiteSpace: 'nowrap',
-                                    overflow: 'hidden',
-                                    textOverflow: 'ellipsis',
-                                    color: valid ? 'var(--text)' : 'var(--fail)',
-                                  }}
-                                >
-                                  {step.name || 'Untitled step'}
-                                </span>
-                              </div>
+                              <span
+                                style={{
+                                  fontWeight: 500,
+                                  fontSize: 'var(--text-sm)',
+                                  whiteSpace: 'nowrap',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  color: valid ? 'var(--text)' : 'var(--fail)',
+                                }}
+                              >
+                                {step.name || 'Untitled step'}
+                              </span>
                               {(b.levels.length > 1 || level.steps.length > 1) && (
-                                <span
+                                <button
+                                  type="button"
+                                  aria-label={`Remove ${step.name || 'step'}`}
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     removeStep(step.id);
                                   }}
-                                  style={{ color: 'var(--text-3)', fontSize: 15, lineHeight: 1, flex: 'none' }}
+                                  style={{
+                                    flex: 'none',
+                                    fontSize: 'var(--text-sm)',
+                                    lineHeight: 1,
+                                    color: 'var(--text-3)',
+                                  }}
                                 >
                                   ×
-                                </span>
+                                </button>
                               )}
                             </div>
                             <div
                               style={{
-                                fontSize: 11.5,
-                                color: 'var(--text-3)',
-                                marginTop: 6,
+                                marginTop: 'var(--space-2)',
                                 height: 32,
                                 overflow: 'hidden',
-                                lineHeight: 1.45,
+                                color: 'var(--text-3)',
+                                fontSize: 'var(--text-xs)',
+                                lineHeight: 'var(--leading-base)',
                               }}
                             >
                               {(step.content || 'No prompt yet').replace(/\{\{\s*|\s*\}\}/g, '').slice(0, 80)}
@@ -1028,8 +1007,8 @@ export default function WorkflowBuilder() {
                                   display: 'flex',
                                   flexDirection: 'column',
                                   alignItems: 'flex-start',
-                                  gap: 5,
-                                  marginTop: 7,
+                                  gap: 'var(--space-2)',
+                                  marginTop: 'var(--space-2)',
                                 }}
                               >
                                 {bindingMarkers.incoming && (
@@ -1040,7 +1019,13 @@ export default function WorkflowBuilder() {
                                 )}
                               </div>
                             )}
-                            <div className="mono" style={{ fontSize: 10, color: 'var(--text-3)', marginTop: 8 }}>
+                            <div
+                              style={{
+                                marginTop: 'var(--space-2)',
+                                color: 'var(--text-3)',
+                                fontSize: 'var(--text-2xs)',
+                              }}
+                            >
                               {level.schema.filter((f) => f.key).length} keys
                             </div>
                           </div>
@@ -1049,36 +1034,21 @@ export default function WorkflowBuilder() {
                     })}
                   </div>
                   {i < sortedLevels.length - 1 && (
-                    <div style={{ width: 1.5, height: 30, background: 'var(--border)' }} />
+                    <div style={{ width: 1, height: 'var(--space-8)', background: 'var(--border)' }} />
                   )}
                 </div>
               );
             })}
-            <div
-              onClick={addLevel}
-              className="mono"
-              style={{
-                marginTop: 18,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 7,
-                height: 34,
-                padding: '0 16px',
-                border: '1px dashed var(--border)',
-                borderRadius: 9,
-                fontSize: 12.5,
-                color: 'var(--text-2)',
-                cursor: 'pointer',
-              }}
-            >
-              + add depth level
+            <div style={{ marginTop: 'var(--space-7)' }}>
+              <button type="button" className="btn" onClick={addLevel}>
+                + Add depth level
+              </button>
             </div>
           </div>
         </div>
 
-        {/* RIGHT: step editor */}
         {sel && selLevel && (
-          <div
+          <aside
             className="workflow-builder-step-panel"
             style={{
               width: 480,
@@ -1090,32 +1060,25 @@ export default function WorkflowBuilder() {
               minHeight: 0,
             }}
           >
-            <div style={{ flex: 'none', borderBottom: '1px solid var(--border)', padding: '14px 18px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 9 }}>
-                <span
-                  className="mono"
-                  style={{
-                    fontSize: 10,
-                    color: 'var(--text-3)',
-                    border: '1px solid var(--border)',
-                    padding: '2px 6px',
-                    borderRadius: 5,
-                  }}
-                >
-                  DEPTH {selLevel.depth}
+            <div
+              style={{
+                flex: 'none',
+                borderBottom: '1px solid var(--border)',
+                padding: 'var(--space-5) var(--space-6)',
+              }}
+            >
+              <div
+                style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', marginBottom: 'var(--space-3)' }}
+              >
+                <span style={{ color: 'var(--text-2)', fontSize: 'var(--text-xs)', fontWeight: 500 }}>
+                  Depth {selLevel.depth}
                 </span>
                 {selLevel.depth === maxDepth && (
                   <span
-                    className="mono"
-                    style={{
-                      fontSize: 10,
-                      color: 'var(--accent)',
-                      background: 'var(--accent-subtle)',
-                      padding: '2px 6px',
-                      borderRadius: 5,
-                    }}
+                    className="status"
+                    style={{ background: 'var(--accent-subtle)', color: 'var(--accent-strong)' }}
                   >
-                    TERMINAL → vulnerabilities
+                    Terminal, vulnerability output
                   </span>
                 )}
               </div>
@@ -1131,20 +1094,24 @@ export default function WorkflowBuilder() {
                   )
                 }
                 placeholder="Step name"
+                aria-label="Step name"
                 style={{
-                  border: 'none',
-                  outline: 'none',
-                  background: 'transparent',
-                  fontSize: 16,
-                  fontWeight: 600,
-                  color: 'var(--text)',
                   width: '100%',
                   padding: 0,
+                  border: 0,
+                  background: 'transparent',
+                  outline: 'none',
+                  color: 'var(--text)',
+                  fontSize: 'var(--text-md)',
+                  fontWeight: 600,
                 }}
               />
             </div>
 
-            <div className="workflow-builder-step-body" style={{ flex: 1, overflowY: 'auto', padding: 18 }}>
+            <div
+              className="workflow-builder-step-body"
+              style={{ flex: 1, overflowY: 'auto', padding: 'var(--space-5) var(--space-6)' }}
+            >
               {selLevel.depth > 0 && (
                 <ConsumeToggle
                   depth={selLevel.depth}
@@ -1154,24 +1121,14 @@ export default function WorkflowBuilder() {
                 />
               )}
               {selLevel.bindPrevious && (
-                <div
-                  style={{
-                    margin: '-8px 0 20px',
-                    padding: '8px 11px',
-                    borderRadius: 7,
-                    color: 'var(--accent)',
-                    background: 'var(--accent-subtle)',
-                    fontSize: 11.5,
-                    lineHeight: 1.45,
-                  }}
-                >
+                <p className="field-note" style={{ marginBottom: 'var(--space-5)' }}>
                   This step receives results only from{' '}
                   <span className="mono">
                     {levelAt(selLevel.depth - 1)?.steps.find((candidate) => candidate.id === sel.boundSourceStepId)
                       ?.name || 'its bound source'}
                   </span>
                   .
-                </div>
+                </p>
               )}
               {workflowCanShowBindRouting(selLevel, levelAt(selLevel.depth + 1)) && (
                 <BindRouting
@@ -1183,7 +1140,7 @@ export default function WorkflowBuilder() {
                   }
                 />
               )}
-              <Label>PROMPT CONTENT</Label>
+              <SectionLabel style={{ marginBottom: 'var(--space-2)' }}>Prompt content</SectionLabel>
               <PromptEditor
                 ref={editorRef}
                 value={sel.content}
@@ -1199,57 +1156,66 @@ export default function WorkflowBuilder() {
                 available={earlierKeys(selLevel.depth)}
                 allowExtra
                 expandable
-                title={`${sel.name || 'Step'} · prompt`}
+                title={`${sel.name || 'Step'} prompt`}
                 paletteChips={[
                   ...[...earlierKeys(selLevel.depth).entries()].map(([name, from]) => ({
-                    label: `${name} · ${from}`,
+                    label: `${name} (${from})`,
                     token: name,
                   })),
-                  { label: 'extra.<key> · dynamic', token: 'extra.', accent: true },
+                  { label: 'extra.<key> (dynamic)', token: 'extra.', accent: true },
                 ]}
               />
 
               <RefSummary content={sel.content} available={earlierKeys(selLevel.depth)} />
 
-              <Label style={{ margin: '18px 0 8px' }}>
-                AVAILABLE KEYS <span style={{ textTransform: 'none', letterSpacing: 0 }}>· click to insert</span>
-              </Label>
-              <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+              <SectionLabel style={{ margin: 'var(--space-6) 0 var(--space-3)' }}>
+                Available keys
+                <span className="field-unit">Click to insert</span>
+              </SectionLabel>
+              <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
                 {[...earlierKeys(selLevel.depth).entries()].map(([name, from]) => (
-                  <span
+                  <button
+                    type="button"
                     key={name}
                     onClick={() => editorRef.current?.insert(name)}
                     className="mono"
                     style={{
-                      fontSize: 10.5,
-                      padding: '3px 8px',
-                      borderRadius: 6,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 'var(--space-2)',
+                      padding: '2px var(--space-3)',
+                      borderRadius: 'var(--radius-xs)',
                       color: 'var(--text-2)',
                       background: 'var(--surface-2)',
                       border: '1px solid var(--border-2)',
-                      cursor: 'pointer',
+                      fontSize: 'var(--text-2xs)',
                     }}
                   >
                     {name}
-                    <span style={{ color: 'var(--text-3)' }}> · {from}</span>
-                  </span>
+                    <span style={{ color: 'var(--text-3)' }}>{from}</span>
+                  </button>
                 ))}
                 {/* Dynamic extra context — inserts {{extra.}} for you to name the sub-key. */}
-                <span
+                <button
+                  type="button"
                   onClick={() => editorRef.current?.insert('extra.')}
                   className="mono"
                   style={{
-                    fontSize: 10.5,
-                    padding: '3px 8px',
-                    borderRadius: 6,
-                    color: 'var(--accent)',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 'var(--space-2)',
+                    padding: '2px var(--space-3)',
+                    borderRadius: 'var(--radius-xs)',
+                    color: 'var(--accent-strong)',
                     background: 'var(--accent-subtle)',
                     border: '1px solid var(--accent-subtle)',
-                    cursor: 'pointer',
+                    fontSize: 'var(--text-2xs)',
+                    whiteSpace: 'nowrap',
                   }}
                 >
-                  extra.&lt;key&gt;<span style={{ color: 'var(--text-3)' }}> · dynamic</span>
-                </span>
+                  extra.&lt;key&gt;
+                  <span style={{ color: 'var(--text-3)' }}>dynamic</span>
+                </button>
               </div>
 
               <div
@@ -1257,16 +1223,17 @@ export default function WorkflowBuilder() {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
-                  margin: '22px 0 10px',
+                  gap: 'var(--space-5)',
+                  margin: 'var(--space-7) 0 var(--space-3)',
                 }}
               >
-                <Label inline>OUTPUT FORMAT</Label>
+                <SectionLabel style={{ margin: 0 }}>Output format</SectionLabel>
                 <Toggle on={selLevel.multiOutput} onClick={() => toggleMulti(selLevel.depth)} label="multi_output" />
               </div>
               {selLevel.steps.length > 1 && (
-                <div style={{ fontSize: 11.5, color: 'var(--text-3)', marginBottom: 10 }}>
+                <p className="field-note" style={{ marginBottom: 'var(--space-3)' }}>
                   Shared across {selLevel.steps.length} sibling steps
-                </div>
+                </p>
               )}
               <SchemaEditor
                 rows={selLevel.schema}
@@ -1290,70 +1257,22 @@ export default function WorkflowBuilder() {
                 <LastStepBox missing={miss} invalidTypes={invalidTypes} onAddAll={() => addRequired(selLevel.depth)} />
               )}
             </div>
-          </div>
+          </aside>
         )}
       </div>
 
-      {/* footer */}
       <div
-        className="workflow-builder-footer"
         style={{
           flex: 'none',
           borderTop: '1px solid var(--border)',
           background: 'var(--bg)',
-          padding: '13px 24px',
+          padding: 'var(--space-5) 0',
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'space-between',
+          justifyContent: 'flex-end',
         }}
       >
-        <div
-          className="workflow-builder-footer-status"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 10,
-            fontSize: 12.5,
-            color: 'var(--text-2)',
-            minWidth: 0,
-          }}
-        >
-          {errors.length === 0 && serverErrors.length === 0 ? (
-            <span style={{ display: 'flex', alignItems: 'center', gap: 7, color: 'var(--ok)' }}>
-              <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--ok)' }} />
-              Workflow is valid and ready to save.
-            </span>
-          ) : (
-            <span style={{ display: 'flex', alignItems: 'center', gap: 8, overflow: 'hidden' }}>
-              <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--fail)', flex: 'none' }} />
-              <span
-                style={{ color: 'var(--text-3)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
-              >
-                {(serverErrors.length ? serverErrors : errors).slice(0, 3).join(' · ')}
-              </span>
-            </span>
-          )}
-        </div>
-        <button
-          type="button"
-          disabled={!canSave}
-          onClick={save}
-          className="workflow-builder-save"
-          style={{
-            border: 0,
-            height: 36,
-            padding: '0 18px',
-            display: 'flex',
-            alignItems: 'center',
-            borderRadius: 9,
-            fontSize: 13.5,
-            fontWeight: 500,
-            cursor: canSave ? 'pointer' : 'default',
-            background: canSave ? 'var(--accent)' : 'var(--surface-2)',
-            color: canSave ? 'var(--accent-fg)' : 'var(--text-3)',
-            flex: 'none',
-          }}
-        >
+        <button type="button" disabled={!canSave} onClick={save} className="btn btn--primary workflow-builder-save">
           {saving
             ? 'Saving…'
             : errors.length === 0
@@ -1372,7 +1291,7 @@ export default function WorkflowBuilder() {
           onCancel={() => answerDuplicateConfirmation(false)}
         />
       )}
-    </div>
+    </Page>
   );
 }
 
@@ -1383,19 +1302,7 @@ export function WorkflowDuplicateDialog({ message, saving, onConfirm, onCancel }
   const dialogRef = useModalDialog(closeDialog);
 
   return (
-    <div
-      onClick={closeDialog}
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 80,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 20,
-        background: 'rgba(0,0,0,.38)',
-      }}
-    >
+    <div className="dialog-wrap" onClick={closeDialog}>
       <div
         ref={dialogRef}
         role="dialog"
@@ -1404,29 +1311,38 @@ export function WorkflowDuplicateDialog({ message, saving, onConfirm, onCancel }
         aria-describedby="duplicate-workflow-description"
         tabIndex={-1}
         onClick={(event) => event.stopPropagation()}
-        style={{
-          width: 440,
-          maxWidth: '100%',
-          padding: 22,
-          border: '1px solid var(--border)',
-          borderRadius: 12,
-          background: 'var(--surface)',
-          boxShadow: '0 18px 50px rgba(0,0,0,.28)',
-        }}
+        className="dialog"
+        style={{ width: 440, maxWidth: '100%' }}
       >
-        <div id="duplicate-workflow-title" style={{ fontSize: 17, fontWeight: 600 }}>
-          Workflow already in use
+        <div className="dialog-head">
+          <h2 id="duplicate-workflow-title" className="dialog-title">
+            Workflow already in use
+          </h2>
         </div>
-        <div
-          id="duplicate-workflow-description"
-          style={{ marginTop: 10, color: 'var(--text-2)', fontSize: 13.5, lineHeight: 1.55, whiteSpace: 'pre-line' }}
-        >
-          {message}
+        <div className="dialog-body">
+          <p
+            id="duplicate-workflow-description"
+            style={{
+              color: 'var(--text-2)',
+              fontSize: 'var(--text-sm)',
+              lineHeight: 'var(--leading-prose)',
+              whiteSpace: 'pre-line',
+            }}
+          >
+            {message}
+          </p>
+          <p
+            style={{
+              marginTop: 'var(--space-4)',
+              color: 'var(--text-3)',
+              fontSize: 'var(--text-xs)',
+              lineHeight: 'var(--leading-base)',
+            }}
+          >
+            Existing scans will continue using the original workflow.
+          </p>
         </div>
-        <div style={{ marginTop: 10, color: 'var(--text-3)', fontSize: 12.5, lineHeight: 1.5 }}>
-          Existing scans will continue using the original workflow.
-        </div>
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 9, marginTop: 22 }}>
+        <div className="dialog-foot">
           <Button variant="ghost" disabled={saving} onClick={onCancel}>
             Keep editing
           </Button>
@@ -1435,17 +1351,6 @@ export function WorkflowDuplicateDialog({ message, saving, onConfirm, onCancel }
           </Button>
         </div>
       </div>
-    </div>
-  );
-}
-
-function Label({ children, style, inline }) {
-  return (
-    <div
-      className="mono"
-      style={{ fontSize: 10, letterSpacing: '0.07em', color: 'var(--text-3)', marginBottom: inline ? 0 : 8, ...style }}
-    >
-      {children}
     </div>
   );
 }
@@ -1464,24 +1369,15 @@ function BindingRouteBadge({ marker, direction }) {
         alignItems: 'center',
         maxWidth: '100%',
         border: `1px solid color-mix(in srgb, ${marker.color} 45%, var(--border))`,
-        borderRadius: 5,
-        padding: '2px 6px',
+        borderRadius: 'var(--radius-xs)',
+        padding: '1px var(--space-3)',
         background: marker.background,
         color: marker.color,
-        fontSize: 9.5,
-        fontWeight: 600,
+        fontSize: 'var(--text-2xs)',
         lineHeight: 1.35,
       }}
     >
-      <span
-        style={{
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
-        }}
-      >
-        {incoming ? `R${marker.number} input ← ${peerName}` : `R${marker.number} output → ${peerName}`}
-      </span>
+      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
     </span>
   );
 }
@@ -1492,19 +1388,27 @@ function BindRouting({ sourceLevel, destinationLevel, onToggle, onChange }) {
   return (
     <div
       style={{
-        marginBottom: 20,
-        padding: '11px 12px',
-        border: `1px solid ${enabled ? 'var(--accent)' : 'var(--border)'}`,
-        borderRadius: 8,
-        background: enabled ? 'var(--accent-subtle)' : 'var(--surface-2)',
+        marginBottom: 'var(--space-5)',
+        padding: 'var(--space-4) 0',
+        borderTop: '1px solid var(--border-2)',
+        borderBottom: '1px solid var(--border-2)',
       }}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+      <div
+        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 'var(--space-5)' }}
+      >
         <div>
-          <div className="mono" style={{ fontSize: 10, color: enabled ? 'var(--accent)' : 'var(--text-3)' }}>
-            ADVANCED OUTPUT ROUTING - DEPTH {sourceLevel.depth} TO {destinationLevel.depth}
+          <div style={{ color: 'var(--text-2)', fontSize: 'var(--text-xs)', fontWeight: 500 }}>
+            Output routing, depth {sourceLevel.depth} to {destinationLevel.depth}
           </div>
-          <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 4, lineHeight: 1.45 }}>
+          <div
+            style={{
+              color: 'var(--text-3)',
+              fontSize: 'var(--text-xs)',
+              marginTop: 'var(--space-1)',
+              lineHeight: 1.45,
+            }}
+          >
             Route each sibling only to one sibling in the next depth.
           </div>
         </div>
@@ -1513,35 +1417,31 @@ function BindRouting({ sourceLevel, destinationLevel, onToggle, onChange }) {
           disabled={!enabled && !countsMatch}
           onClick={() => onToggle(!enabled)}
           aria-pressed={enabled}
+          className="btn btn--sm"
           title={
             countsMatch
               ? 'Toggle one-to-one routing for this transition'
               : 'Both depths must have the same number of steps'
           }
-          style={{
-            flex: 'none',
-            border: `1px solid ${enabled ? 'var(--accent)' : 'var(--border)'}`,
-            borderRadius: 6,
-            padding: '5px 9px',
-            background: enabled ? 'var(--accent)' : 'var(--surface)',
-            color: enabled ? 'var(--accent-fg)' : countsMatch ? 'var(--text-2)' : 'var(--text-3)',
-            cursor: enabled || countsMatch ? 'pointer' : 'not-allowed',
-            fontSize: 11,
-          }}
+          style={
+            enabled
+              ? { borderColor: 'var(--accent)', background: 'var(--accent)', color: 'var(--accent-fg)' }
+              : undefined
+          }
         >
-          {enabled ? 'bind on' : 'bind off'}
+          {enabled ? 'Bind on' : 'Bind off'}
         </button>
       </div>
 
       {!countsMatch && (
-        <div style={{ color: 'var(--fail)', fontSize: 11, marginTop: 8 }}>
+        <div className="field-error" style={{ marginTop: 'var(--space-2)' }}>
           Add or remove siblings until both depths have{' '}
           {Math.max(sourceLevel.steps.length, destinationLevel.steps.length)} steps, or turn bind off.
         </div>
       )}
 
       {enabled && (
-        <div style={{ display: 'grid', gap: 7, marginTop: 11 }}>
+        <div style={{ display: 'grid', gap: 'var(--space-2)', marginTop: 'var(--space-4)' }}>
           {destinationLevel.steps.map((destinationStep) => {
             const sourceIndex = sourceLevel.steps.findIndex(
               (sourceStep) => sourceStep.id === destinationStep.boundSourceStepId
@@ -1552,12 +1452,11 @@ function BindRouting({ sourceLevel, destinationLevel, onToggle, onChange }) {
                 key={destinationStep.id}
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: '28px minmax(0, 1fr) 18px minmax(0, 1fr)',
+                  gridTemplateColumns: '24px minmax(0, 1fr) minmax(0, 1fr)',
                   alignItems: 'center',
-                  gap: 7,
-                  borderLeft: route ? `3px solid ${route.color}` : '3px solid transparent',
-                  borderRadius: 5,
-                  padding: '4px 6px',
+                  gap: 'var(--space-3)',
+                  padding: 'var(--space-1) var(--space-2)',
+                  borderRadius: 'var(--radius-xs)',
                   background: route ? route.background : 'transparent',
                 }}
               >
@@ -1565,8 +1464,8 @@ function BindRouting({ sourceLevel, destinationLevel, onToggle, onChange }) {
                   className="mono"
                   style={{
                     color: route?.color || 'var(--text-3)',
-                    fontSize: 10,
-                    fontWeight: 700,
+                    fontSize: 'var(--text-2xs)',
+                    fontWeight: 600,
                     textAlign: 'center',
                   }}
                 >
@@ -1576,18 +1475,11 @@ function BindRouting({ sourceLevel, destinationLevel, onToggle, onChange }) {
                   aria-label={`Bound source for ${destinationStep.name || `step ${destinationStep.id}`}`}
                   value={destinationStep.boundSourceStepId || ''}
                   onChange={(event) => onChange(destinationStep.id, event.target.value)}
-                  style={{
-                    minWidth: 0,
-                    border: '1px solid var(--border)',
-                    borderRadius: 5,
-                    background: 'var(--surface)',
-                    color: 'var(--text)',
-                    padding: '5px 7px',
-                    fontSize: 11,
-                  }}
+                  className="select"
+                  style={{ minWidth: 0 }}
                 >
                   <option value="" disabled>
-                    choose source
+                    Choose source
                   </option>
                   {sourceLevel.steps.map((sourceStep) => (
                     <option key={sourceStep.id} value={sourceStep.id}>
@@ -1595,13 +1487,12 @@ function BindRouting({ sourceLevel, destinationLevel, onToggle, onChange }) {
                     </option>
                   ))}
                 </select>
-                <span style={{ color: route?.color || 'var(--text-3)', textAlign: 'center' }}>→</span>
                 <span
                   title={destinationStep.name || `Step ${destinationStep.id}`}
                   style={{
                     minWidth: 0,
-                    fontSize: 11,
                     color: 'var(--text-2)',
+                    fontSize: 'var(--text-xs)',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
                     whiteSpace: 'nowrap',
@@ -1625,59 +1516,32 @@ function ConsumeToggle({ depth, batched, onOne, onAll }) {
   const explain = batched
     ? `One agent runs depth ${depth} with the full array of depth ${prev} outputs as {{multi_output_depth_${prev}}}. Individual depth-${prev} keys aren't available here or downstream.`
     : `A separate agent runs for each depth ${prev} result; this step sees that one result's keys.`;
-  const opt = (active) => ({
-    fontSize: 10.5,
-    padding: '4px 11px',
-    borderRadius: 5,
-    cursor: 'pointer',
-    background: active ? 'var(--surface)' : 'transparent',
-    color: active ? 'var(--text)' : 'var(--text-3)',
-    boxShadow: active ? 'var(--shadow)' : 'none',
-  });
   return (
-    <div style={{ marginBottom: 20 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <span
-          className="mono"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            fontSize: 10,
-            letterSpacing: '0.07em',
-            color: 'var(--text-3)',
-          }}
-        >
-          INPUT · DEPTH {prev} RESULTS
-          <span
-            title={`${explain}\nShared across all depth ${depth} siblings.`}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: 14,
-              height: 14,
-              borderRadius: '50%',
-              border: '1px solid var(--border)',
-              color: 'var(--text-3)',
-              fontSize: 9,
-              fontStyle: 'italic',
-              cursor: 'help',
-            }}
+    <div style={{ marginBottom: 'var(--space-5)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-4)' }}>
+        <SectionLabel style={{ margin: 0 }}>Input, depth {prev} results</SectionLabel>
+        <div className="filters">
+          <button
+            type="button"
+            className={batched ? 'filter' : 'filter is-active'}
+            aria-pressed={!batched}
+            onClick={onOne}
           >
-            i
-          </span>
-        </span>
-        <div className="mono" style={{ display: 'flex', background: 'var(--surface-2)', borderRadius: 7, padding: 2 }}>
-          <span onClick={onOne} style={opt(!batched)}>
-            one at a time
-          </span>
-          <span onClick={onAll} style={opt(batched)}>
-            all at once
-          </span>
+            One at a time
+          </button>
+          <button
+            type="button"
+            className={batched ? 'filter is-active' : 'filter'}
+            aria-pressed={batched}
+            onClick={onAll}
+          >
+            All at once
+          </button>
         </div>
       </div>
-      <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 7, lineHeight: 1.5 }}>{explain}</div>
+      <p className="field-note" style={{ marginTop: 'var(--space-2)' }}>
+        {explain} Shared across all depth {depth} siblings.
+      </p>
     </div>
   );
 }
@@ -1690,11 +1554,21 @@ function RefSummary({ content, available }) {
   const total = refs.length + malformed.length;
   return (
     <>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '16px 0 8px' }}>
-        <Label inline>REFERENCED KEYS</Label>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'baseline',
+          justifyContent: 'space-between',
+          gap: 'var(--space-4)',
+          margin: 'var(--space-5) 0 var(--space-3)',
+        }}
+      >
+        <SectionLabel style={{ margin: 0 }}>Referenced keys</SectionLabel>
         <span
-          className="mono"
-          style={{ fontSize: 10.5, color: bad ? 'var(--fail)' : total ? 'var(--ok)' : 'var(--text-3)' }}
+          style={{
+            fontSize: 'var(--text-xs)',
+            color: bad ? 'var(--fail)' : total ? 'var(--ok)' : 'var(--text-3)',
+          }}
         >
           {total === 0
             ? 'no references yet'
@@ -1703,7 +1577,7 @@ function RefSummary({ content, available }) {
               : `all ${refs.length} resolved`}
         </span>
       </div>
-      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
         {refs.map((k) => {
           const ok = refResolves(k, available, true);
           return (
@@ -1711,14 +1585,14 @@ function RefSummary({ content, available }) {
               key={k}
               className="mono"
               style={{
-                fontSize: 11,
-                padding: '3px 9px',
-                borderRadius: 6,
+                fontSize: 'var(--text-2xs)',
+                padding: '2px var(--space-3)',
+                borderRadius: 'var(--radius-xs)',
                 color: ok ? 'var(--ok)' : 'var(--fail)',
                 background: ok ? 'var(--ok-bg)' : 'var(--fail-bg)',
               }}
             >
-              {ok ? '✓' : '✕'} {k}
+              {k}
             </span>
           );
         })}
@@ -1727,14 +1601,14 @@ function RefSummary({ content, available }) {
             key={`${token}-${index}`}
             className="mono"
             style={{
-              fontSize: 11,
-              padding: '3px 9px',
-              borderRadius: 6,
+              fontSize: 'var(--text-2xs)',
+              padding: '2px var(--space-3)',
+              borderRadius: 'var(--radius-xs)',
               color: 'var(--fail)',
               background: 'var(--fail-bg)',
             }}
           >
-            ✕ {token}
+            {token}
           </span>
         ))}
       </div>
@@ -1747,47 +1621,50 @@ function LastStepBox({ missing, invalidTypes, onAddAll }) {
   return (
     <div
       style={{
-        marginTop: 16,
-        borderRadius: 9,
-        padding: '12px 14px',
+        marginTop: 'var(--space-5)',
+        borderRadius: 'var(--radius-sm)',
+        padding: 'var(--space-4)',
         background: ok ? 'var(--ok-bg)' : 'var(--fail-bg)',
-        border: `1px solid ${ok ? 'var(--ok-bg)' : 'var(--fail-bg)'}`,
       }}
     >
       {ok ? (
-        <div style={{ fontSize: 12, color: 'var(--ok)' }}>
-          ✓ All {REQUIRED_VULN_KEYS.length} required vulnerability keys and types are valid.
+        <div style={{ fontSize: 'var(--text-xs)', color: 'var(--ok)' }}>
+          All {REQUIRED_VULN_KEYS.length} required vulnerability keys and types are valid.
         </div>
       ) : (
         <>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-            <span style={{ fontSize: 12, color: 'var(--fail)' }}>Terminal step has vulnerability output issues:</span>
-            <span
-              onClick={onAddAll}
-              className="mono"
-              style={{
-                fontSize: 10.5,
-                color: 'var(--accent)',
-                cursor: 'pointer',
-                border: '1px solid var(--accent)',
-                borderRadius: 5,
-                padding: '2px 7px',
-              }}
-            >
-              fix all
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 'var(--space-4)',
+              marginBottom: 'var(--space-3)',
+            }}
+          >
+            <span style={{ fontSize: 'var(--text-xs)', color: 'var(--fail)' }}>
+              Terminal step has vulnerability output issues:
             </span>
+            <button
+              type="button"
+              onClick={onAddAll}
+              className="btn btn--quiet btn--sm"
+              style={{ color: 'var(--accent-strong)', flex: 'none' }}
+            >
+              Fix all
+            </button>
           </div>
-          <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
             {missing.map((m) => (
               <span
                 key={m}
                 className="mono"
                 style={{
-                  fontSize: 10,
+                  fontSize: 'var(--text-2xs)',
                   color: 'var(--fail)',
                   background: 'var(--fail-bg)',
-                  padding: '2px 7px',
-                  borderRadius: 5,
+                  padding: '2px var(--space-3)',
+                  borderRadius: 'var(--radius-xs)',
                 }}
               >
                 {m}
@@ -1798,14 +1675,14 @@ function LastStepBox({ missing, invalidTypes, onAddAll }) {
                 key={key}
                 className="mono"
                 style={{
-                  fontSize: 10,
+                  fontSize: 'var(--text-2xs)',
                   color: 'var(--fail)',
                   background: 'var(--fail-bg)',
-                  padding: '2px 7px',
-                  borderRadius: 5,
+                  padding: '2px var(--space-3)',
+                  borderRadius: 'var(--radius-xs)',
                 }}
               >
-                {key}: {actual} → {expected}
+                {key}: {actual}, expected {expected}
               </span>
             ))}
           </div>

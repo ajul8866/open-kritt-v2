@@ -1,5 +1,6 @@
-import { useNavigate } from 'react-router-dom';
-import { CardLinkOverlay, Spinner, ErrorState, EmptyState, Button } from '../components/ui.jsx';
+import { Link, useNavigate } from 'react-router-dom';
+import { Spinner, ErrorState, EmptyState, Button } from '../components/ui.jsx';
+import { Page, PageHeader } from '../components/app.jsx';
 import { api } from '../api/client.js';
 import { useFetch } from '../lib/useFetch.js';
 import { usePageChrome } from '../context/ui.jsx';
@@ -7,6 +8,20 @@ import { useNewestFirst, usePagination } from '../lib/usePagination.js';
 import Pagination from '../components/Pagination.jsx';
 import { downloadResourceExport } from '../lib/resourceTransfer.js';
 import { useResourceImport } from '../lib/useResourceImport.js';
+
+function updatedLabel(value) {
+  if (!value) return 'unknown';
+  return new Date(value).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+const DESCRIPTION_STYLE = {
+  display: 'block',
+  maxWidth: '52ch',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+  color: 'var(--text-2)',
+};
 
 export default function AgentSkills() {
   const navigate = useNavigate();
@@ -22,18 +37,16 @@ export default function AgentSkills() {
   });
 
   return (
-    <div style={{ padding: '30px 32px', maxWidth: 1180 }}>
-      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16 }}>
-        <div>
-          <div style={{ fontSize: 27, fontWeight: 600, letterSpacing: '-0.02em' }}>Agent skills</div>
-          <div style={{ fontSize: 14, color: 'var(--text-2)', marginTop: 3 }}>
-            Selected per scan and installed into each executor agent home.
-          </div>
-        </div>
-        <Button variant="ghost" disabled={resourceImport.importing} onClick={resourceImport.chooseFile}>
-          {resourceImport.importing ? 'Importing…' : 'Import JSON'}
-        </Button>
-      </div>
+    <Page>
+      <PageHeader
+        title="Agent skills"
+        meta="Selected per scan and installed into each executor agent home."
+        actions={
+          <Button variant="ghost" disabled={resourceImport.importing} onClick={resourceImport.chooseFile}>
+            {resourceImport.importing ? 'Importing…' : 'Import JSON'}
+          </Button>
+        }
+      />
       <input
         ref={resourceImport.inputRef}
         type="file"
@@ -44,12 +57,10 @@ export default function AgentSkills() {
       />
 
       {resourceImport.importError && (
-        <div role="alert" style={{ margin: '18px 0' }}>
+        <div role="alert" style={{ marginBottom: 'var(--space-5)' }}>
           <ErrorState error={{ message: resourceImport.importError }} />
         </div>
       )}
-
-      <div style={{ height: resourceImport.importError ? 4 : 22 }} />
 
       {loading && <Spinner />}
       {error && <ErrorState error={error} onRetry={reload} />}
@@ -62,125 +73,90 @@ export default function AgentSkills() {
       )}
       {data && data.length > 0 && (
         <>
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: '1fr 1fr 1fr',
-              gap: 14,
-              paddingRight: 4,
-            }}
-          >
-            {skillPages.pageItems.map((skill) => (
-              <div
-                key={skill.id}
-                style={{
-                  position: 'relative',
-                  border: '1px solid var(--border)',
-                  borderRadius: 12,
-                  padding: 18,
-                  background: 'var(--surface)',
-                  boxShadow: 'var(--shadow)',
-                  cursor: 'pointer',
-                }}
-              >
-                <CardLinkOverlay to={`/agent-skills/${skill.id}`} label={`Open agent skill ${skill.name}`} />
-                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
-                  <div className="mono" style={{ fontWeight: 600, fontSize: 14.5 }}>
-                    {skill.name}
-                  </div>
-                  <Button
-                    variant="ghost"
-                    aria-label={`Export ${skill.name}`}
-                    title="Export agent skill as JSON"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      downloadResourceExport('agentSkill', skill);
-                    }}
-                    style={{ position: 'relative', zIndex: 2, height: 27, padding: '0 9px', fontSize: 11.5 }}
-                  >
-                    Export
-                  </Button>
-                </div>
-                <div className="mono" style={{ fontSize: 10.5, color: 'var(--text-3)', marginTop: 4 }}>
-                  {skill.slug}
-                </div>
-                <div
-                  style={{
-                    fontSize: 12.5,
-                    color: 'var(--text-2)',
-                    marginTop: 8,
-                    lineHeight: 1.5,
-                    height: 56,
-                    overflow: 'hidden',
-                  }}
-                >
-                  {skill.description}
-                </div>
-                <div
-                  style={{
-                    display: 'flex',
-                    gap: 6,
-                    flexWrap: 'wrap',
-                    marginTop: 12,
-                    paddingTop: 12,
-                    borderTop: '1px solid var(--border-2)',
-                  }}
-                >
-                  {skill.licenseSpdx && <Chip>{skill.licenseSpdx}</Chip>}
-                  {skill.sourceUrl && (
-                    <a
-                      href={skill.sourceUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      onClick={(e) => e.stopPropagation()}
-                      className="mono"
-                      style={{
-                        position: 'relative',
-                        zIndex: 2,
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        height: 22,
-                        padding: '0 9px',
-                        borderRadius: 6,
-                        border: '1px solid var(--accent)',
-                        background: 'var(--accent-subtle)',
-                        color: 'var(--accent)',
-                        fontSize: 10.5,
-                        fontWeight: 700,
-                        textDecoration: 'none',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      source
-                    </a>
-                  )}
-                </div>
-              </div>
-            ))}
+          <div className="table-wrap">
+            <table className="data-table">
+              <colgroup>
+                <col style={{ width: '24%' }} />
+                <col style={{ width: '34%' }} />
+                <col style={{ width: '12%' }} />
+                <col style={{ width: '10%' }} />
+                <col style={{ width: '12%' }} />
+                <col style={{ width: '8%' }} />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th>Skill</th>
+                  <th>Description</th>
+                  <th>License</th>
+                  <th>Source</th>
+                  <th>Updated</th>
+                  <th aria-label="Actions" />
+                </tr>
+              </thead>
+              <tbody>
+                {skillPages.pageItems.map((skill) => (
+                  <tr key={skill.id}>
+                    <td style={{ minWidth: 200 }}>
+                      <Link className="cell-main" to={`/agent-skills/${skill.id}`}>
+                        {skill.name}
+                      </Link>
+                      <span className="cell-sub mono">{skill.slug}</span>
+                    </td>
+                    <td>
+                      <span style={DESCRIPTION_STYLE}>{skill.description}</span>
+                    </td>
+                    <td>
+                      {skill.licenseSpdx ? (
+                        <span className="chip chip--code">{skill.licenseSpdx}</span>
+                      ) : (
+                        <span className="cell-muted">None</span>
+                      )}
+                    </td>
+                    <td>
+                      {skill.sourceUrl && (
+                        <a
+                          href={skill.sourceUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          style={{
+                            color: 'var(--accent-strong)',
+                            fontSize: 'var(--text-xs)',
+                            textDecoration: 'underline',
+                            textUnderlineOffset: 2,
+                          }}
+                        >
+                          Source
+                        </a>
+                      )}
+                    </td>
+                    <td className="cell-muted" style={{ whiteSpace: 'nowrap' }}>
+                      {updatedLabel(skill.updatedAt)}
+                    </td>
+                    <td>
+                      <div className="cell-actions">
+                        <Button
+                          variant="ghost"
+                          aria-label={`Export ${skill.name}`}
+                          title="Export agent skill as JSON"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            downloadResourceExport('agentSkill', skill);
+                          }}
+                        >
+                          Export
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-          <Pagination {...skillPages} itemLabel="skills" />
+          <div style={{ marginTop: 'var(--space-4)' }}>
+            <Pagination {...skillPages} itemLabel="skills" />
+          </div>
         </>
       )}
-    </div>
-  );
-}
-
-function Chip({ children }) {
-  return (
-    <span
-      className="mono"
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        height: 22,
-        padding: '0 7px',
-        fontSize: 10,
-        color: 'var(--text-2)',
-        background: 'var(--surface-2)',
-        borderRadius: 5,
-      }}
-    >
-      {children}
-    </span>
+    </Page>
   );
 }

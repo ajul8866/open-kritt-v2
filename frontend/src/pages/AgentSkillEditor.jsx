@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api, ApiError, apiErrorMessages } from '../api/client.js';
 import { usePageChrome } from '../context/ui.jsx';
-import { ErrorState, Spinner } from '../components/ui.jsx';
+import { ErrorState, Spinner, Button } from '../components/ui.jsx';
+import { Page, PageHeader } from '../components/app.jsx';
 import { useUnsavedChangesPrompt } from '../lib/useUnsavedChangesPrompt.js';
 
 function slugify(value) {
@@ -27,6 +28,30 @@ function newAgentSkillForm() {
     attribution: '',
   };
 }
+
+const FIELD_GRID = {
+  display: 'grid',
+  maxWidth: 880,
+  gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 320px), 1fr))',
+  gap: 'var(--space-6)',
+};
+
+const FULL_ROW = { gridColumn: '1 / -1' };
+
+const FOOTER = {
+  maxWidth: 880,
+  position: 'sticky',
+  bottom: 0,
+  zIndex: 2,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: 'var(--space-5)',
+  marginTop: 'var(--space-9)',
+  padding: 'var(--space-4) 0',
+  borderTop: '1px solid var(--border)',
+  background: 'var(--bg)',
+};
 
 export default function AgentSkillEditor() {
   const { id } = useParams();
@@ -96,16 +121,16 @@ export default function AgentSkillEditor() {
 
   if (loadError)
     return (
-      <div style={{ padding: 26 }}>
+      <Page>
         <ErrorState error={loadError} onRetry={() => window.location.reload()} />
-      </div>
+      </Page>
     );
 
   if (!loaded)
     return (
-      <div style={{ padding: 26 }}>
+      <Page>
         <Spinner />
-      </div>
+      </Page>
     );
 
   const set = (patch) => setForm((f) => ({ ...f, ...patch }));
@@ -151,124 +176,112 @@ export default function AgentSkillEditor() {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
-      <div style={{ flex: 1, overflowY: 'auto', padding: '26px 32px' }}>
-        <div style={{ maxWidth: 900, margin: '0 auto' }}>
+    <Page style={{ paddingBottom: 0 }}>
+      <PageHeader
+        title={id ? 'Edit agent skill' : 'New agent skill'}
+        meta="Markdown instructions installed as a Codex skill for selected scans."
+      />
+
+      <div style={FIELD_GRID}>
+        <div className="field">
+          <label className="field-label" htmlFor="agent-skill-name">
+            Name
+          </label>
           <input
+            id="agent-skill-name"
+            className="input mono"
             value={form.name}
             onChange={(e) => set({ name: e.target.value, slug: id ? form.slug : slugify(e.target.value) })}
             spellCheck={false}
             placeholder="skill name"
-            className="mono"
-            style={{
-              border: 'none',
-              outline: 'none',
-              background: 'transparent',
-              fontSize: 22,
-              fontWeight: 600,
-              color: 'var(--text)',
-              letterSpacing: '-0.01em',
-              width: '100%',
-              padding: 0,
-            }}
           />
-          <div style={{ fontSize: 13.5, color: 'var(--text-2)', margin: '6px 0 24px' }}>
-            Markdown instructions installed as a Codex skill for selected scans.
-          </div>
+        </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
-            <Field label="slug">
-              <Input value={form.slug} onChange={(e) => set({ slug: slugify(e.target.value) })} mono />
-            </Field>
-            <Field label="license_spdx">
-              <Input
-                value={form.licenseSpdx}
-                onChange={(e) => set({ licenseSpdx: e.target.value })}
-                placeholder="MIT, CC-BY-SA-4.0, Apache-2.0"
-                mono
-              />
-            </Field>
-          </div>
+        <div className="field">
+          <label className="field-label" htmlFor="agent-skill-slug">
+            Slug
+          </label>
+          <input
+            id="agent-skill-slug"
+            className="input mono"
+            value={form.slug}
+            onChange={(e) => set({ slug: slugify(e.target.value) })}
+            spellCheck={false}
+          />
+        </div>
 
-          <Field label="description">
-            <Input value={form.description} onChange={(e) => set({ description: e.target.value })} />
-          </Field>
+        <div className="field">
+          <label className="field-label" htmlFor="agent-skill-license">
+            License SPDX
+          </label>
+          <input
+            id="agent-skill-license"
+            className="input mono"
+            value={form.licenseSpdx}
+            onChange={(e) => set({ licenseSpdx: e.target.value })}
+            spellCheck={false}
+            placeholder="MIT, CC-BY-SA-4.0, Apache-2.0"
+          />
+        </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, margin: '16px 0' }}>
-            <Field label="source_url">
-              <Input
-                value={form.sourceUrl}
-                onChange={(e) => set({ sourceUrl: e.target.value })}
-                placeholder="https://github.com/…"
-                mono
-              />
-            </Field>
-            <Field label="attribution">
-              <Input value={form.attribution} onChange={(e) => set({ attribution: e.target.value })} />
-            </Field>
-          </div>
+        <div className="field">
+          <label className="field-label" htmlFor="agent-skill-source-url">
+            Source URL
+          </label>
+          <input
+            id="agent-skill-source-url"
+            className="input mono"
+            value={form.sourceUrl}
+            onChange={(e) => set({ sourceUrl: e.target.value })}
+            spellCheck={false}
+            placeholder="https://github.com/…"
+          />
+        </div>
 
-          <Field label="content">
-            <textarea
-              value={form.content}
-              onChange={(e) => set({ content: e.target.value })}
-              spellCheck={false}
-              className="mono"
-              style={{
-                width: '100%',
-                minHeight: 420,
-                padding: 13,
-                border: '1px solid var(--border)',
-                borderRadius: 8,
-                background: 'var(--code-bg)',
-                color: 'var(--text)',
-                fontSize: 12.5,
-                lineHeight: 1.6,
-                outline: 'none',
-                resize: 'vertical',
-              }}
-            />
-          </Field>
+        <div className="field" style={FULL_ROW}>
+          <label className="field-label" htmlFor="agent-skill-description">
+            Description
+          </label>
+          <input
+            id="agent-skill-description"
+            className="input"
+            value={form.description}
+            onChange={(e) => set({ description: e.target.value })}
+          />
+        </div>
+
+        <div className="field" style={FULL_ROW}>
+          <label className="field-label" htmlFor="agent-skill-attribution">
+            Attribution
+          </label>
+          <input
+            id="agent-skill-attribution"
+            className="input"
+            value={form.attribution}
+            onChange={(e) => set({ attribution: e.target.value })}
+          />
+        </div>
+
+        <div className="field" style={FULL_ROW}>
+          <label className="field-label" htmlFor="agent-skill-content">
+            Content
+          </label>
+          <textarea
+            id="agent-skill-content"
+            className="textarea mono"
+            value={form.content}
+            onChange={(e) => set({ content: e.target.value })}
+            spellCheck={false}
+            style={{ minHeight: 420 }}
+          />
         </div>
       </div>
 
-      <div
-        style={{
-          flex: 'none',
-          borderTop: '1px solid var(--border)',
-          background: 'var(--bg)',
-          padding: '13px 32px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-        }}
-      >
-        <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: 'var(--text-2)' }}>
-          <span
-            style={{
-              width: 7,
-              height: 7,
-              borderRadius: '50%',
-              background: errs.length || serverErrors.length ? 'var(--fail)' : 'var(--ok)',
-            }}
-          />
+      <div style={FOOTER}>
+        <span className="field-note" role="status">
           {serverErrors[0] || errs[0] || 'Agent skill is valid.'}
         </span>
-        <div
-          onClick={save}
-          style={{
-            height: 36,
-            padding: '0 20px',
-            display: 'flex',
-            alignItems: 'center',
-            borderRadius: 9,
-            fontSize: 13.5,
-            fontWeight: 500,
-            cursor: canSave ? 'pointer' : 'default',
-            background: canSave ? 'var(--accent)' : 'var(--surface-2)',
-            color: canSave ? 'var(--accent-fg)' : 'var(--text-3)',
-          }}
-        >
+        <Button onClick={save} disabled={!canSave}>
           {saving
             ? 'Saving…'
             : errs.length
@@ -276,41 +289,8 @@ export default function AgentSkillEditor() {
               : id
                 ? 'Save changes'
                 : 'Create skill'}
-        </div>
+        </Button>
       </div>
-    </div>
-  );
-}
-
-function Field({ label, children }) {
-  return (
-    <div>
-      <div className="mono" style={{ fontSize: 11.5, color: 'var(--text-2)', marginBottom: 5 }}>
-        {label}
-      </div>
-      {children}
-    </div>
-  );
-}
-
-function Input({ mono, style, ...props }) {
-  return (
-    <input
-      {...props}
-      spellCheck={false}
-      className={mono ? 'mono' : undefined}
-      style={{
-        width: '100%',
-        height: 38,
-        padding: '0 12px',
-        border: '1px solid var(--border)',
-        borderRadius: 8,
-        background: 'var(--surface)',
-        color: 'var(--text)',
-        fontSize: 13,
-        outline: 'none',
-        ...style,
-      }}
-    />
+    </Page>
   );
 }

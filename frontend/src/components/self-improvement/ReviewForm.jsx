@@ -46,8 +46,8 @@ export default function ReviewForm({ snapshot, reviewer, onSave, busy, disabled 
   return (
     <details className="sil-review">
       <summary>
-        Review scan #{snapshot.scan_id} · {snapshot.findings.length} findings
-        {snapshot.feedback ? ' · Saved' : ' · Required for comparison'}
+        Review scan #{snapshot.scan_id}, {snapshot.findings.length} findings (
+        {snapshot.feedback ? 'Saved' : 'Required for comparison'})
       </summary>
       <p>
         <Link to={`/scans/${snapshot.scan_id}`}>Open scan findings</Link>. Review every finding; use the same root-cause
@@ -64,13 +64,16 @@ export default function ReviewForm({ snapshot, reviewer, onSave, busy, disabled 
         }}
       >
         <fieldset disabled={busy || disabled}>
-          <label htmlFor={`${prefix}-source`}>Reviewed source fingerprint</label>
-          <input
-            id={`${prefix}-source`}
-            value={feedback.target_fingerprint}
-            onChange={(event) => setFeedback({ ...feedback, target_fingerprint: event.target.value })}
-            required
-          />
+          <label className="field" htmlFor={`${prefix}-source`}>
+            Reviewed source fingerprint
+            <input
+              id={`${prefix}-source`}
+              className="input"
+              value={feedback.target_fingerprint}
+              onChange={(event) => setFeedback({ ...feedback, target_fingerprint: event.target.value })}
+              required
+            />
+          </label>
           <p className="sil-muted">
             Pinned Git revisions are filled automatically. Local sources need sha256: followed by the complete source
             and dependency hash.
@@ -81,13 +84,14 @@ export default function ReviewForm({ snapshot, reviewer, onSave, busy, disabled 
             return (
               <details className="sil-finding" key={finding.id}>
                 <summary>
-                  #{finding.id} · {source?.summary || 'Finding'} · {finding.verdict.replaceAll('_', ' ')}
+                  #{finding.id} {source?.summary || 'Finding'} ({finding.verdict.replaceAll('_', ' ')})
                 </summary>
                 <div className="sil-grid">
-                  <label htmlFor={`${fid}-verdict`}>
+                  <label className="field" htmlFor={`${fid}-verdict`}>
                     Verdict
                     <select
                       id={`${fid}-verdict`}
+                      className="select"
                       value={finding.verdict}
                       onChange={(event) => changeFinding(finding.id, { verdict: event.target.value })}
                     >
@@ -96,10 +100,11 @@ export default function ReviewForm({ snapshot, reviewer, onSave, busy, disabled 
                       <option value="false_positive">False positive</option>
                     </select>
                   </label>
-                  <label htmlFor={`${fid}-severity`}>
+                  <label className="field" htmlFor={`${fid}-severity`}>
                     Reviewed severity
                     <select
                       id={`${fid}-severity`}
+                      className="select"
                       value={finding.severity}
                       onChange={(event) => changeFinding(finding.id, { severity: event.target.value })}
                     >
@@ -110,10 +115,11 @@ export default function ReviewForm({ snapshot, reviewer, onSave, busy, disabled 
                       ))}
                     </select>
                   </label>
-                  <label htmlFor={`${fid}-confidence`}>
-                    Confidence (0–1)
+                  <label className="field" htmlFor={`${fid}-confidence`}>
+                    Confidence (0 to 1)
                     <input
                       id={`${fid}-confidence`}
+                      className="input"
                       type="number"
                       min="0"
                       max="1"
@@ -123,20 +129,22 @@ export default function ReviewForm({ snapshot, reviewer, onSave, busy, disabled 
                       required
                     />
                   </label>
-                  <label htmlFor={`${fid}-case`}>
+                  <label className="field" htmlFor={`${fid}-case`}>
                     Stable root-cause key
                     <input
                       id={`${fid}-case`}
+                      className="input"
                       value={finding.case_key}
                       onChange={(event) => changeFinding(finding.id, { case_key: event.target.value })}
                       required
                     />
                   </label>
                 </div>
-                <label htmlFor={`${fid}-evidence`}>
+                <label className="field" htmlFor={`${fid}-evidence`}>
                   Evidence or reason for the verdict
                   <textarea
                     id={`${fid}-evidence`}
+                    className="textarea"
                     value={finding.evidence}
                     onChange={(event) => changeFinding(finding.id, { evidence: event.target.value })}
                     required
@@ -162,10 +170,11 @@ export default function ReviewForm({ snapshot, reviewer, onSave, busy, disabled 
           </div>
           {feedback.known_misses.map((miss, index) => (
             <div className="sil-finding" key={index}>
-              <label htmlFor={`${prefix}-miss-${index}`}>
+              <label className="field" htmlFor={`${prefix}-miss-${index}`}>
                 Missed bug root-cause key
                 <input
                   id={`${prefix}-miss-${index}`}
+                  className="input"
                   value={miss.case_key}
                   onChange={(event) =>
                     setFeedback({
@@ -178,10 +187,11 @@ export default function ReviewForm({ snapshot, reviewer, onSave, busy, disabled 
                   required
                 />
               </label>
-              <label htmlFor={`${prefix}-miss-evidence-${index}`}>
+              <label className="field" htmlFor={`${prefix}-miss-evidence-${index}`}>
                 Independent evidence
                 <textarea
                   id={`${prefix}-miss-evidence-${index}`}
+                  className="textarea"
                   value={miss.evidence}
                   onChange={(event) =>
                     setFeedback({

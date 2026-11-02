@@ -1,135 +1,170 @@
+/* Hallmark · component: self-improvement panel · genre: modern-minimal · theme: brand · states: 8 · contrast: pass · v2.0.0 */
+/* Self-improvement panel. Scoped to `.sil-panel`; every colour, size and
+ * spacing value comes from the app tokens. */
+
 .sil-panel {
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   background: var(--surface);
-  padding: 16px;
-  margin-bottom: 24px;
-  font-size: 13px;
+  padding: var(--space-6);
+  margin-bottom: var(--space-8);
+  font-size: var(--text-sm);
   overflow-wrap: anywhere;
 }
+
 .sil-panel h2 {
-  font-size: 15px;
-  margin: 0 0 12px;
+  margin: 0 0 var(--space-5);
+  font-size: var(--text-md);
+  text-wrap: balance;
 }
+
 .sil-panel h3 {
-  font-size: 13px;
-  margin: 16px 0 10px;
+  margin: var(--space-6) 0 var(--space-4);
+  font-size: var(--text-sm);
 }
+
 .sil-panel p {
-  margin: 12px 0;
-  line-height: 1.6;
+  max-width: 65ch;
+  margin: var(--space-5) 0;
+  line-height: var(--leading-prose);
 }
+
 .sil-panel a {
-  color: var(--text);
+  color: var(--accent-strong);
   text-decoration: underline;
 }
+
 .sil-panel fieldset {
-  border: 0;
-  padding: 0;
-  margin: 0;
   min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
 }
+
 .sil-panel label {
   display: block;
-  margin-bottom: 12px;
-  color: var(--text-2);
+  margin-bottom: var(--space-5);
 }
-.sil-panel input:not([type='checkbox']),
-.sil-panel select,
+
+.sil-panel label.field {
+  display: flex;
+  flex-direction: column;
+}
+
 .sil-panel textarea {
-  display: block;
-  width: 100%;
-  margin-top: 6px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--bg);
-  color: var(--text);
-  padding: 10px 12px;
-  font: inherit;
-  min-height: 40px;
-}
-.sil-panel button {
-  white-space: normal !important;
-  height: auto !important;
-  min-height: 36px;
-  padding-block: 8px !important;
-}
-.sil-panel textarea {
+  min-height: calc(var(--control-h) * 3);
+  padding: var(--space-3) var(--space-4);
   resize: vertical;
 }
+
+.sil-panel button {
+  height: auto !important;
+  min-height: var(--control-h);
+  padding-block: var(--space-2) !important;
+  white-space: normal !important;
+}
+
 .sil-panel :focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 3px;
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
 }
-.sil-panel :disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
+
 .sil-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
-  gap: 12px;
+  gap: var(--space-5);
 }
+
+.sil-grid > .field {
+  margin-bottom: 0;
+}
+
 .sil-muted {
   color: var(--text-2);
 }
+
 .sil-error {
-  color: var(--text);
-  border-left: 3px solid var(--fail);
-  padding-left: 12px;
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-sm);
+  background: var(--fail-bg);
+  color: var(--fail);
 }
-[data-theme='light'] .sil-panel {
-  --accent-fg: var(--text);
-}
+
 .sil-review,
 .sil-finding {
-  border-top: 1px solid var(--border);
-  padding: 12px 0;
-  margin-top: 12px;
+  margin-top: 0;
+  padding: var(--space-5) 0;
+  border-top: 1px solid var(--border-2);
 }
+
 .sil-panel summary {
+  padding: var(--space-2) 0;
   cursor: pointer;
-  font-weight: 600;
-  padding: 6px 0;
+  font-weight: 500;
 }
+
 .sil-code {
+  max-height: 30rem;
+  padding: var(--space-4) var(--space-5);
+  overflow: auto;
+  border: 1px solid var(--border-2);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  font-size: var(--text-2xs);
+  line-height: var(--leading-prose);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  overflow: auto;
-  max-height: 480px;
-  padding: 12px;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  font-size: 11px;
 }
+
 .sil-panel .sil-checkbox {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
-  line-height: 1.6;
+  gap: var(--space-3);
+  line-height: var(--leading-base);
 }
+
 .sil-checkbox input {
-  margin-top: 4px;
+  margin-top: var(--space-1);
 }
+
 .sil-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
-  margin: 12px 0;
+  gap: var(--space-4);
+  margin: var(--space-5) 0;
 }
+
 .sil-table-wrap {
   overflow-x: auto;
 }
+
 .sil-table {
-  border-collapse: collapse;
   width: 100%;
-  font-size: 12px;
+  font-size: var(--text-xs);
 }
-.sil-table th,
-.sil-table td {
-  text-align: left;
-  padding: 10px;
+
+.sil-table th {
+  height: 34px;
+  padding: 0 var(--space-5);
   border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.sil-table td {
+  padding: var(--space-3) var(--space-5);
+  border-bottom: 1px solid var(--border-2);
   vertical-align: top;
+}
+
+.sil-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.sil-table td:first-child {
+  font-variant-numeric: tabular-nums;
 }

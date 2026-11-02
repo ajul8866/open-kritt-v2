@@ -17,7 +17,7 @@ describe('Pagination', () => {
       />
     );
 
-    expect(html).toContain('11–20 of 27 workflows');
+    expect(html).toContain('11-20 of 27 workflows');
     expect(html).toContain('aria-current="page"');
     expect(html).toContain('aria-label="Next workflows page"');
   });

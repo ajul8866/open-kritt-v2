@@ -3,7 +3,8 @@ import { Link, useParams, useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../api/client.js';
 import { useFetch } from '../lib/useFetch.js';
 import { usePageChrome } from '../context/ui.jsx';
-import { CardLinkOverlay, Spinner, ErrorState, StatusBadge, Button } from '../components/ui.jsx';
+import { Spinner, ErrorState, StatusBadge, Button } from '../components/ui.jsx';
+import { Page, PageHeader, FigureStrip, Figure } from '../components/app.jsx';
 import LinkifiedText from '../components/LinkifiedText.jsx';
 import ResourceNotice from '../components/ResourceNotice.jsx';
 import {
@@ -305,15 +306,15 @@ export default function ScanDetail() {
 
   if (loading)
     return (
-      <div style={{ padding: 26 }}>
+      <Page>
         <Spinner />
-      </div>
+      </Page>
     );
   if (error)
     return (
-      <div style={{ padding: 26 }}>
+      <Page>
         <ErrorState error={error} onRetry={reload} />
-      </div>
+      </Page>
     );
   if (!scan) return null;
 
@@ -342,6 +343,7 @@ export default function ScanDetail() {
   const selectedCount = selectedFindingIds.size;
   const allFindingsSelected = list.length > 0 && selectedCount === list.length;
   const activeSupplementalRuns = (supplementalRuns || []).filter((run) => ['queued', 'running'].includes(run.status));
+  const modelOverrideCount = Object.keys(scan.modelOverrides || {}).length;
 
   const beginSupplementalRun = () => {
     const defaults = supplementalRunModelConfiguration(scan);
@@ -476,82 +478,71 @@ export default function ScanDetail() {
   };
 
   return (
-    <div
-      style={{
-        position: 'relative',
-        height: '100%',
-        minHeight: 0,
-        overflow: 'hidden',
-      }}
-    >
-      <div
-        style={{
-          height: '100%',
-          minWidth: 0,
-          overflowY: 'auto',
-          padding: '26px 30px',
-        }}
-      >
-        <div
-          className="scan-detail-heading"
-          style={{
-            display: 'flex',
-            alignItems: 'flex-start',
-            justifyContent: 'space-between',
-            gap: 16,
-          }}
-        >
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
-              <span style={{ fontSize: 22, fontWeight: 600 }}>{scan.repoDisplay || scan.repoFull}</span>
-              <span
-                className="mono"
-                style={{
-                  fontSize: 9.5,
-                  fontWeight: 600,
-                  letterSpacing: '0.05em',
-                  padding: '3px 7px',
-                  borderRadius: 5,
-                  color: scan.repoKind === 'local' ? 'var(--accent)' : 'var(--run)',
-                  background: scan.repoKind === 'local' ? 'var(--accent-subtle)' : 'var(--run-bg)',
-                }}
-              >
-                {(scan.repoKind || 'remote').toUpperCase()}
+    <Page>
+      <PageHeader
+        title={scan.repoDisplay || scan.repoFull}
+        badge={
+          <>
+            <span className="chip">{scan.repoKind === 'local' ? 'Local snapshot' : 'Remote'}</span>
+            <StatusBadge status={scan.status} reasoning={scan.reasoning} size="sm" />
+          </>
+        }
+        meta={
+          <span
+            style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              alignItems: 'baseline',
+              columnGap: 'var(--space-5)',
+              rowGap: 'var(--space-2)',
+            }}
+          >
+            <span>{scan.workflowName}</span>
+            <span>
+              Scan <span className="mono">#{scan.id}</span>
+            </span>
+            {scan.modelProvider && (
+              <span className="mono" style={{ fontSize: 'var(--text-xs)' }}>
+                {scan.modelProvider}
               </span>
-              <StatusBadge status={scan.status} reasoning={scan.reasoning} size="sm" />
-            </div>
-            <div className="mono" style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 7 }}>
-              {scan.workflowName} · {scan.modelProvider ? `${scan.modelProvider} · ` : ''}
-              {scan.model} · {scan.harness}
-              {scan.thinkingEffort ? ` · ${scan.thinkingEffort}` : ''}
-              {Object.keys(scan.modelOverrides || {}).length
-                ? ` · ${Object.keys(scan.modelOverrides).length} depth overrides`
-                : ''}{' '}
-              · {scan.repoKind === 'local' ? 'local snapshot' : `@${scan.commitShort}`}
-            </div>
-          </div>
-          <div className="scan-detail-actions" style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            )}
+            <span className="mono" style={{ fontSize: 'var(--text-xs)' }}>
+              {scan.model}
+            </span>
+            <span className="mono" style={{ fontSize: 'var(--text-xs)' }}>
+              {scan.harness}
+            </span>
+            {scan.thinkingEffort && (
+              <span className="mono" style={{ fontSize: 'var(--text-xs)' }}>
+                {scan.thinkingEffort}
+              </span>
+            )}
+            {modelOverrideCount > 0 && (
+              <span>
+                {modelOverrideCount} depth override{modelOverrideCount === 1 ? '' : 's'}
+              </span>
+            )}
+            <span className="mono" style={{ fontSize: 'var(--text-xs)' }}>
+              {scan.repoKind === 'local' ? 'local snapshot' : `@${scan.commitShort}`}
+            </span>
+          </span>
+        }
+        actions={
+          <div className="page-actions" style={{ justifyContent: 'flex-end' }}>
             <Button
               variant="subtle"
-              style={{ height: 32 }}
               onClick={exportFindings}
               disabled={!exportAvailability.ready || busy || exporting}
               title={exportAvailability.message}
             >
               {exporting ? 'Exporting…' : 'Export findings'}
             </Button>
-            <Button
-              variant="ghost"
-              style={{ height: 32 }}
-              to={duplicateScanPath(scan.id)}
-              title="Create a new scan from this configuration"
-            >
+            <Button variant="ghost" to={duplicateScanPath(scan.id)} title="Create a new scan from this configuration">
               Duplicate scan
             </Button>
             {actions.canDelete && (
               <Button
                 variant="danger"
-                style={{ height: 32 }}
                 onClick={() => !busy && !exporting && deleteScan()}
                 disabled={busy || exporting || activeSupplementalRuns.length > 0}
                 title={
@@ -564,19 +555,18 @@ export default function ScanDetail() {
               </Button>
             )}
             {actions.canPause && (
-              <Button variant="subtle" style={{ height: 32 }} onClick={() => !busy && setStatus('paused')}>
+              <Button variant="subtle" onClick={() => !busy && setStatus('paused')}>
                 {busy ? '…' : 'Pause'}
               </Button>
             )}
             {actions.canStop && (
-              <Button variant="danger" style={{ height: 32 }} onClick={() => !busy && setStatus('stopped')}>
+              <Button variant="danger" onClick={() => !busy && setStatus('stopped')}>
                 {busy ? '…' : actions.stopLabel}
               </Button>
             )}
             {actions.canResume && (
               <Button
                 variant="primary"
-                style={{ height: 32 }}
                 onClick={() => !busy && setStatus('pending')}
                 disabled={busy || activeSupplementalRuns.length > 0}
                 title={
@@ -589,97 +579,102 @@ export default function ScanDetail() {
               </Button>
             )}
           </div>
+        }
+      />
+
+      {actionError && (
+        <div style={{ marginBottom: 'var(--space-6)' }}>
+          <ErrorState error={actionError} />
         </div>
+      )}
 
-        {actionError && (
-          <div style={{ marginTop: 14 }}>
-            <ErrorState error={actionError} />
-          </div>
-        )}
+      <ResourceNotice notice={scan.resourceNotice} />
+      <ResourceNotice notice={storageWarning} />
 
-        <ResourceNotice notice={scan.resourceNotice} />
-        <ResourceNotice notice={storageWarning} />
-
-        {providerAutoscale && (
-          <div
-            style={{
-              marginTop: 14,
-              padding: '10px 12px',
-              borderRadius: 8,
-              color: 'var(--run)',
-              background: 'var(--run-bg)',
-              fontSize: 12.5,
-            }}
-          >
-            <strong>Workers adjusted.</strong> {providerAutoscale.message}
-          </div>
-        )}
-
-        {scan.status === 'rate_limited' && (
-          <div
-            style={{
-              marginTop: 14,
-              padding: '10px 12px',
-              borderRadius: 8,
-              color: 'var(--pend)',
-              background: 'var(--pend-bg)',
-              fontSize: 12.5,
-            }}
-          >
-            {rateLimit.accountRelated ? (
-              <Link to="/accounts" style={{ color: 'inherit', fontWeight: 600 }}>
-                {rateLimit.label}.
-              </Link>
-            ) : (
-              <strong>{rateLimit.label}.</strong>
-            )}{' '}
-            {rateLimit.message} {rateLimitRetryText(scan.reasoning)} Completed work is preserved.
-            {rateLimit.accountRelated && (
-              <div style={{ marginTop: 6 }}>
-                <Link to="/accounts" style={{ color: 'inherit', fontWeight: 600 }}>
-                  View usage and provider limits in Accounts
-                </Link>
-              </div>
-            )}
-          </div>
-        )}
-
-        {scan.status === 'stopped' && scan.reasoning?.code === 'job_limit_reached' && (
-          <div
-            style={{
-              marginTop: 14,
-              padding: '10px 12px',
-              borderRadius: 8,
-              color: 'var(--pend)',
-              background: 'var(--pend-bg)',
-              fontSize: 12.5,
-            }}
-          >
-            This scan reached its {scan.reasoning.limit}-job limit after starting {scan.reasoning.used} jobs. Increase
-            or remove the limit in Run config, then resume.
-          </div>
-        )}
-
+      {providerAutoscale && (
         <div
           style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))',
-            gap: 12,
-            margin: '22px 0 24px',
+            marginTop: 'var(--space-4)',
+            padding: 'var(--space-4) var(--space-5)',
+            borderRadius: 'var(--radius-sm)',
+            background: 'var(--run-bg)',
+            color: 'var(--text-2)',
+            fontSize: 'var(--text-sm)',
+            lineHeight: 1.5,
           }}
         >
-          <ScanStat label="Raw candidates" value={scan.rawCandidates ?? scan.findings} />
-          <ScanStat label="Findings listed" value={scan.findings} color="var(--accent)" />
-          <ScanStat label="Duplicates" value={scan.duplicateFindings ?? 0} />
-          <ScanStat label="Exploitable" value={scan.exploitable} color="var(--fail)" />
-          <ScanStat label="Post-scripts" value={postScripts.length} />
-          <ScanStat label="Agent skills" value={scan.agentSkillCount || 0} />
-          <ScanStat
-            label={scan.repoKind === 'local' ? 'Revision' : 'Commit'}
-            value={scan.repoKind === 'local' ? 'local snapshot' : scan.commitShort}
-          />
+          <strong style={{ color: 'var(--run)', fontWeight: 600 }}>Workers adjusted.</strong>{' '}
+          {providerAutoscale.message}
         </div>
+      )}
 
+      {scan.status === 'rate_limited' && (
+        <div
+          style={{
+            marginTop: 'var(--space-4)',
+            padding: 'var(--space-4) var(--space-5)',
+            borderRadius: 'var(--radius-sm)',
+            background: 'var(--pend-bg)',
+            color: 'var(--pend)',
+            fontSize: 'var(--text-sm)',
+            lineHeight: 1.5,
+          }}
+        >
+          {rateLimit.accountRelated ? (
+            <Link to="/accounts" style={{ color: 'inherit', fontWeight: 600 }}>
+              {rateLimit.label}.
+            </Link>
+          ) : (
+            <strong>{rateLimit.label}.</strong>
+          )}{' '}
+          {rateLimit.message} {rateLimitRetryText(scan.reasoning)} Completed work is preserved.
+          {rateLimit.accountRelated && (
+            <div style={{ marginTop: 'var(--space-2)' }}>
+              <Link to="/accounts" style={{ color: 'inherit', fontWeight: 600 }}>
+                View usage and provider limits in Accounts
+              </Link>
+            </div>
+          )}
+        </div>
+      )}
+
+      {scan.status === 'stopped' && scan.reasoning?.code === 'job_limit_reached' && (
+        <div
+          style={{
+            marginTop: 'var(--space-4)',
+            padding: 'var(--space-4) var(--space-5)',
+            borderRadius: 'var(--radius-sm)',
+            background: 'var(--pend-bg)',
+            color: 'var(--pend)',
+            fontSize: 'var(--text-sm)',
+            lineHeight: 1.5,
+          }}
+        >
+          This scan reached its {scan.reasoning.limit}-job limit after starting {scan.reasoning.used} jobs. Increase or
+          remove the limit in Run config, then resume.
+        </div>
+      )}
+
+      <div style={{ marginTop: 'var(--space-6)' }}>
+        <FigureStrip>
+          <Figure label="Raw candidates" value={scan.rawCandidates ?? scan.findings} />
+          <Figure label="Findings listed" value={scan.findings} tone="accent" />
+          <Figure label="Duplicates" value={scan.duplicateFindings ?? 0} />
+          <Figure label="Exploitable" value={scan.exploitable} tone="fail" />
+          <Figure label="Post-scripts" value={postScripts.length} />
+          <Figure label="Agent skills" value={scan.agentSkillCount || 0} />
+          <Figure
+            label={scan.repoKind === 'local' ? 'Revision' : 'Commit'}
+            value={
+              <span className="mono" style={{ fontSize: 'var(--text-md)' }}>
+                {scan.repoKind === 'local' ? 'local snapshot' : scan.commitShort}
+              </span>
+            }
+          />
+        </FigureStrip>
+      </div>
+
+      <div style={{ display: 'grid', gap: 'var(--space-9)', marginTop: 'var(--space-9)' }}>
         <EvidenceArchives key={panelKeys.evidenceArchives} scanId={id} />
 
         {postScripts.length > 0 && <ConfiguredPostScripts postScripts={postScripts} />}
@@ -701,515 +696,347 @@ export default function ScanDetail() {
         {agentSkills.length > 0 && <ConfiguredAgentSkills agentSkills={agentSkills} />}
 
         {extraEntries.length > 0 && (
-          <div
-            style={{
-              border: '1px solid var(--border)',
-              borderRadius: 10,
-              padding: '13px 15px',
-              background: 'var(--surface)',
-              marginBottom: 24,
-            }}
-          >
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: 12,
-              }}
-            >
+          <section>
+            <div className="section-head">
               <div>
-                <div
-                  className="mono"
-                  style={{
-                    fontSize: 10,
-                    letterSpacing: '0.05em',
-                    color: 'var(--text-3)',
-                    textTransform: 'uppercase',
-                  }}
-                >
-                  Extras
-                </div>
-                <div
-                  className="mono"
-                  style={{
-                    fontSize: 11.5,
-                    color: 'var(--text-3)',
-                    marginTop: 4,
-                  }}
-                >
+                <h2>Extras</h2>
+                <p className="panel-note">
                   {extraEntries.length} value
                   {extraEntries.length === 1 ? '' : 's'}
-                </div>
+                </p>
               </div>
               <button
                 type="button"
+                className="btn btn--quiet btn--sm"
                 aria-expanded={extrasOpen}
                 aria-controls="scan-extra-values"
                 onClick={() => setExtrasOpen((open) => !open)}
-                style={{
-                  height: 28,
-                  padding: '0 10px',
-                  borderRadius: 7,
-                  border: '1px solid var(--border)',
-                  background: 'var(--surface-2)',
-                  color: 'var(--text-2)',
-                  fontSize: 12.5,
-                  cursor: 'pointer',
-                }}
               >
                 {extrasOpen ? 'Hide' : 'Show'}
               </button>
             </div>
             {extrasOpen && (
-              <div
-                id="scan-extra-values"
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-                  gap: 14,
-                  maxHeight: 320,
-                  overflowY: 'auto',
-                  paddingRight: 4,
-                  marginTop: 13,
-                }}
-              >
-                {extraEntries.map(([k, v]) => (
-                  <div key={k} style={{ minWidth: 0 }}>
-                    <div className="mono" style={{ fontSize: 11.5, color: 'var(--text-3)' }}>
-                      extra.{k}
-                    </div>
-                    <div
-                      className="mono"
-                      style={{
-                        fontSize: 12.5,
-                        color: 'var(--text)',
-                        marginTop: 4,
-                        whiteSpace: 'pre-wrap',
-                        overflowWrap: 'anywhere',
-                        lineHeight: 1.5,
-                      }}
-                    >
-                      {formatExtraValue(v)}
-                    </div>
-                  </div>
-                ))}
+              <div className="table-wrap" id="scan-extra-values" style={{ maxHeight: 320, overflowY: 'auto' }}>
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th style={{ width: '34%' }}>Key</th>
+                      <th>Value</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {extraEntries.map(([k, v]) => (
+                      <tr key={k}>
+                        <td className="mono" style={{ fontSize: 'var(--text-xs)', verticalAlign: 'top' }}>
+                          extra.{k}
+                        </td>
+                        <td
+                          className="mono"
+                          style={{ fontSize: 'var(--text-xs)', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}
+                        >
+                          {formatExtraValue(v)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
-          </div>
+          </section>
         )}
 
         {Array.isArray(scan.dependencies) && scan.dependencies.length > 0 && (
-          <div
-            style={{
-              border: '1px solid var(--border)',
-              borderRadius: 10,
-              padding: '13px 15px',
-              background: 'var(--surface)',
-              marginBottom: 24,
-            }}
-          >
-            <div
-              className="mono"
-              style={{
-                fontSize: 10,
-                letterSpacing: '0.05em',
-                color: 'var(--text-3)',
-                textTransform: 'uppercase',
-                marginBottom: 8,
-              }}
-            >
-              Dependencies
+          <section>
+            <div className="section-head">
+              <h2>Dependencies</h2>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {scan.dependencies.map((d, i) => (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span
-                    className="mono"
-                    style={{
-                      fontSize: 9.5,
-                      fontWeight: 600,
-                      letterSpacing: '0.05em',
-                      padding: '2px 6px',
-                      borderRadius: 5,
-                      flex: 'none',
-                      color: d.kind === 'local' ? 'var(--accent)' : 'var(--run)',
-                      background: d.kind === 'local' ? 'var(--accent-subtle)' : 'var(--run-bg)',
-                    }}
-                  >
-                    {(d.kind || 'remote').toUpperCase()}
-                  </span>
-                  <span className="mono" style={{ fontSize: 12.5, color: 'var(--text)' }}>
-                    {d.display || d.repoFull}
-                  </span>
-                  <span className="mono" style={{ fontSize: 11, color: 'var(--text-3)' }}>
-                    {d.kind === 'remote' && d.commitSha ? `@${d.commitSha}` : 'local snapshot'}
-                  </span>
-                </div>
-              ))}
+            <div className="table-wrap">
+              <table className="data-table">
+                <tbody>
+                  {scan.dependencies.map((d, i) => (
+                    <tr key={i}>
+                      <td style={{ width: '12%' }}>
+                        <span className="chip">{d.kind === 'local' ? 'Local' : 'Remote'}</span>
+                      </td>
+                      <td className="mono" style={{ fontSize: 'var(--text-xs)' }}>
+                        {d.display || d.repoFull}
+                      </td>
+                      <td className="mono" style={{ fontSize: 'var(--text-xs)', color: 'var(--text-3)' }}>
+                        {d.kind === 'remote' && d.commitSha ? `@${d.commitSha}` : 'local snapshot'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-          </div>
+          </section>
         )}
 
-        <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>Vulnerabilities</div>
-        <div style={{ fontSize: 12.5, color: 'var(--text-2)', marginBottom: 14 }}>
-          Ranked by the scan's severity ranker and enriched by post-scripts. Click a finding for the full trace.
-        </div>
-
-        <SupplementalPostScriptControls
-          availability={supplementalAvailability}
-          mode={supplementalMode}
-          onBegin={beginSupplementalRun}
-          onCancel={cancelSupplementalRun}
-          selectedCount={selectedCount}
-          totalCount={list.length}
-          allSelected={allFindingsSelected}
-          onToggleAll={toggleAllFindingSelection}
-          postScripts={availablePostScripts || []}
-          postScriptsLoading={availablePostScriptsLoading}
-          postScriptsError={availablePostScriptsError}
-          onRetryPostScripts={reloadAvailablePostScripts}
-          selectedPostScriptId={supplementalPostScriptId}
-          onSelectPostScript={chooseSupplementalPostScript}
-          requiredExtraKeys={supplementalExtraKeys}
-          extra={supplementalExtra}
-          onExtraChange={(key, value) => setSupplementalExtra((current) => ({ ...current, [key]: value }))}
-          model={supplementalModel}
-          onModelChange={setSupplementalModel}
-          modelReferences={modelReferences}
-          modelReferencesLoading={modelReferencesLoading}
-          modelReferencesError={modelReferencesError}
-          submitting={supplementalSubmitting}
-          error={supplementalError}
-          onSubmit={submitSupplementalRun}
-          runs={supplementalRuns || []}
-          runsError={supplementalRunsError}
-          findings={list}
-          scanId={id}
-          retry={supplementalRetry}
-          onBeginRetry={beginSupplementalRetry}
-          onCancelRetry={() => {
-            setSupplementalRetry(null);
-            setSupplementalRetryError(null);
-          }}
-          onRetryModelChange={(model) => setSupplementalRetry((current) => (current ? { ...current, model } : null))}
-          onSubmitRetry={submitSupplementalRetry}
-          retrySubmitting={supplementalRetrySubmitting}
-          retryError={supplementalRetryError}
-        />
-
-        {reviewError && (
-          <div
-            role="alert"
-            style={{
-              color: 'var(--fail)',
-              background: 'var(--fail-bg)',
-              borderRadius: 8,
-              padding: '9px 11px',
-              marginBottom: 12,
-              fontSize: 12.5,
-            }}
-          >
-            Could not save the review change. The latest server value is being reloaded. {reviewError.message}
-          </div>
-        )}
-
-        {vulnsLoading && !vulns ? (
-          <Spinner label="Loading vulnerabilities…" />
-        ) : vulnsError ? (
-          <ErrorState error={vulnsError} onRetry={reloadVulns} />
-        ) : list.length === 0 ? (
-          <div
-            style={{
-              border: '1px dashed var(--border)',
-              borderRadius: 11,
-              padding: '34px 18px',
-              textAlign: 'center',
-              color: 'var(--text-3)',
-              fontSize: 13,
-            }}
-          >
-            {scan.status === 'completed' || scan.status === 'stopped'
-              ? 'No vulnerabilities were reported for this scan.'
-              : 'Findings will appear here once the scan completes.'}
-          </div>
-        ) : (
-          <div
-            style={{
-              border: '1px solid var(--border)',
-              borderRadius: 11,
-              overflow: 'hidden',
-              background: 'var(--surface)',
-            }}
-          >
-            <div
-              className="scan-results-grid scan-results-header"
-              style={{
-                padding: '10px 16px',
-                borderBottom: '1px solid var(--border-2)',
-                background: 'var(--surface-2)',
-              }}
-            >
-              <span
-                className="mono"
-                style={{
-                  fontSize: 10,
-                  letterSpacing: '0.05em',
-                  color: 'var(--text-3)',
-                  textTransform: 'uppercase',
-                }}
-              >
-                {supplementalMode ? (
-                  <label
-                    style={{ position: 'relative', zIndex: 2, display: 'inline-flex', alignItems: 'center', gap: 8 }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={allFindingsSelected}
-                      onChange={toggleAllFindingSelection}
-                      aria-label="Select all findings"
-                    />
-                    Finding
-                  </label>
-                ) : (
-                  'Finding'
-                )}
-              </span>
-              <span
-                className="mono"
-                style={{
-                  fontSize: 10,
-                  letterSpacing: '0.05em',
-                  color: 'var(--text-3)',
-                  textTransform: 'uppercase',
-                }}
-              >
-                Severity
-              </span>
-              <span
-                className="mono"
-                style={{
-                  fontSize: 10,
-                  letterSpacing: '0.05em',
-                  color: 'var(--text-3)',
-                  textTransform: 'uppercase',
-                }}
-              >
-                Post
-              </span>
-              <span
-                className="mono"
-                style={{
-                  fontSize: 10,
-                  letterSpacing: '0.05em',
-                  color: 'var(--text-3)',
-                  textTransform: 'uppercase',
-                }}
-              >
-                Actor / Type
-              </span>
+        <section>
+          <div className="section-head">
+            <div>
+              <h2>Vulnerabilities</h2>
+              <p className="panel-note">
+                Ranked by the scan’s severity ranker and enriched by post-scripts. Click a finding for the full trace.
+              </p>
             </div>
-            {findingPages.pageItems.map((v) => {
-              const chips = extractChips(v);
-              const interesting = v.interesting ?? null;
-              const dot = interestingDot(interesting);
-              const severity = findingSeverity(v);
-              const supplementalSummary = supplementalFindingRunSummary(v, supplementalRuns || []);
-              return (
-                <div
-                  key={v.id}
-                  className="scan-results-grid"
-                  style={{
-                    position: 'relative',
-                    padding: '14px 16px',
-                    borderBottom: '1px solid var(--border-2)',
-                    cursor: 'pointer',
-                    // Row color is the interesting indicator: highlight when interesting,
-                    // fade when explicitly not interesting, normal when unmarked.
-                    background: interesting === 1 ? 'var(--accent-subtle)' : 'transparent',
-                    opacity: interesting === 0 ? 0.5 : 1,
-                  }}
-                >
-                  <CardLinkOverlay
-                    to={`/scans/${id}/vulnerabilities/${v.id}`}
-                    label={`Open finding ${v.rank}: ${v.summary}`}
-                  />
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 12,
-                      minWidth: 0,
-                    }}
-                  >
-                    {supplementalMode && (
-                      <input
-                        type="checkbox"
-                        checked={selectedFindingIds.has(v.id)}
-                        onClick={(event) => event.stopPropagation()}
-                        onChange={() => toggleFindingSelection(v.id)}
-                        aria-label={`Select finding ${v.rank}`}
-                        style={{ position: 'relative', zIndex: 2, flex: 'none' }}
-                      />
-                    )}
-                    <span
-                      onClick={(e) => cycleInteresting(v, e)}
-                      title={dot.title}
-                      style={{
-                        position: 'relative',
-                        zIndex: 2,
-                        width: 18,
-                        flex: 'none',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      <span
-                        style={{
-                          width: 10,
-                          height: 10,
-                          borderRadius: '50%',
-                          background: dot.bg,
-                          border: `1.5px solid ${dot.border}`,
-                        }}
-                      />
-                    </span>
-                    <span
-                      className="mono"
-                      style={{
-                        fontSize: 11,
-                        color: 'var(--text-3)',
-                        width: 24,
-                        flex: 'none',
-                      }}
-                    >
-                      #{v.rank}
-                    </span>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div
-                        title={v.summary}
-                        style={{
-                          fontWeight: 500,
-                          fontSize: 13.5,
-                          lineHeight: 1.35,
-                          display: '-webkit-box',
-                          WebkitLineClamp: 2,
-                          WebkitBoxOrient: 'vertical',
-                          overflow: 'hidden',
-                        }}
-                      >
-                        {v.summary}
-                      </div>
-                      <div
-                        className="mono"
-                        style={{
-                          fontSize: 11.5,
-                          color: 'var(--text-3)',
-                          marginTop: 4,
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 6,
-                          minWidth: 0,
-                        }}
-                      >
-                        <span
-                          title={`${v.file_path}:${v.line}`}
-                          style={{
-                            whiteSpace: 'nowrap',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                          }}
-                        >
-                          {v.file_path}:{v.line}
-                        </span>
-                        {v.comments && v.comments.trim() && (
-                          <span
-                            title="Has a comment"
-                            style={{
-                              fontSize: 13,
-                              color: 'var(--text-3)',
-                              flex: 'none',
-                            }}
-                          >
-                            ✎
-                          </span>
-                        )}
-                        {supplementalSummary.count > 0 && (
-                          <span
-                            className="mono"
-                            title={`${supplementalSummary.count} supplemental post-script run${
-                              supplementalSummary.count === 1 ? '' : 's'
-                            }${supplementalSummary.active ? ` · ${supplementalSummary.active} active` : ''}${
-                              supplementalSummary.failed ? ` · ${supplementalSummary.failed} failed` : ''
-                            }`}
-                            style={{
-                              flex: 'none',
-                              padding: '2px 6px',
-                              borderRadius: 5,
-                              color: supplementalSummary.failed ? 'var(--pend)' : 'var(--accent)',
-                              background: supplementalSummary.failed ? 'var(--pend-bg)' : 'var(--accent-subtle)',
-                              fontSize: 9.5,
-                              fontWeight: 650,
-                            }}
-                          >
-                            +post ×{supplementalSummary.count}
-                            {supplementalSummary.active ? ' · running' : ''}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                  <div style={{ minWidth: 0 }}>
-                    <span
-                      className="mono"
-                      title={severity || 'Unrated'}
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 7,
-                        maxWidth: '100%',
-                        fontSize: 11,
-                        fontWeight: 700,
-                        padding: '4px 9px',
-                        borderRadius: 6,
-                        border: '1px solid var(--border)',
-                        background: 'var(--surface-2)',
-                        color: sevColor(severity),
-                        textTransform: 'capitalize',
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                      }}
-                    >
-                      <span
-                        aria-hidden="true"
-                        style={{
-                          width: 7,
-                          height: 7,
-                          borderRadius: 2,
-                          flex: 'none',
-                          background: sevColor(severity),
-                        }}
-                      />
-                      {severity || 'Unrated'}
-                    </span>
-                  </div>
-                  <ChipList chips={chips} fallback={postOutputSummary(v)} />
-                  <FindingActorTypeCell maliciousActor={v.malicious_actor} vulnerabilityType={v.vulnerability_type} />
-                </div>
-              );
-            })}
-            <Pagination
-              {...findingPages}
-              itemLabel="findings"
-              style={{ padding: '0 16px 14px', borderTop: '1px solid var(--border-2)' }}
+          </div>
+
+          <div style={{ marginTop: 'var(--space-5)' }}>
+            {/* prettier-ignore */}
+            <SupplementalPostScriptControls
+              availability={supplementalAvailability}
+              mode={supplementalMode}
+              onBegin={beginSupplementalRun}
+              onCancel={cancelSupplementalRun}
+              selectedCount={selectedCount}
+              totalCount={list.length}
+              allSelected={allFindingsSelected}
+              onToggleAll={toggleAllFindingSelection}
+              postScripts={availablePostScripts || []}
+              postScriptsLoading={availablePostScriptsLoading}
+              postScriptsError={availablePostScriptsError}
+              onRetryPostScripts={reloadAvailablePostScripts}
+              selectedPostScriptId={supplementalPostScriptId}
+              onSelectPostScript={chooseSupplementalPostScript}
+              requiredExtraKeys={supplementalExtraKeys}
+              extra={supplementalExtra}
+              onExtraChange={(key, value) => setSupplementalExtra((current) => ({ ...current, [key]: value }))}
+              model={supplementalModel}
+              onModelChange={setSupplementalModel}
+              modelReferences={modelReferences}
+              modelReferencesLoading={modelReferencesLoading}
+              modelReferencesError={modelReferencesError}
+              submitting={supplementalSubmitting}
+              error={supplementalError}
+              onSubmit={submitSupplementalRun}
+              runs={supplementalRuns || []}
+              runsError={supplementalRunsError}
+              findings={list}
+              scanId={id}
+              retry={supplementalRetry}
+              onBeginRetry={beginSupplementalRetry}
+              onCancelRetry={() => {
+                setSupplementalRetry(null);
+                setSupplementalRetryError(null);
+              }}
+              onRetryModelChange={(model) => setSupplementalRetry((current) => (current ? { ...current, model } : null))}
+              onSubmitRetry={submitSupplementalRetry}
+              retrySubmitting={supplementalRetrySubmitting}
+              retryError={supplementalRetryError}
             />
           </div>
-        )}
+
+          {reviewError && (
+            <div
+              role="alert"
+              style={{
+                marginTop: 'var(--space-5)',
+                padding: 'var(--space-4) var(--space-5)',
+                borderRadius: 'var(--radius-sm)',
+                color: 'var(--fail)',
+                background: 'var(--fail-bg)',
+                fontSize: 'var(--text-sm)',
+                lineHeight: 1.5,
+              }}
+            >
+              Could not save the review change. The latest server value is being reloaded. {reviewError.message}
+            </div>
+          )}
+
+          <div style={{ marginTop: 'var(--space-5)' }}>
+            {vulnsLoading && !vulns ? (
+              <Spinner label="Loading vulnerabilities…" />
+            ) : vulnsError ? (
+              <ErrorState error={vulnsError} onRetry={reloadVulns} />
+            ) : list.length === 0 ? (
+              <div className="state-block">
+                <div className="state-note">
+                  {scan.status === 'completed' || scan.status === 'stopped'
+                    ? 'No vulnerabilities were reported for this scan.'
+                    : 'Findings will appear here once the scan completes.'}
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="table-wrap">
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th>
+                          {supplementalMode ? (
+                            <label
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 'var(--space-3)',
+                                cursor: 'pointer',
+                              }}
+                            >
+                              <input
+                                className="checkbox"
+                                type="checkbox"
+                                checked={allFindingsSelected}
+                                onChange={toggleAllFindingSelection}
+                                aria-label="Select all findings"
+                              />
+                              Finding
+                            </label>
+                          ) : (
+                            'Finding'
+                          )}
+                        </th>
+                        <th>Interesting</th>
+                        <th>Severity</th>
+                        <th>Post</th>
+                        <th>Actor / Type</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {findingPages.pageItems.map((v) => {
+                        const chips = extractChips(v);
+                        const interesting = v.interesting ?? null;
+                        const title = interestingTitle(interesting);
+                        const severity = findingSeverity(v);
+                        const supplementalSummary = supplementalFindingRunSummary(v, supplementalRuns || []);
+                        return (
+                          <tr
+                            key={v.id}
+                            style={{
+                              // Row color is the interesting indicator: highlight when interesting,
+                              // mute the text when explicitly not interesting.
+                              background: interesting === 1 ? 'var(--accent-subtle)' : undefined,
+                            }}
+                          >
+                            <td style={{ minWidth: 260 }}>
+                              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--space-4)' }}>
+                                {supplementalMode && (
+                                  <input
+                                    className="checkbox"
+                                    type="checkbox"
+                                    checked={selectedFindingIds.has(v.id)}
+                                    onClick={(event) => event.stopPropagation()}
+                                    onChange={() => toggleFindingSelection(v.id)}
+                                    aria-label={`Select finding ${v.rank}`}
+                                    style={{ marginTop: 'var(--space-1)', flex: 'none' }}
+                                  />
+                                )}
+                                <span
+                                  className="mono"
+                                  style={{
+                                    width: 30,
+                                    flex: 'none',
+                                    color: 'var(--text-3)',
+                                    fontSize: 'var(--text-xs)',
+                                    lineHeight: 1.45,
+                                  }}
+                                >
+                                  #{v.rank}
+                                </span>
+                                <div style={{ minWidth: 0 }}>
+                                  <Link
+                                    className="cell-main"
+                                    to={`/scans/${id}/vulnerabilities/${v.id}`}
+                                    aria-label={`Open finding ${v.rank}: ${v.summary}`}
+                                    title={v.summary}
+                                    style={interesting === 0 ? { color: 'var(--text-3)' } : undefined}
+                                  >
+                                    {v.summary}
+                                  </Link>
+                                  <div
+                                    style={{
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: 'var(--space-3)',
+                                      marginTop: 'var(--space-1)',
+                                      minWidth: 0,
+                                      color: 'var(--text-3)',
+                                      fontSize: 'var(--text-xs)',
+                                    }}
+                                  >
+                                    <span
+                                      className="mono"
+                                      title={`${v.file_path}:${v.line}`}
+                                      style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                                    >
+                                      {v.file_path}:{v.line}
+                                    </span>
+                                    {v.comments && v.comments.trim() && (
+                                      <span title="Has a comment" style={{ flex: 'none' }}>
+                                        ✎
+                                      </span>
+                                    )}
+                                    {supplementalSummary.count > 0 && (
+                                      <span
+                                        className="chip"
+                                        title={`${supplementalSummary.count} supplemental post-script run${
+                                          supplementalSummary.count === 1 ? '' : 's'
+                                        }${supplementalSummary.active ? `, ${supplementalSummary.active} active` : ''}${
+                                          supplementalSummary.failed ? `, ${supplementalSummary.failed} failed` : ''
+                                        }`}
+                                        style={{
+                                          flex: 'none',
+                                          color: supplementalSummary.failed ? 'var(--pend)' : 'var(--accent-strong)',
+                                        }}
+                                      >
+                                        +post ×{supplementalSummary.count}
+                                        {supplementalSummary.active ? ' (running)' : ''}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
+                            <td>
+                              <button
+                                type="button"
+                                onClick={(e) => cycleInteresting(v, e)}
+                                title={title}
+                                aria-pressed={interesting === 1}
+                                className="btn btn--quiet btn--sm"
+                              >
+                                {interesting === 1 ? 'Interesting' : interesting === 0 ? 'Not interesting' : 'Unmarked'}
+                              </button>
+                            </td>
+                            <td>
+                              <span
+                                className="status"
+                                title={severity || 'Unrated'}
+                                style={{
+                                  maxWidth: '100%',
+                                  background: 'var(--surface-2)',
+                                  color: sevColor(severity),
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                }}
+                              >
+                                {severity || 'Unrated'}
+                              </span>
+                            </td>
+                            <td>
+                              <ChipList chips={chips} fallback={postOutputSummary(v)} />
+                            </td>
+                            <td>
+                              <FindingActorTypeCell
+                                maliciousActor={v.malicious_actor}
+                                vulnerabilityType={v.vulnerability_type}
+                              />
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                <div style={{ marginTop: 'var(--space-4)' }}>
+                  <Pagination {...findingPages} itemLabel="findings" />
+                </div>
+              </>
+            )}
+          </div>
+        </section>
       </div>
-    </div>
+    </Page>
   );
 }
 
@@ -1270,29 +1097,19 @@ export function SupplementalPostScriptControls({
   );
 
   return (
-    <section
-      aria-label="Additional post-processing"
-      style={{
-        border: '1px solid var(--border)',
-        borderRadius: 11,
-        background: 'var(--surface)',
-        marginBottom: 16,
-        overflow: 'hidden',
-      }}
-    >
+    <section aria-label="Additional post-processing">
       <div
         style={{
           display: 'flex',
-          alignItems: 'center',
+          alignItems: 'flex-start',
           justifyContent: 'space-between',
           flexWrap: 'wrap',
-          gap: 12,
-          padding: '13px 15px',
+          gap: 'var(--space-4)',
         }}
       >
         <div>
-          <div style={{ fontSize: 13.5, fontWeight: 650 }}>Additional post-processing</div>
-          <div style={{ marginTop: 3, color: 'var(--text-3)', fontSize: 11.5 }}>
+          <div className="setting-label">Additional post-processing</div>
+          <div className="panel-note">
             {mode
               ? `${selectedCount} of ${totalCount} findings selected`
               : 'Apply a post-script to selected findings without resuming the scan.'}
@@ -1303,7 +1120,7 @@ export function SupplementalPostScriptControls({
             Run post-script on findings
           </Button>
         ) : (
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
             <Button variant="ghost" onClick={onToggleAll} disabled={submitting}>
               {allSelected ? 'Clear selection' : 'Select all'}
             </Button>
@@ -1315,15 +1132,14 @@ export function SupplementalPostScriptControls({
       </div>
 
       {mode && (
-        <div style={{ borderTop: '1px solid var(--border-2)', padding: '15px' }}>
-          <label style={{ display: 'block', fontSize: 12, color: 'var(--text-2)' }}>
-            Post-script
+        <div style={{ marginTop: 'var(--space-6)', display: 'grid', gap: 'var(--space-6)' }}>
+          <label className="field" style={{ maxWidth: 360 }}>
+            <span className="field-label">Post-script</span>
             <select
               value={selectedPostScriptId}
               onChange={(event) => onSelectPostScript(event.target.value)}
               disabled={submitting || postScriptsLoading}
-              className="account-credential-input"
-              style={{ marginTop: 7 }}
+              className="select"
             >
               <option value="">{postScriptsLoading ? 'Loading post-scripts…' : 'Choose a post-script'}</option>
               {postScripts.map((postScript) => (
@@ -1334,34 +1150,29 @@ export function SupplementalPostScriptControls({
             </select>
           </label>
           {postScriptsError && (
-            <div className="account-dialog-error" role="alert">
+            <div className="field-error" role="alert">
               Could not load post-scripts. {postScriptsError.message}{' '}
               <button
                 type="button"
                 onClick={onRetryPostScripts}
-                style={{ border: 0, padding: 0, color: 'inherit', background: 'transparent', cursor: 'pointer' }}
+                style={{ color: 'inherit', textDecoration: 'underline', cursor: 'pointer' }}
               >
                 Try again
               </button>
             </div>
           )}
-          <div
-            style={{
-              marginTop: 14,
-              padding: 13,
-              border: '1px solid var(--border)',
-              borderRadius: 9,
-              background: 'var(--surface-2)',
-            }}
-          >
-            <span className="mono" style={{ display: 'block', fontSize: 10.5, color: 'var(--text-3)' }}>
-              EXECUTION MODEL
-            </span>
-            <div style={{ margin: '5px 0 11px', color: 'var(--text-3)', fontSize: 11.5 }}>
+          <div>
+            <div className="field-label">Execution model</div>
+            <div className="panel-note" style={{ margin: 'var(--space-1) 0 var(--space-4)' }}>
               Prefilled from this scan&apos;s post-processing settings. Changes apply only to this supplemental run.
             </div>
             {modelReferencesLoading || !modelReferences || !model ? (
-              <div style={{ color: modelReferencesError ? 'var(--fail)' : 'var(--text-3)', fontSize: 12 }}>
+              <div
+                style={{
+                  color: modelReferencesError ? 'var(--fail)' : 'var(--text-3)',
+                  fontSize: 'var(--text-xs)',
+                }}
+              >
                 {modelReferencesError ? formatApiError(modelReferencesError) : 'Loading model choices…'}
               </div>
             ) : (
@@ -1381,20 +1192,21 @@ export function SupplementalPostScriptControls({
               style={{
                 display: 'grid',
                 gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-                gap: 12,
-                marginTop: 14,
+                gap: 'var(--space-5)',
               }}
             >
               {requiredExtraKeys.map((key) => (
-                <label key={key} style={{ display: 'block', fontSize: 12, color: 'var(--text-2)' }}>
-                  <span className="mono">extra.{key}</span> <span style={{ color: 'var(--fail)' }}>*</span>
+                <label key={key} className="field">
+                  <span className="field-label" style={{ justifyContent: 'flex-start' }}>
+                    <span className="mono">extra.{key}</span>
+                    <span style={{ color: 'var(--fail)' }}>*</span>
+                  </span>
                   <input
                     value={extra[key] ?? ''}
                     onChange={(event) => onExtraChange(key, event.target.value)}
                     disabled={submitting}
                     required
-                    className="account-credential-input"
-                    style={{ marginTop: 7 }}
+                    className="input"
                     placeholder={`Value for extra.${key}`}
                   />
                 </label>
@@ -1402,11 +1214,11 @@ export function SupplementalPostScriptControls({
             </div>
           )}
           {error && (
-            <div className="account-dialog-error" role="alert">
+            <div className="field-error" role="alert">
               {formatApiError(error)}
             </div>
           )}
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 15 }}>
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
             <Button
               onClick={onSubmit}
               disabled={submitting || selectedCount === 0 || !selectedPostScriptId || postScriptsLoading || !modelValid}
@@ -1418,14 +1230,14 @@ export function SupplementalPostScriptControls({
       )}
 
       {(runs.length > 0 || runsError) && (
-        <div style={{ borderTop: '1px solid var(--border-2)', padding: '11px 15px 13px' }}>
-          <div className="mono" style={{ fontSize: 9.5, color: 'var(--text-3)', textTransform: 'uppercase' }}>
+        <div style={{ marginTop: 'var(--space-6)' }}>
+          <div className="field-label" style={{ marginBottom: 'var(--space-2)' }}>
             Supplemental run history
           </div>
           {runsError ? (
-            <div style={{ marginTop: 7, color: 'var(--fail)', fontSize: 11.5 }}>{runsError.message}</div>
+            <div className="field-error">{runsError.message}</div>
           ) : (
-            <div style={{ display: 'grid', gap: 7, marginTop: 8 }}>
+            <div>
               {runs.map((run) => {
                 const progress = run.targetCount
                   ? Math.round(((run.completedCount + run.failedCount) / run.targetCount) * 100)
@@ -1440,61 +1252,78 @@ export function SupplementalPostScriptControls({
                       ? 'var(--pend)'
                       : 'var(--run)';
                 return (
-                  <div
-                    key={run.id}
-                    style={{
-                      minWidth: 0,
-                      padding: '10px 11px',
-                      border: '1px solid var(--border-2)',
-                      borderRadius: 8,
-                      background: 'var(--surface-2)',
-                      fontSize: 11.5,
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-                      <span className="mono" style={{ color: statusColor, width: 152, flex: 'none' }}>
+                  <div key={run.id} style={{ padding: 'var(--space-4) 0', borderTop: '1px solid var(--border-2)' }}>
+                    <div style={{ display: 'flex', alignItems: 'baseline', flexWrap: 'wrap', gap: 'var(--space-4)' }}>
+                      <span style={{ color: statusColor, fontSize: 'var(--text-sm)', fontWeight: 500 }}>
                         {run.status.replaceAll('_', ' ')}
                       </span>
-                      <span style={{ minWidth: 0, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      <span
+                        style={{
+                          flex: 1,
+                          minWidth: 0,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                          fontSize: 'var(--text-sm)',
+                        }}
+                      >
                         {run.postScriptName}
                       </span>
-                      <span className="mono" style={{ color: 'var(--text-3)', flex: 'none' }}>
-                        {run.completedCount + run.failedCount}/{run.targetCount} · {progress}%
-                        {run.failedCount ? ` · ${run.failedCount} failed` : ''}
+                      <span className="mono" style={{ color: 'var(--text-3)', fontSize: 'var(--text-xs)' }}>
+                        {run.completedCount + run.failedCount}/{run.targetCount} ({progress}%)
+                        {run.failedCount ? `, ${run.failedCount} failed` : ''}
                       </span>
                     </div>
-                    <div className="mono" style={{ marginTop: 6, color: 'var(--text-3)', fontSize: 10.5 }}>
-                      {run.modelProvider && run.model
-                        ? `${run.modelProvider} · ${run.model} · ${run.harness || 'default harness'} · ${
-                            run.thinkingEffort || 'default effort'
-                          }`
-                        : 'Scan post-processing model'}
+                    <div
+                      style={{
+                        display: 'flex',
+                        flexWrap: 'wrap',
+                        gap: 'var(--space-2) var(--space-4)',
+                        marginTop: 'var(--space-2)',
+                        color: 'var(--text-3)',
+                        fontSize: 'var(--text-xs)',
+                      }}
+                    >
+                      {run.modelProvider && run.model ? (
+                        <>
+                          <span className="mono">{run.modelProvider}</span>
+                          <span className="mono">{run.model}</span>
+                          <span>{run.harness || 'default harness'}</span>
+                          <span>{run.thinkingEffort || 'default effort'}</span>
+                        </>
+                      ) : (
+                        <span>Scan post-processing model</span>
+                      )}
                     </div>
                     {failedTargets.length > 0 && (
                       <>
-                        <details style={{ marginTop: 9 }}>
-                          <summary style={{ color: 'var(--fail)', cursor: 'pointer', fontWeight: 600 }}>
+                        <details style={{ marginTop: 'var(--space-3)' }}>
+                          <summary
+                            style={{
+                              color: 'var(--fail)',
+                              cursor: 'pointer',
+                              fontWeight: 500,
+                              fontSize: 'var(--text-xs)',
+                            }}
+                          >
                             View {failedTargets.length} error{failedTargets.length === 1 ? '' : 's'}
                           </summary>
                           <div
                             style={{
                               display: 'grid',
-                              gap: 8,
+                              gap: 'var(--space-3)',
                               maxHeight: 280,
                               overflowY: 'auto',
-                              marginTop: 8,
+                              marginTop: 'var(--space-3)',
                             }}
                           >
                             {failedTargets.map((target) => {
                               const finding = findingsById.get(String(target.vulnerabilityId));
                               return (
-                                <div
-                                  key={target.id}
-                                  style={{ padding: '8px 9px', borderRadius: 7, background: 'var(--fail-bg)' }}
-                                >
+                                <div key={target.id}>
                                   <Link
                                     to={`/scans/${scanId}/vulnerabilities/${target.vulnerabilityId}`}
-                                    style={{ color: 'var(--text)', fontWeight: 600 }}
+                                    style={{ color: 'var(--text)', fontWeight: 500 }}
                                   >
                                     {finding
                                       ? `Finding #${finding.rank}: ${finding.summary}`
@@ -1502,7 +1331,13 @@ export function SupplementalPostScriptControls({
                                   </Link>
                                   <div
                                     className="mono"
-                                    style={{ marginTop: 5, color: 'var(--fail)', whiteSpace: 'pre-wrap' }}
+                                    style={{
+                                      marginTop: 'var(--space-1)',
+                                      color: 'var(--fail)',
+                                      fontSize: 'var(--text-xs)',
+                                      whiteSpace: 'pre-wrap',
+                                      overflowWrap: 'anywhere',
+                                    }}
                                   >
                                     {target.error || 'The worker did not record an error message.'}
                                   </div>
@@ -1512,7 +1347,7 @@ export function SupplementalPostScriptControls({
                           </div>
                         </details>
                         {!retrying && !wasRetried && (
-                          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 9 }}>
+                          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 'var(--space-3)' }}>
                             <Button
                               variant="ghost"
                               onClick={() => onBeginRetry(run)}
@@ -1523,7 +1358,14 @@ export function SupplementalPostScriptControls({
                           </div>
                         )}
                         {wasRetried && (
-                          <div style={{ marginTop: 9, color: 'var(--text-3)', textAlign: 'right' }}>
+                          <div
+                            style={{
+                              marginTop: 'var(--space-3)',
+                              color: 'var(--text-3)',
+                              fontSize: 'var(--text-xs)',
+                              textAlign: 'right',
+                            }}
+                          >
                             Failed findings were re-run.
                           </div>
                         )}
@@ -1532,14 +1374,19 @@ export function SupplementalPostScriptControls({
                     {retrying && (
                       <div
                         style={{
-                          marginTop: 10,
-                          padding: 11,
-                          border: '1px solid var(--border)',
-                          borderRadius: 8,
-                          background: 'var(--surface)',
+                          marginTop: 'var(--space-4)',
+                          paddingTop: 'var(--space-4)',
+                          borderTop: '1px solid var(--border-2)',
                         }}
                       >
-                        <div style={{ marginBottom: 10, color: 'var(--text-2)', lineHeight: 1.5 }}>
+                        <div
+                          style={{
+                            marginBottom: 'var(--space-4)',
+                            color: 'var(--text-2)',
+                            fontSize: 'var(--text-xs)',
+                            lineHeight: 1.5,
+                          }}
+                        >
                           Re-run only the {failedTargets.length} failed finding
                           {failedTargets.length === 1 ? '' : 's'}. The original script and extra values are reused; you
                           can change the execution model below.
@@ -1555,14 +1402,21 @@ export function SupplementalPostScriptControls({
                             showAvailabilityHelp={false}
                           />
                         ) : (
-                          <div style={{ color: 'var(--fail)' }}>Model choices are not available.</div>
+                          <div className="field-error">Model choices are not available.</div>
                         )}
                         {retryError && (
-                          <div className="account-dialog-error" role="alert">
+                          <div className="field-error" role="alert">
                             {formatApiError(retryError)}
                           </div>
                         )}
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 10 }}>
+                        <div
+                          style={{
+                            display: 'flex',
+                            justifyContent: 'flex-end',
+                            gap: 'var(--space-2)',
+                            marginTop: 'var(--space-4)',
+                          }}
+                        >
                           <Button variant="ghost" onClick={onCancelRetry} disabled={retrySubmitting}>
                             Cancel
                           </Button>
@@ -1660,77 +1514,40 @@ function ScanRunSettings({
   };
 
   return (
-    <div
-      style={{
-        border: '1px solid var(--border)',
-        borderRadius: 10,
-        padding: '13px 15px',
-        background: 'var(--surface)',
-        marginBottom: 24,
-      }}
-    >
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 12,
-          marginBottom: editing ? 13 : 0,
-        }}
-      >
+    <section>
+      <div className="section-head">
         <div>
-          <div
-            className="mono"
-            style={{
-              fontSize: 10,
-              letterSpacing: '0.05em',
-              color: 'var(--text-3)',
-              textTransform: 'uppercase',
-            }}
-          >
-            Run config
-          </div>
+          <h2>Run config</h2>
           {!editing && (
-            <div className="mono" style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 4 }}>
-              {current.model_provider ? `${current.model_provider} · ` : ''}
-              {current.model} · {current.harness}
-              {current.thinking_effort ? ` · ${current.thinking_effort}` : ''}
-            </div>
+            <p
+              className="panel-note"
+              style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2) var(--space-4)' }}
+            >
+              {current.model_provider && <span className="mono">{current.model_provider}</span>}
+              <span className="mono">{current.model}</span>
+              <span className="mono">{current.harness}</span>
+              {current.thinking_effort && <span className="mono">{current.thinking_effort}</span>}
+            </p>
           )}
         </div>
         {editing ? (
-          <div style={{ display: 'flex', gap: 8 }}>
-            <Button
-              variant="ghost"
-              style={{ height: 30, padding: '0 12px', fontSize: 12.5 }}
-              disabled={saving}
-              onClick={cancel}
-            >
+          <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+            <Button variant="ghost" disabled={saving} onClick={cancel}>
               Cancel
             </Button>
-            <Button
-              variant="primary"
-              style={{ height: 30, padding: '0 12px', fontSize: 12.5 }}
-              disabled={saving || !valid || !dirty}
-              onClick={save}
-            >
+            <Button variant="primary" disabled={saving || !valid || !dirty} onClick={save}>
               {saving ? 'Saving…' : 'Save'}
             </Button>
           </div>
         ) : (
-          <Button
-            variant="ghost"
-            style={{ height: 30, padding: '0 12px', fontSize: 12.5 }}
-            onClick={open}
-            disabled={referencesLoading || !!referencesError || !references}
-          >
+          <Button variant="ghost" onClick={open} disabled={referencesLoading || !!referencesError || !references}>
             Edit
           </Button>
         )}
       </div>
 
       {editing ? (
-        <>
+        <div style={{ marginTop: 'var(--space-5)', display: 'grid', gap: 'var(--space-5)' }}>
           <WorkflowModelConfiguration
             value={activeDraft}
             onChange={(nextDraft) =>
@@ -1742,20 +1559,13 @@ function ScanRunSettings({
             disabled={saving}
             depths={workflowDepths}
           />
-          <label style={{ display: 'block', maxWidth: 280, marginTop: 13 }}>
-            <span
-              className="mono"
-              style={{
-                display: 'block',
-                fontSize: 10,
-                color: 'var(--text-3)',
-                marginBottom: 6,
-              }}
-            >
-              MAXIMUM MODEL JOBS · OPTIONAL
+          <label className="field" style={{ maxWidth: 280 }}>
+            <span className="field-label">
+              Maximum model jobs
+              <span className="field-unit">optional</span>
             </span>
             <input
-              className="mono"
+              className="input mono"
               type="number"
               min="1"
               max="1000000"
@@ -1763,69 +1573,42 @@ function ScanRunSettings({
               placeholder="unlimited"
               value={activeDraft.job_limit}
               disabled={saving}
+              aria-invalid={!jobLimitValid}
               onChange={(event) =>
                 setDraft((currentDraft) => ({
                   ...currentDraft,
                   job_limit: event.target.value,
                 }))
               }
-              style={{
-                width: '100%',
-                height: 36,
-                padding: '0 10px',
-                borderRadius: 7,
-                border: `1px solid ${jobLimitValid ? 'var(--border)' : 'var(--fail)'}`,
-                background: 'var(--surface)',
-                color: 'var(--text)',
-              }}
             />
-            <span
-              style={{
-                display: 'block',
-                fontSize: 11,
-                color: 'var(--text-3)',
-                marginTop: 6,
-                lineHeight: 1.4,
-              }}
-            >
+            <span className="field-note">
               {scan.jobsStarted || 0} logical jobs started. Internal retries do not consume extra jobs.
             </span>
           </label>
-          {error && (
-            <div className="mono" style={{ fontSize: 11.5, color: 'var(--fail)', marginTop: 10 }}>
-              {error}
-            </div>
-          )}
-        </>
+          {error && <div className="field-error">{error}</div>}
+        </div>
       ) : referencesError ? (
-        <div style={{ marginTop: 10 }}>
+        <div style={{ marginTop: 'var(--space-5)' }}>
           <ErrorState error={referencesError} onRetry={onRetryReferences} />
         </div>
       ) : (
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
-            gap: 12,
-            marginTop: 13,
-          }}
-        >
-          <RuntimeSetting label="model" value={current.model} />
-          <RuntimeSetting label="model_provider" value={current.model_provider || '—'} />
-          <RuntimeSetting label="thinking_effort" value={current.thinking_effort || '—'} />
-          <RuntimeSetting label="harness" value={current.harness} />
-          <RuntimeSetting label="post model" value={current.post_processing_model || '—'} />
-          <RuntimeSetting label="post provider" value={current.post_processing_model_provider || '—'} />
-          <RuntimeSetting label="post effort" value={current.post_processing_thinking_effort || '—'} />
-          <RuntimeSetting label="post harness" value={current.post_processing_harness || '—'} />
-          <RuntimeSetting label="depth overrides" value={Object.keys(current.model_overrides).length || 'none'} />
+        <div style={{ marginTop: 'var(--space-4)' }}>
+          <RuntimeSetting label="Model" value={current.model} />
+          <RuntimeSetting label="Model provider" value={current.model_provider || '—'} />
+          <RuntimeSetting label="Thinking effort" value={current.thinking_effort || '—'} />
+          <RuntimeSetting label="Harness" value={current.harness} />
+          <RuntimeSetting label="Post model" value={current.post_processing_model || '—'} />
+          <RuntimeSetting label="Post provider" value={current.post_processing_model_provider || '—'} />
+          <RuntimeSetting label="Post effort" value={current.post_processing_thinking_effort || '—'} />
+          <RuntimeSetting label="Post harness" value={current.post_processing_harness || '—'} />
+          <RuntimeSetting label="Depth overrides" value={Object.keys(current.model_overrides).length || 'none'} />
           <RuntimeSetting
-            label="model jobs"
+            label="Model jobs"
             value={`${scan.jobsStarted || 0} / ${scan.jobLimit == null ? 'unlimited' : scan.jobLimit}`}
           />
         </div>
       )}
-    </div>
+    </section>
   );
 }
 
@@ -1936,41 +1719,46 @@ export function runSettingsPayload(draft, current) {
 
 function formatApiError(error) {
   if (error instanceof ApiError && error.errors?.length) {
-    return error.errors.map((e) => `${e.field}: ${e.message}`).join(' · ');
+    return error.errors.map((e) => `${e.field}: ${e.message}`).join(', ');
   }
   return error?.message || 'Failed to save run config.';
 }
 
 function RuntimeSetting({ label, value }) {
   return (
-    <div style={{ minWidth: 0 }}>
-      <div
-        className="mono"
-        style={{
-          fontSize: 10,
-          letterSpacing: '0.05em',
-          color: 'var(--text-3)',
-          textTransform: 'uppercase',
-        }}
-      >
-        {label}
-      </div>
-      <div
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: 'minmax(140px, 0.45fr) minmax(0, 1.55fr)',
+        gap: 'var(--space-5)',
+        alignItems: 'baseline',
+        padding: 'var(--space-3) 0',
+        borderBottom: '1px solid var(--border-2)',
+      }}
+    >
+      <span style={{ color: 'var(--text-2)', fontSize: 'var(--text-xs)' }}>{label}</span>
+      <span
         className="mono"
         title={value}
         style={{
-          fontSize: 12.5,
-          color: 'var(--text)',
-          marginTop: 5,
-          whiteSpace: 'nowrap',
+          minWidth: 0,
           overflow: 'hidden',
           textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+          fontSize: 'var(--text-xs)',
         }}
       >
         {value}
-      </div>
+      </span>
     </div>
   );
+}
+
+function interestingTitle(intr) {
+  const v = intr ?? null;
+  if (v === 1) return 'Interesting, click to change';
+  if (v === 0) return 'Not interesting, click to change';
+  return 'Unmarked, click to flag';
 }
 
 function scanErrorTimestamp(error) {
@@ -1990,7 +1778,6 @@ function scanErrorTimestamp(error) {
 }
 
 const EXTENDED_ACTIVE_JOB_MS = 45 * 60 * 1000;
-const ACTIVE_JOB_DEPTH_PALETTE_SIZE = 6;
 const ACTIVE_JOB_HARNESS_LABELS = Object.freeze({
   codex: 'Codex CLI',
   'claude-code': 'Claude Code',
@@ -2020,17 +1807,6 @@ function activeJobStage(job) {
   if (depth != null) return { key: `depth-${depth}`, label: `D${depth}`, depth };
   if (job?.kind && job.kind !== 'step') return { key: 'post', label: 'POST', depth: null };
   return { key: 'work', label: 'WORK', depth: null };
-}
-
-function activeJobDepthStyle(stage) {
-  if (stage.depth == null) {
-    return { color: 'var(--text-2)', background: 'var(--surface)' };
-  }
-  const paletteIndex = stage.depth % ACTIVE_JOB_DEPTH_PALETTE_SIZE;
-  return {
-    color: `var(--depth-${paletteIndex})`,
-    background: `var(--depth-${paletteIndex}-bg)`,
-  };
 }
 
 export function activeJobDepthSummary(jobs = []) {
@@ -2066,174 +1842,59 @@ function ActiveJobCard({ job }) {
   const elapsed = formatActiveJobElapsed(job.elapsedMs);
   const extended = Number(job.elapsedMs) >= EXTENDED_ACTIVE_JOB_MS;
   const stage = activeJobStage(job);
-  const depthStyle = activeJobDepthStyle(stage);
   const model = `${job.model || ''}`.trim() || 'Not reported';
   const harness = activeJobHarnessLabel(job.harness);
 
   return (
-    <article
+    <tr
       aria-label={`${stage.depth == null ? stage.label : `Workflow depth ${stage.depth}`} worker: ${job.title || job.source || 'Active worker'}`}
-      style={{
-        minWidth: 0,
-        border: `1px solid ${extended ? 'var(--pend)' : 'var(--border)'}`,
-        borderRadius: 9,
-        background: `linear-gradient(135deg, ${depthStyle.background} 0%, var(--surface-2) 48%)`,
-        padding: '10px 11px',
-      }}
     >
-      <div
-        className="mono"
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 10,
-          fontSize: 10.5,
-        }}
-      >
-        <span
+      <td style={{ minWidth: 220 }}>
+        <div
+          title={job.title}
           style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 7,
-            minWidth: 0,
-            color: 'var(--run)',
+            color: 'var(--text)',
+            fontSize: 'var(--text-sm)',
+            fontWeight: 500,
+            lineHeight: 1.35,
+            overflowWrap: 'anywhere',
+            whiteSpace: 'normal',
           }}
         >
-          <span
-            title={stage.depth == null ? stage.label : `Workflow depth ${stage.depth}`}
-            style={{
-              flex: '0 0 auto',
-              border: `1px solid color-mix(in srgb, ${depthStyle.color} 32%, var(--border))`,
-              borderRadius: 5,
-              background: depthStyle.background,
-              color: depthStyle.color,
-              fontSize: 9.5,
-              fontWeight: 700,
-              letterSpacing: '0.04em',
-              lineHeight: 1,
-              padding: '4px 5px 3px',
-            }}
-          >
-            {stage.label}
-          </span>
-          <span
-            aria-hidden="true"
-            style={{
-              width: 6,
-              height: 6,
-              flex: '0 0 auto',
-              borderRadius: '50%',
-              background: 'var(--run)',
-            }}
-          />
-          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {job.phaseLabel || 'Running'}
-          </span>
-        </span>
-        <span
-          title={
-            extended
-              ? 'Extended run. This is informational and does not mean the worker is stuck or failed.'
-              : 'Current active harness duration'
-          }
-          style={{ flex: '0 0 auto', color: extended ? 'var(--pend)' : 'var(--text-2)' }}
-        >
-          {extended ? 'extended · ' : ''}
-          {elapsed || 'starting'}
-        </span>
-      </div>
-
-      <div
-        title={job.title}
-        style={{
-          color: 'var(--text)',
-          fontSize: 12.5,
-          fontWeight: 600,
-          lineHeight: 1.35,
-          marginTop: 8,
-          overflowWrap: 'anywhere',
-          whiteSpace: 'normal',
-        }}
-      >
-        {job.title || job.source || 'Active worker'}
-      </div>
-
-      <div
-        className="mono"
-        aria-label={`Model: ${model}; Harness: ${harness}`}
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'minmax(0, 1fr) auto',
-          alignItems: 'end',
-          gap: 10,
-          borderTop: '1px solid var(--border)',
-          marginTop: 9,
-          paddingTop: 8,
-        }}
-      >
-        <div style={{ minWidth: 0 }}>
-          <div
-            style={{
-              color: 'var(--text-3)',
-              fontSize: 8.5,
-              letterSpacing: '0.08em',
-              lineHeight: 1,
-              textTransform: 'uppercase',
-            }}
-          >
-            Model
-          </div>
-          <div
-            title={`Model: ${model}`}
-            style={{
-              color: 'var(--text)',
-              fontSize: 11.5,
-              fontWeight: 650,
-              lineHeight: 1.25,
-              marginTop: 5,
-              overflowWrap: 'anywhere',
-            }}
-          >
-            {model}
-          </div>
+          {job.title || job.source || 'Active worker'}
         </div>
-        <div style={{ minWidth: 0, textAlign: 'right' }}>
-          <div
-            style={{
-              color: 'var(--text-3)',
-              fontSize: 8.5,
-              letterSpacing: '0.08em',
-              lineHeight: 1,
-              textTransform: 'uppercase',
-            }}
-          >
-            Harness
-          </div>
-          <span
-            title={`Harness: ${harness}`}
-            style={{
-              display: 'inline-block',
-              maxWidth: 120,
-              border: '1px solid var(--border-2)',
-              borderRadius: 999,
-              background: 'var(--surface)',
-              color: 'var(--text-2)',
-              fontSize: 9.5,
-              lineHeight: 1,
-              marginTop: 4,
-              overflow: 'hidden',
-              padding: '4px 6px',
-              textOverflow: 'ellipsis',
-              verticalAlign: 'bottom',
-              whiteSpace: 'nowrap',
-            }}
-          >
+        <span className="cell-sub">{job.phaseLabel || 'Running'}</span>
+      </td>
+      <td>
+        <span className="chip chip--code" title={stage.depth == null ? stage.label : `Workflow depth ${stage.depth}`}>
+          {stage.label}
+        </span>
+      </td>
+      <td>
+        <div
+          className="mono"
+          aria-label={`Model: ${model}; Harness: ${harness}`}
+          style={{ fontSize: 'var(--text-xs)', overflowWrap: 'anywhere' }}
+        >
+          <span title={`Model: ${model}`}>{model}</span>
+          <span className="cell-sub" title={`Harness: ${harness}`}>
             {harness}
           </span>
         </div>
-      </div>
-    </article>
+      </td>
+      <td
+        className="cell-num"
+        title={
+          extended
+            ? 'Extended run. This is informational and does not mean the worker is stuck or failed.'
+            : 'Current active harness duration'
+        }
+        style={{ color: extended ? 'var(--pend)' : 'var(--text-2)', whiteSpace: 'nowrap' }}
+      >
+        {extended ? 'extended, ' : ''}
+        {elapsed || 'starting'}
+      </td>
+    </tr>
   );
 }
 
@@ -2263,206 +1924,163 @@ export function ScanStatusPanel({ scan }) {
   if (!activeJobs.length && !recentErrors.length && !summary.totalAttempts) return null;
 
   return (
-    <div
-      style={{
-        border: '1px solid var(--border)',
-        borderRadius: 10,
-        padding: '13px 15px',
-        background: 'var(--surface)',
-        marginBottom: 24,
-      }}
-    >
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'flex-start',
-          justifyContent: 'space-between',
-          gap: 16,
-        }}
-      >
+    <section>
+      <div className="section-head">
         <div>
-          <div
-            className="mono"
-            style={{
-              fontSize: 10,
-              letterSpacing: '0.05em',
-              color: 'var(--text-3)',
-              textTransform: 'uppercase',
-            }}
-          >
-            Status
-          </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, marginTop: 8 }}>
-            <RuntimeMetric label="Workflow" value={`${completedLineages}/${expectedLineages}`} />
-            <RuntimeMetric label="Attempts" value={summary.totalAttempts || 0} />
-            <RuntimeMetric label="Running" value={summary.runningAttempts || 0} color="var(--run)" />
-            <RuntimeMetric label="Empty" value={summary.emptyStepResults || 0} />
-            <RuntimeMetric
-              label={rateLimited ? 'Attempt errors' : 'Failed'}
-              value={currentFailedAttempts}
-              color={currentFailedAttempts ? (rateLimited ? 'var(--pend)' : 'var(--fail)') : 'var(--text)'}
-            />
-            <RuntimeMetric label="Post" value={`${summary.postCompletedAttempts || 0}/${summary.postAttempts || 0}`} />
-          </div>
+          <h2>Status</h2>
         </div>
         {summary.progress && (
           <div style={{ minWidth: 160, flex: '0 0 220px' }}>
-            <div
-              className="mono"
-              style={{
-                fontSize: 11.5,
-                color: 'var(--text-3)',
-                marginBottom: 7,
-              }}
-            >
+            <div style={{ color: 'var(--text-2)', fontSize: 'var(--text-xs)', marginBottom: 'var(--space-2)' }}>
               {summary.progressLabel || 'progress'}
             </div>
             <div
               style={{
                 height: 6,
-                background: 'var(--surface-2)',
-                borderRadius: 4,
+                background: 'var(--surface-3)',
+                borderRadius: 'var(--radius-xs)',
                 overflow: 'hidden',
               }}
             >
-              <div
-                style={{
-                  height: '100%',
-                  width: summary.progress,
-                  background: 'var(--run)',
-                }}
-              />
+              <div style={{ height: '100%', width: summary.progress, background: 'var(--run)' }} />
             </div>
           </div>
         )}
       </div>
 
+      <div style={{ marginTop: 'var(--space-4)' }}>
+        <FigureStrip>
+          <Figure label="Workflow" value={`${completedLineages}/${expectedLineages}`} />
+          <Figure label="Attempts" value={summary.totalAttempts || 0} />
+          <Figure label="Running" value={summary.runningAttempts || 0} />
+          <Figure label="Empty" value={summary.emptyStepResults || 0} />
+          <Figure
+            label={rateLimited ? 'Attempt errors' : 'Failed'}
+            value={
+              <span
+                style={{
+                  color: currentFailedAttempts ? (rateLimited ? 'var(--pend)' : 'var(--fail)') : 'var(--text)',
+                }}
+              >
+                {currentFailedAttempts}
+              </span>
+            }
+          />
+          <Figure label="Post" value={`${summary.postCompletedAttempts || 0}/${summary.postAttempts || 0}`} />
+        </FigureStrip>
+      </div>
+
       {activeJobs.length > 0 && (
-        <div style={{ marginTop: 16 }}>
+        <div style={{ marginTop: 'var(--space-6)' }}>
           <div
-            className="mono"
             style={{
               display: 'flex',
               alignItems: 'baseline',
               justifyContent: 'space-between',
               flexWrap: 'wrap',
-              gap: 8,
-              marginBottom: 8,
+              gap: 'var(--space-3)',
             }}
           >
-            <span style={{ color: 'var(--text-2)', fontSize: 11.5 }}>Active workers</span>
-            <span style={{ color: 'var(--text-3)', fontSize: 10.5 }}>
-              {activeJobs.length} active
-              {longestActiveJobMs > 0 ? ` · longest ${formatActiveJobElapsed(longestActiveJobMs)}` : ''}
+            <h3>Active workers</h3>
+            <span
+              style={{
+                display: 'flex',
+                gap: 'var(--space-4)',
+                color: 'var(--text-3)',
+                fontSize: 'var(--text-xs)',
+              }}
+            >
+              <span>{activeJobs.length} active</span>
+              {longestActiveJobMs > 0 && <span>longest {formatActiveJobElapsed(longestActiveJobMs)}</span>}
             </span>
           </div>
           <div
             aria-label="Active workers by workflow depth"
-            className="mono"
-            style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 9 }}
+            className="chip-row"
+            style={{ margin: 'var(--space-4) 0 var(--space-3)' }}
           >
             {activeDepths.map((stage) => {
-              const depthStyle = activeJobDepthStyle(stage);
               const description =
                 stage.depth == null
                   ? `${stage.label}: ${stage.count} active worker${stage.count === 1 ? '' : 's'}`
                   : `Depth ${stage.depth}: ${stage.count} active worker${stage.count === 1 ? '' : 's'}`;
               return (
-                <span
-                  key={stage.key}
-                  title={description}
-                  aria-label={description}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 5,
-                    border: `1px solid color-mix(in srgb, ${depthStyle.color} 30%, var(--border))`,
-                    borderRadius: 999,
-                    background: depthStyle.background,
-                    color: depthStyle.color,
-                    fontSize: 10,
-                    lineHeight: 1,
-                    padding: '5px 7px',
-                  }}
-                >
-                  <span
-                    aria-hidden="true"
-                    style={{ width: 6, height: 6, borderRadius: '50%', background: depthStyle.color }}
-                  />
-                  <strong style={{ fontWeight: 700 }}>{stage.label}</strong>
-                  <span>{stage.count}</span>
+                <span key={stage.key} className="chip" title={description} aria-label={description}>
+                  {stage.label}
+                  <span style={{ color: 'var(--text-3)' }}>{stage.count}</span>
                 </span>
               );
             })}
           </div>
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))',
-              gap: 8,
-            }}
-          >
-            {activeJobs.map((job) => (
-              <ActiveJobCard key={job.id} job={job} />
-            ))}
+          <div className="table-wrap">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Worker</th>
+                  <th>Stage</th>
+                  <th>Model</th>
+                  <th className="cell-num">Elapsed</th>
+                </tr>
+              </thead>
+              <tbody>
+                {activeJobs.map((job) => (
+                  <ActiveJobCard key={job.id} job={job} />
+                ))}
+              </tbody>
+            </table>
           </div>
-          <div className="mono" style={{ color: 'var(--text-3)', fontSize: 9.5, marginTop: 7 }}>
+          <div style={{ marginTop: 'var(--space-2)', color: 'var(--text-3)', fontSize: 'var(--text-xs)' }}>
             Live duration is informational. The engine reports failures separately below.
           </div>
         </div>
       )}
 
       {recentEmptyResults.length > 0 && (
-        <div style={{ marginTop: 15, display: 'grid', gap: 8 }}>
-          <div className="mono" style={{ fontSize: 10, color: 'var(--text-3)', textTransform: 'uppercase' }}>
+        <div style={{ marginTop: 'var(--space-6)' }}>
+          <div className="field-label" style={{ marginBottom: 'var(--space-2)' }}>
             Completed with no results
           </div>
-          {recentEmptyResults.slice(0, 3).map((result) => (
-            <div
-              key={result.id}
-              style={{
-                border: '1px solid var(--border-2)',
-                borderRadius: 8,
-                padding: '9px 10px',
-                background: 'var(--surface-2)',
-              }}
-            >
-              <div className="mono" style={{ fontSize: 11, color: 'var(--text-2)', marginBottom: 5 }}>
-                {result.source} · {result.title}
+          <div>
+            {recentEmptyResults.slice(0, 3).map((result) => (
+              <div key={result.id} style={{ padding: 'var(--space-3) 0', borderTop: '1px solid var(--border-2)' }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: 'var(--space-3)',
+                    marginBottom: 'var(--space-1)',
+                    color: 'var(--text-2)',
+                    fontSize: 'var(--text-xs)',
+                  }}
+                >
+                  <span className="mono">{result.source}</span>
+                  <span>{result.title}</span>
+                </div>
+                <div style={{ color: 'var(--text-2)', fontSize: 'var(--text-sm)', lineHeight: 1.5 }}>
+                  {result.explanation}
+                </div>
               </div>
-              <div style={{ fontSize: 12.5, color: 'var(--text-2)', lineHeight: 1.45 }}>{result.explanation}</div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       )}
 
       {recentErrors.length > 0 && (
-        <div style={{ marginTop: 15, display: 'grid', gap: 8 }}>
+        <div style={{ marginTop: 'var(--space-6)' }}>
           {recentErrors.slice(0, 5).map((err) => {
             const expanded = expandedErrorIds.has(err.id);
             const previousRun = Boolean(err.previousRun);
             const timestamp = scanErrorTimestamp(err);
             return (
-              <div
-                key={err.id}
-                style={{
-                  border: `1px solid ${previousRun ? 'var(--border-2)' : 'var(--fail-bg)'}`,
-                  borderRadius: 8,
-                  padding: '9px 10px',
-                  background: previousRun ? 'var(--surface-2)' : 'var(--fail-bg)',
-                }}
-              >
+              <div key={err.id} style={{ padding: 'var(--space-4) 0', borderTop: '1px solid var(--border-2)' }}>
                 <div
-                  className="mono"
                   style={{
                     display: 'flex',
                     justifyContent: 'space-between',
-                    alignItems: 'center',
+                    alignItems: 'baseline',
                     flexWrap: 'wrap',
-                    gap: 12,
-                    fontSize: 11,
-                    color: previousRun ? 'var(--text-3)' : 'var(--fail)',
-                    marginBottom: 6,
+                    gap: 'var(--space-3)',
+                    marginBottom: 'var(--space-2)',
                   }}
                 >
                   <span
@@ -2471,16 +2089,18 @@ export function ScanStatusPanel({ scan }) {
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
                       whiteSpace: 'nowrap',
+                      color: previousRun ? 'var(--text-3)' : 'var(--fail)',
+                      fontSize: 'var(--text-sm)',
                     }}
                   >
-                    {previousRun ? 'Previous run · ' : ''}
-                    {err.source} · {err.title}
+                    {previousRun ? 'Previous run, ' : ''}
+                    <span className="mono">{err.source}</span> {err.title}
                   </span>
                   <span
                     style={{
                       display: 'inline-flex',
                       alignItems: 'center',
-                      gap: 8,
+                      gap: 'var(--space-4)',
                       flexWrap: 'wrap',
                       justifyContent: 'flex-end',
                       flex: 'none',
@@ -2490,25 +2110,17 @@ export function ScanStatusPanel({ scan }) {
                       <time
                         dateTime={timestamp.dateTime}
                         title={`Error occurred ${timestamp.label}`}
-                        style={{ color: 'var(--text-3)', whiteSpace: 'nowrap' }}
+                        style={{ color: 'var(--text-3)', fontSize: 'var(--text-xs)', whiteSpace: 'nowrap' }}
                       >
                         {timestamp.label}
                       </time>
                     )}
-                    <span>{err.phaseLabel}</span>
+                    <span style={{ color: 'var(--text-3)', fontSize: 'var(--text-xs)' }}>{err.phaseLabel}</span>
                     <button
                       type="button"
+                      className="btn btn--quiet btn--sm"
+                      aria-expanded={expanded}
                       onClick={() => toggleError(err.id)}
-                      style={{
-                        height: 24,
-                        padding: '0 8px',
-                        borderRadius: 6,
-                        border: '1px solid var(--border)',
-                        background: 'var(--surface)',
-                        color: 'var(--text-2)',
-                        fontSize: 11.5,
-                        cursor: 'pointer',
-                      }}
                     >
                       {expanded ? 'Hide' : 'Show'}
                     </button>
@@ -2522,7 +2134,7 @@ export function ScanStatusPanel({ scan }) {
           })}
         </div>
       )}
-    </div>
+    </section>
   );
 }
 
@@ -2536,16 +2148,22 @@ export function FindingActorTypeCell({ maliciousActor, vulnerabilityType }) {
   const type = typeof vulnerabilityType === 'string' && vulnerabilityType.trim() ? vulnerabilityType.trim() : 'finding';
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 6, minWidth: 0 }}>
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'flex-start',
+        gap: 'var(--space-2)',
+        minWidth: 0,
+      }}
+    >
       <span
-        className="mono"
         aria-label={`Malicious actor: ${actor}`}
         title={`Malicious actor: ${actor}`}
         style={{
           display: 'block',
           maxWidth: '100%',
-          fontSize: 11.5,
-          fontWeight: 600,
+          fontSize: 'var(--text-sm)',
           color: 'var(--text)',
           whiteSpace: 'nowrap',
           overflow: 'hidden',
@@ -2554,25 +2172,7 @@ export function FindingActorTypeCell({ maliciousActor, vulnerabilityType }) {
       >
         {actor}
       </span>
-      <span
-        className="mono"
-        title={type}
-        style={{
-          display: 'inline-block',
-          maxWidth: '100%',
-          fontSize: 11.5,
-          fontWeight: 700,
-          padding: '4px 10px',
-          borderRadius: 6,
-          border: '1px solid var(--border)',
-          background: 'var(--surface-2)',
-          color: 'var(--text-2)',
-          whiteSpace: 'nowrap',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          verticalAlign: 'middle',
-        }}
-      >
+      <span className="chip" title={type} style={{ maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis' }}>
         {type}
       </span>
     </div>
@@ -2608,11 +2208,7 @@ function extractChips(vuln) {
 
 function ChipList({ chips, fallback }) {
   if (!chips.length && !fallback)
-    return (
-      <span className="mono" style={{ fontSize: 11.5, color: 'var(--text-3)' }}>
-        —
-      </span>
-    );
+    return <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-3)' }}>None</span>;
   const shown = chips.length ? chips.slice(0, MAX_CHIPS) : [fallback];
   const extra = chips.length ? chips.length - shown.length : 0;
   const hiddenLabels = chips
@@ -2620,68 +2216,17 @@ function ChipList({ chips, fallback }) {
     .map((c) => c.label)
     .join(', ');
   return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, minWidth: 0 }}>
+    <div className="chip-row" style={{ minWidth: 0 }}>
       {shown.map((c, i) => (
-        <div
-          key={i}
-          title={`${c.label}: ${c.value}`}
-          style={{
-            display: 'inline-flex',
-            flexDirection: 'column',
-            padding: '3px 9px',
-            borderRadius: 8,
-            border: '1px solid var(--border)',
-            background: 'var(--surface-2)',
-            maxWidth: 150,
-            minWidth: 0,
-          }}
-        >
-          <span
-            className="mono"
-            style={{
-              fontSize: 8.5,
-              letterSpacing: '0.04em',
-              textTransform: 'uppercase',
-              color: 'var(--text-3)',
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              lineHeight: 1.45,
-            }}
-          >
-            {c.label.replaceAll('_', ' ')}
-          </span>
-          <span
-            style={{
-              fontSize: 11.5,
-              fontWeight: 600,
-              color: 'var(--text)',
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              lineHeight: 1.35,
-            }}
-          >
+        <span key={i} className="chip" title={`${c.label}: ${c.value}`} style={{ maxWidth: 180, minWidth: 0 }}>
+          <span style={{ color: 'var(--text-3)' }}>{c.label.replaceAll('_', ' ')}</span>
+          <span className="mono" style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {c.value}
           </span>
-        </div>
+        </span>
       ))}
       {extra > 0 && (
-        <span
-          title={`${extra} more: ${hiddenLabels}`}
-          className="mono"
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            fontSize: 11,
-            fontWeight: 600,
-            color: 'var(--text-2)',
-            background: 'var(--surface-2)',
-            border: '1px solid var(--border)',
-            borderRadius: 8,
-            padding: '0 9px',
-          }}
-        >
+        <span className="chip" title={`${extra} more: ${hiddenLabels}`}>
           +{extra}
         </span>
       )}
@@ -2692,15 +2237,14 @@ function ChipList({ chips, fallback }) {
 function ExpandableErrorMessage({ message, expanded }) {
   return (
     <div
-      className="mono"
       style={{
-        fontSize: 11.5,
+        fontSize: 'var(--text-sm)',
         color: 'var(--text-2)',
-        lineHeight: 1.45,
+        lineHeight: 1.5,
         whiteSpace: 'pre-wrap',
         overflowWrap: 'anywhere',
         ...(expanded
-          ? { maxHeight: 240, overflowY: 'auto', paddingRight: 4 }
+          ? { maxHeight: 240, overflowY: 'auto', paddingRight: 'var(--space-1)' }
           : {
               display: '-webkit-box',
               WebkitLineClamp: 3,
@@ -2717,21 +2261,11 @@ function ExpandableErrorMessage({ message, expanded }) {
 function KnownErrorBadge({ knownError }) {
   if (!knownError?.title) return null;
   return (
-    <span
-      className="mono"
-      style={{
-        display: 'inline-flex',
-        marginBottom: 6,
-        padding: '2px 7px',
-        borderRadius: 999,
-        border: '1px solid var(--fail)',
-        background: 'var(--surface)',
-        color: 'var(--fail)',
-        fontSize: 10.5,
-      }}
-    >
-      {knownError.title}
-    </span>
+    <div style={{ marginBottom: 'var(--space-2)' }}>
+      <span className="chip" style={{ borderColor: 'var(--fail)', color: 'var(--fail)', whiteSpace: 'normal' }}>
+        {knownError.title}
+      </span>
+    </div>
   );
 }
 
@@ -2740,13 +2274,11 @@ function ErrorFixLinks({ knownError }) {
   if (!links.length) return null;
   return (
     <div
-      className="mono"
       style={{
         display: 'flex',
         flexWrap: 'wrap',
-        gap: 8,
-        marginTop: 7,
-        fontSize: 11,
+        gap: 'var(--space-4)',
+        marginTop: 'var(--space-2)',
       }}
     >
       {links.map((link) =>
@@ -2755,9 +2287,10 @@ function ErrorFixLinks({ knownError }) {
             key={`${link.label}-${link.url}`}
             to={link.url}
             style={{
-              color: 'var(--accent)',
-              textDecoration: 'none',
-              borderBottom: '1px solid var(--accent)',
+              color: 'var(--accent-strong)',
+              textDecoration: 'underline',
+              textUnderlineOffset: 2,
+              fontSize: 'var(--text-xs)',
             }}
           >
             {link.label || link.url}
@@ -2769,9 +2302,10 @@ function ErrorFixLinks({ knownError }) {
             target="_blank"
             rel="noreferrer"
             style={{
-              color: 'var(--accent)',
-              textDecoration: 'none',
-              borderBottom: '1px solid var(--accent)',
+              color: 'var(--accent-strong)',
+              textDecoration: 'underline',
+              textUnderlineOffset: 2,
+              fontSize: 'var(--text-xs)',
             }}
           >
             {link.label || link.url}
@@ -2782,120 +2316,24 @@ function ErrorFixLinks({ knownError }) {
   );
 }
 
-function RuntimeMetric({ label, value, color = 'var(--text)' }) {
-  return (
-    <div>
-      <div
-        className="mono"
-        style={{
-          fontSize: 10,
-          letterSpacing: '0.05em',
-          color: 'var(--text-3)',
-          textTransform: 'uppercase',
-        }}
-      >
-        {label}
-      </div>
-      <div style={{ fontSize: 17, fontWeight: 600, marginTop: 3, color }}>{value}</div>
-    </div>
-  );
-}
-
-// Left dot toggle for the 3-state interesting flag (1 / 0 / null). Clicking cycles
-// it; the row background reflects the same state more prominently.
-function interestingDot(intr) {
-  const v = intr ?? null;
-  if (v === 1)
-    return {
-      bg: 'var(--accent)',
-      border: 'var(--accent)',
-      title: 'Interesting — click to change',
-    };
-  if (v === 0)
-    return {
-      bg: 'var(--text-3)',
-      border: 'var(--text-3)',
-      title: 'Not interesting — click to change',
-    };
-  return {
-    bg: 'transparent',
-    border: 'var(--border)',
-    title: 'Unmarked — click to flag',
-  };
-}
-
-function ScanStat({ label, value, color = 'var(--text)' }) {
-  return (
-    <div
-      style={{
-        border: '1px solid var(--border)',
-        borderRadius: 10,
-        padding: '13px 15px',
-        background: 'var(--surface)',
-      }}
-    >
-      <div
-        className="mono"
-        style={{
-          fontSize: 10,
-          letterSpacing: '0.05em',
-          color: 'var(--text-3)',
-          textTransform: 'uppercase',
-        }}
-      >
-        {label}
-      </div>
-      <div style={{ fontSize: 22, fontWeight: 600, marginTop: 6, color }}>{value}</div>
-    </div>
-  );
-}
-
 function ConfiguredPostScripts({ postScripts }) {
   const postScriptPages = usePagination(postScripts, { pageSize: 10 });
 
   return (
-    <div
-      style={{
-        border: '1px solid var(--border)',
-        borderRadius: 10,
-        padding: '13px 15px',
-        background: 'var(--surface)',
-        marginBottom: 24,
-      }}
-    >
-      <div
-        className="mono"
-        style={{
-          fontSize: 10,
-          letterSpacing: '0.05em',
-          color: 'var(--text-3)',
-          textTransform: 'uppercase',
-          marginBottom: 8,
-        }}
-      >
-        Configured post-scripts
+    <section>
+      <div className="section-head">
+        <h2>Configured post-scripts</h2>
       </div>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
+      <div className="chip-row" style={{ marginTop: 'var(--space-4)' }}>
         {postScriptPages.pageItems.map((postScript) => (
-          <span
-            key={postScript.id || postScript.name}
-            className="mono"
-            style={{
-              fontSize: 11,
-              color: postScript.primary ? 'var(--accent)' : 'var(--text-2)',
-              background: 'var(--surface-2)',
-              border: '1px solid var(--border-2)',
-              borderRadius: 6,
-              padding: '3px 8px',
-            }}
-          >
+          <span key={postScript.id || postScript.name} className="chip">
             {postScript.name}
-            {postScript.primary ? ' · primary' : ''}
+            {postScript.primary ? ' (primary)' : ''}
           </span>
         ))}
       </div>
       <Pagination {...postScriptPages} itemLabel="post-scripts" compact />
-    </div>
+    </section>
   );
 }
 
@@ -2903,28 +2341,11 @@ function ConfiguredAgentSkills({ agentSkills }) {
   const skillPages = usePagination(agentSkills, { pageSize: 10 });
 
   return (
-    <div
-      style={{
-        border: '1px solid var(--border)',
-        borderRadius: 10,
-        padding: '13px 15px',
-        background: 'var(--surface)',
-        marginBottom: 24,
-      }}
-    >
-      <div
-        className="mono"
-        style={{
-          fontSize: 10,
-          letterSpacing: '0.05em',
-          color: 'var(--text-3)',
-          textTransform: 'uppercase',
-          marginBottom: 8,
-        }}
-      >
-        Agent skills
+    <section>
+      <div className="section-head">
+        <h2>Agent skills</h2>
       </div>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
+      <div className="chip-row" style={{ marginTop: 'var(--space-4)' }}>
         {skillPages.pageItems.map((skill) =>
           skill.sourceUrl ? (
             <a
@@ -2932,39 +2353,20 @@ function ConfiguredAgentSkills({ agentSkills }) {
               href={skill.sourceUrl}
               target="_blank"
               rel="noreferrer"
-              className="mono"
-              style={{
-                fontSize: 11,
-                color: 'var(--accent)',
-                background: 'var(--surface-2)',
-                border: '1px solid var(--border-2)',
-                borderRadius: 6,
-                padding: '3px 8px',
-                textDecoration: 'none',
-              }}
+              className="chip"
+              style={{ color: 'var(--accent-strong)', textDecoration: 'none' }}
             >
               {skill.name}
             </a>
           ) : (
-            <span
-              key={skill.id || skill.name}
-              className="mono"
-              style={{
-                fontSize: 11,
-                color: 'var(--text-2)',
-                background: 'var(--surface-2)',
-                border: '1px solid var(--border-2)',
-                borderRadius: 6,
-                padding: '3px 8px',
-              }}
-            >
+            <span key={skill.id || skill.name} className="chip">
               {skill.name}
             </span>
           )
         )}
       </div>
       <Pagination {...skillPages} itemLabel="skills" compact />
-    </div>
+    </section>
   );
 }
 

@@ -4,42 +4,12 @@ import Logo from './Logo.jsx';
 
 function NavItem({ label, to, active }) {
   return (
-    <Link
-      className="sidebar-nav-item"
-      to={to}
-      style={{
-        width: '100%',
-        border: 'none',
-        display: 'flex',
-        alignItems: 'center',
-        gap: 11,
-        padding: '7px 9px',
-        borderRadius: 7,
-        fontSize: 13.5,
-        cursor: 'pointer',
-        background: active ? 'var(--accent-subtle)' : 'transparent',
-        color: active ? 'var(--text)' : 'var(--text-2)',
-        fontWeight: active ? 500 : 400,
-        fontFamily: 'inherit',
-        textAlign: 'left',
-        textDecoration: 'none',
-      }}
-    >
-      <span
-        style={{
-          width: 7,
-          height: 7,
-          borderRadius: 2,
-          flex: 'none',
-          background: active ? 'var(--accent)' : 'var(--text-3)',
-        }}
-      />
+    <Link className={active ? 'nav-item is-active' : 'nav-item'} to={to}>
+      <span className="nav-mark" aria-hidden="true" />
       {label}
     </Link>
   );
 }
-
-const GROUP_LABEL = { fontSize: 10, letterSpacing: '0.09em', color: 'var(--text-3)' };
 
 export const COMMUNITY_LINKS = [
   { label: 'GitHub', href: 'https://github.com/Kritt-ai/open-kritt' },
@@ -74,7 +44,7 @@ export function CommunityShareButton({ onClick }) {
   );
 }
 
-export default function Sidebar({ onShareCommunity }) {
+export default function Sidebar({ onShareCommunity, open = false, onNavigate }) {
   const { pathname } = useLocation();
   const { theme, toggle } = useTheme();
 
@@ -82,130 +52,66 @@ export default function Sidebar({ onShareCommunity }) {
     exact ? pathname === base : pathname === base || pathname.startsWith(base + '/');
 
   const lt = theme === 'light';
-  const pill = (active) => ({
-    fontSize: 10.5,
-    padding: '3px 9px',
-    borderRadius: 16,
-    background: active ? 'var(--surface)' : 'transparent',
-    color: active ? 'var(--text)' : 'var(--text-3)',
-    boxShadow: active ? 'var(--shadow)' : 'none',
-  });
 
   return (
     <div
-      className="app-sidebar"
-      style={{
-        width: 228,
-        flex: 'none',
-        background: 'var(--sidebar)',
-        borderRight: '1px solid var(--border)',
-        display: 'flex',
-        flexDirection: 'column',
-        padding: '16px 12px',
+      id="app-nav"
+      className={open ? 'app-sidebar is-open' : 'app-sidebar'}
+      onClick={(event) => {
+        if (event.target.closest('a')) onNavigate?.();
       }}
     >
-      <Link
-        className="sidebar-brand"
-        to="/"
-        style={{
-          width: '100%',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 10,
-          padding: '6px 8px 16px',
-          border: 'none',
-          background: 'transparent',
-          cursor: 'pointer',
-          fontFamily: 'inherit',
-          textAlign: 'left',
-          textDecoration: 'none',
-        }}
-      >
-        <Logo className="sidebar-logo" size={52} color="var(--accent)" />
-        <span
-          className="sidebar-brand-name"
-          style={{ fontWeight: 600, letterSpacing: '-0.01em', color: 'var(--text)', fontSize: 22 }}
-        >
-          open<span style={{ color: 'var(--accent)' }}>·</span>kritt
-        </span>
-      </Link>
+      <div className="sidebar-inner">
+        <Link className="sidebar-brand" to="/">
+          <Logo size={30} color="var(--accent)" />
+          <span className="sidebar-brand-name">
+            open<span className="brand-dot">·</span>kritt
+          </span>
+        </Link>
 
-      <div className="mono sidebar-group-label" style={{ ...GROUP_LABEL, padding: '10px 8px 6px' }}>
-        OPERATE
-      </div>
-      <div className="sidebar-nav-group" style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-        <NavItem label="Overview" to="/" active={isActive('/', true)} />
-        <NavItem label="Workflows" to="/workflows" active={isActive('/workflows')} />
-        <NavItem label="Scans" to="/scans" active={isActive('/scans')} />
-      </div>
-
-      <div className="mono sidebar-group-label" style={{ ...GROUP_LABEL, padding: '16px 8px 6px' }}>
-        CONFIGURE
-      </div>
-      <div className="sidebar-nav-group" style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-        <NavItem label="Agent skills" to="/agent-skills" active={isActive('/agent-skills')} />
-        <NavItem label="Severity rankers" to="/severity-rankers" active={isActive('/severity-rankers')} />
-        <NavItem label="Post-scripts" to="/post-scripts" active={isActive('/post-scripts')} />
-      </div>
-
-      <div className="mono sidebar-group-label" style={{ ...GROUP_LABEL, padding: '16px 8px 6px' }}>
-        SETTINGS
-      </div>
-      <div className="sidebar-nav-group" style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-        <NavItem label="Accounts" to="/accounts" active={isActive('/accounts')} />
-        <NavItem label="Settings" to="/settings" active={isActive('/settings')} />
-      </div>
-
-      <div className="sidebar-community">
-        <div className="mono sidebar-community-label" style={GROUP_LABEL}>
-          COMMUNITY
+        <div className="nav-group" role="group" aria-label="Operate">
+          <div className="nav-group-label">Operate</div>
+          <NavItem label="Overview" to="/" active={isActive('/', true)} />
+          <NavItem label="Workflows" to="/workflows" active={isActive('/workflows')} />
+          <NavItem label="Scans" to="/scans" active={isActive('/scans')} />
         </div>
-        <div className="sidebar-community-actions">
+
+        <div className="nav-group" role="group" aria-label="Configure">
+          <div className="nav-group-label">Configure</div>
+          <NavItem label="Agent skills" to="/agent-skills" active={isActive('/agent-skills')} />
+          <NavItem label="Severity rankers" to="/severity-rankers" active={isActive('/severity-rankers')} />
+          <NavItem label="Post-scripts" to="/post-scripts" active={isActive('/post-scripts')} />
+        </div>
+
+        <div className="nav-group" role="group" aria-label="Workspace">
+          <div className="nav-group-label">Workspace</div>
+          <NavItem label="Accounts" to="/accounts" active={isActive('/accounts')} />
+          <NavItem label="Settings" to="/settings" active={isActive('/settings')} />
+        </div>
+
+        <div className="sidebar-spacer" />
+
+        <div className="sidebar-community">
+          <div className="sidebar-community-label">Community</div>
           <CommunityLinks />
           <CommunityShareButton onClick={onShareCommunity} />
         </div>
-      </div>
 
-      <div className="sidebar-footer" style={{ paddingTop: 12, borderTop: '1px solid var(--border)' }}>
-        <button
-          className="sidebar-theme-toggle"
-          type="button"
-          onClick={toggle}
-          style={{
-            width: '100%',
-            border: 'none',
-            background: 'transparent',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: 8,
-            cursor: 'pointer',
-            borderRadius: 7,
-            fontFamily: 'inherit',
-          }}
-        >
-          <span style={{ fontSize: 12.5, color: 'var(--text-2)' }}>Theme</span>
-          <div
-            className="mono"
-            style={{ display: 'flex', background: 'var(--surface-2)', borderRadius: 20, padding: 2 }}
+        <div className="sidebar-foot">
+          <button
+            className="theme-toggle"
+            type="button"
+            onClick={toggle}
+            aria-label={lt ? 'Switch to the dark theme' : 'Switch to the light theme'}
           >
-            <span style={pill(lt)}>LGT</span>
-            <span style={pill(!lt)}>DRK</span>
+            <span className={lt ? 'theme-option is-active' : 'theme-option'}>Light</span>
+            <span className={lt ? 'theme-option' : 'theme-option is-active'}>Dark</span>
+          </button>
+          <div className="engine-line">
+            <span className="engine-dot" aria-hidden="true" />
+            <span>Engine online</span>
+            <span className="engine-version mono">v{__APP_VERSION__}</span>
           </div>
-        </button>
-        <div
-          className="mono sidebar-engine-status"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            padding: '6px 8px',
-            fontSize: 11,
-            color: 'var(--text-3)',
-          }}
-        >
-          <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--ok)' }} /> engine online · v
-          {__APP_VERSION__}
         </div>
       </div>
     </div>

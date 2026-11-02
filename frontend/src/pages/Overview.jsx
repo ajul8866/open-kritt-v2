@@ -2,7 +2,8 @@ import { Link } from 'react-router-dom';
 import { api } from '../api/client.js';
 import { useFetch } from '../lib/useFetch.js';
 import { usePageChrome } from '../context/ui.jsx';
-import { Spinner, ErrorState, StatusBadge } from '../components/ui.jsx';
+import { Spinner, ErrorState, EmptyState, StatusBadge } from '../components/ui.jsx';
+import { Page, PageHeader, FigureStrip, Figure } from '../components/app.jsx';
 
 const todayLabel = () => new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
 
@@ -11,96 +12,87 @@ export default function Overview() {
   const { data, loading, error, reload } = useFetch(() => api.overview(), []);
 
   return (
-    <div style={{ padding: '30px 32px', maxWidth: 1180 }}>
-      <div className="mono" style={{ fontSize: 13, color: 'var(--text-2)' }}>
-        {todayLabel()}
-      </div>
-      <div style={{ fontSize: 27, fontWeight: 600, letterSpacing: '-0.02em', margin: '4px 0 24px' }}>Overview</div>
+    <Page>
+      <PageHeader title="Overview" meta={todayLabel()} />
 
       {loading && <Spinner />}
       {error && <ErrorState error={error} onRetry={reload} />}
       {data && (
         <>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14, marginBottom: 26 }}>
-            <Kpi label="Workflows" value={data.workflowCount} sub="blueprints defined" />
-            <Kpi label="Scans" value={data.scanCount} sub={`${data.runningCount} running now`} />
-            <Kpi label="Findings" value={data.findingsCount} sub="across all scans" color="var(--accent)" />
-            <Kpi label="Exploitable" value={data.exploitableCount} sub="confirmed by final pass" color="var(--fail)" />
-          </div>
+          <FigureStrip>
+            <Figure label="Workflows" value={data.workflowCount} note="blueprints defined" />
+            <Figure label="Scans" value={data.scanCount} note={`${data.runningCount} running now`} />
+            <Figure label="Findings" value={data.findingsCount} note="across all scans" tone="accent" />
+            <Figure label="Exploitable" value={data.exploitableCount} note="confirmed by final pass" tone="fail" />
+          </FigureStrip>
 
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-            <div style={{ fontSize: 15, fontWeight: 600 }}>Active &amp; recent scans</div>
-            <Link
-              to="/scans"
-              style={{ fontSize: 12.5, color: 'var(--accent)', cursor: 'pointer', textDecoration: 'none' }}
+          <div style={{ marginTop: 'var(--space-8)' }}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'baseline',
+                justifyContent: 'space-between',
+                gap: 'var(--space-4)',
+                marginBottom: 'var(--space-4)',
+              }}
             >
-              View all →
-            </Link>
-          </div>
-          <div
-            style={{
-              border: '1px solid var(--border)',
-              borderRadius: 12,
-              overflow: 'hidden',
-              background: 'var(--surface)',
-            }}
-          >
-            {data.recentScans.map((s) => (
-              <Link
-                key={s.id}
-                to={`/scans/${s.id}`}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '13px 16px',
-                  borderBottom: '1px solid var(--border-2)',
-                  cursor: 'pointer',
-                  color: 'inherit',
-                  textDecoration: 'none',
-                }}
-              >
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontWeight: 500, fontSize: 13.5 }}>{s.repoDisplay || s.repoFull}</div>
-                  <div className="mono" style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 2 }}>
-                    {s.workflowName} · {s.model}
-                    {Object.keys(s.modelOverrides || {}).length
-                      ? ` · ${Object.keys(s.modelOverrides).length} depth overrides`
-                      : ''}
-                  </div>
-                </div>
-                <StatusBadge status={s.status} reasoning={s.reasoning} />
+              <h2 style={{ fontSize: 'var(--text-md)' }}>Active &amp; recent scans</h2>
+              <Link className="btn btn--quiet btn--sm" to="/scans">
+                View all scans
               </Link>
-            ))}
-            {data.recentScans.length === 0 && (
-              <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-3)', fontSize: 13 }}>
-                No scans yet.
+            </div>
+
+            {data.recentScans.length === 0 ? (
+              <EmptyState
+                title="No scans yet"
+                sub="Start a scan to see its runs, findings and exploitability here."
+                action={
+                  <Link className="btn btn--primary" to="/scans?new=1">
+                    New scan
+                  </Link>
+                }
+              />
+            ) : (
+              <div className="table-wrap">
+                <table className="data-table overview-table" aria-label="Active and recent scans">
+                  <thead>
+                    <tr>
+                      <th>Repository</th>
+                      <th>Workflow</th>
+                      <th>Model</th>
+                      <th>State</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.recentScans.map((s) => (
+                      <tr key={s.id} className={s.status === 'running' ? 'is-live' : undefined}>
+                        <td style={{ minWidth: 200 }}>
+                          <Link className="cell-main" to={`/scans/${s.id}`}>
+                            {s.repoDisplay || s.repoFull}
+                          </Link>
+                          <span className="cell-sub">{s.repoKind === 'local' ? 'local snapshot' : s.repoFull}</span>
+                        </td>
+                        <td className="cell-muted" style={{ whiteSpace: 'nowrap' }}>
+                          {s.workflowName}
+                        </td>
+                        <td className="mono" style={{ color: 'var(--text-2)', fontSize: 'var(--text-xs)' }}>
+                          {s.model}
+                          {Object.keys(s.modelOverrides || {}).length
+                            ? ` +${Object.keys(s.modelOverrides || {}).length}`
+                            : ''}
+                        </td>
+                        <td>
+                          <StatusBadge status={s.status} reasoning={s.reasoning} />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </div>
         </>
       )}
-    </div>
-  );
-}
-
-function Kpi({ label, value, sub, color = 'var(--text)' }) {
-  return (
-    <div
-      className="glass-panel"
-      style={{
-        borderRadius: 12,
-        padding: '16px 18px',
-      }}
-    >
-      <div
-        className="mono"
-        style={{ fontSize: 10.5, letterSpacing: '0.06em', color: 'var(--text-3)', textTransform: 'uppercase' }}
-      >
-        {label}
-      </div>
-      <div style={{ fontSize: 28, fontWeight: 600, letterSpacing: '-0.02em', marginTop: 8, color }}>{value}</div>
-      <div style={{ fontSize: 12, color: 'var(--text-2)', marginTop: 2 }}>{sub}</div>
-    </div>
+    </Page>
   );
 }

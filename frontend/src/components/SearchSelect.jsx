@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react';
+import { ChevronDown } from 'lucide-react';
 import Pagination from './Pagination.jsx';
 import { usePagination } from '../lib/usePagination.js';
 
@@ -119,6 +120,10 @@ export default function SearchSelect({
     }
   };
 
+  const triggerHeight = Math.min(Number(height) || 32, 32);
+  const menuOffset = `${triggerHeight + 4}px`;
+  const optionBackground = (active, selected) => (active || selected ? 'var(--accent-subtle)' : 'transparent');
+
   return (
     <div style={{ position: 'relative' }}>
       <button
@@ -136,45 +141,47 @@ export default function SearchSelect({
             openMenu(event.key === 'ArrowUp' ? -1 : 1);
           }
         }}
+        className="input"
         style={{
-          width: '100%',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          height,
-          padding: '0 13px',
-          border: '1px solid var(--border)',
-          borderRadius: height >= 46 ? 9 : 8,
-          background: 'var(--surface)',
-          color: selectionDisabled ? 'var(--text-3)' : 'var(--text)',
-          cursor: selectionDisabled ? 'not-allowed' : 'pointer',
-          font: 'inherit',
+          gap: 'var(--space-3)',
+          height: triggerHeight,
           textAlign: 'left',
         }}
       >
         {renderTrigger(selected)}
-        <span style={{ color: 'var(--text-3)', fontSize: 11 }}>▾</span>
+        <ChevronDown size={14} strokeWidth={1.75} aria-hidden="true" style={{ flex: 'none', color: 'var(--text-3)' }} />
       </button>
       {open && (
         <>
-          <div aria-hidden="true" onClick={() => closeMenu()} style={{ position: 'fixed', inset: 0, zIndex: 20 }} />
           <div
+            aria-hidden="true"
+            onClick={() => closeMenu()}
+            style={{ position: 'fixed', inset: 0, zIndex: 'var(--z-sticky)' }}
+          />
+          <div
+            className="menu-pop"
             style={{
-              position: 'absolute',
-              [openUp ? 'bottom' : 'top']: height + 4,
+              top: openUp ? undefined : menuOffset,
+              bottom: openUp ? menuOffset : undefined,
               left: 0,
               right: 0,
-              zIndex: 21,
-              border: '1px solid var(--border)',
-              borderRadius: 10,
-              background: 'var(--surface)',
-              boxShadow: '0 14px 36px rgba(0,0,0,.18)',
-              overflow: 'hidden',
+              zIndex: 'var(--z-overlay)',
+              width: 'auto',
+              padding: 'var(--space-2)',
             }}
           >
-            <div style={{ padding: 8, borderBottom: '1px solid var(--border-2)' }}>
+            <div
+              style={{
+                padding: 'var(--space-2)',
+                borderBottom: '1px solid var(--border-2)',
+              }}
+            >
               <input
                 ref={searchRef}
+                className="input"
                 value={query}
                 onChange={(event) => {
                   setQuery(event.target.value);
@@ -191,20 +198,13 @@ export default function SearchSelect({
                 spellCheck={false}
                 maxLength={allowCustomValue ? customValueMaxLength : undefined}
                 placeholder={placeholder}
-                style={{
-                  width: '100%',
-                  height: 34,
-                  padding: '0 11px',
-                  border: '1px solid var(--border)',
-                  borderRadius: 7,
-                  background: 'var(--bg)',
-                  color: 'var(--text)',
-                  fontSize: 13,
-                  outline: 'none',
-                }}
               />
             </div>
-            <div id={listboxId} role="listbox" style={{ maxHeight: 264, overflowY: 'auto', padding: 6 }}>
+            <div
+              id={listboxId}
+              role="listbox"
+              style={{ maxHeight: 'calc(var(--control-h) * 8)', overflowY: 'auto', padding: 'var(--space-2) 0' }}
+            >
               {optionPages.pageItems.map((item, index) => {
                 const globalIndex = optionPages.startIndex + index;
                 if (item.isCustomValue) {
@@ -218,24 +218,25 @@ export default function SearchSelect({
                       tabIndex={-1}
                       onMouseMove={() => setActiveIndex(globalIndex)}
                       onClick={() => choose(item)}
+                      className="menu-item"
                       style={{
-                        width: '100%',
-                        display: 'block',
-                        padding: '10px 11px',
-                        borderRadius: 7,
-                        cursor: 'pointer',
-                        border: '1px dashed var(--border)',
-                        color: 'var(--text)',
-                        font: 'inherit',
-                        textAlign: 'left',
-                        background:
-                          globalIndex === activeIndex || item.id === value ? 'var(--accent-subtle)' : 'transparent',
+                        height: 'auto',
+                        alignItems: 'flex-start',
+                        padding: 'var(--space-3) var(--space-4)',
+                        background: optionBackground(globalIndex === activeIndex, item.id === value),
                       }}
                     >
-                      <span style={{ display: 'block', color: 'var(--text-2)', fontSize: 11 }}>{customValueLabel}</span>
+                      <span style={{ display: 'block', color: 'var(--text-2)', fontSize: 'var(--text-2xs)' }}>
+                        {customValueLabel}
+                      </span>
                       <span
                         className="mono"
-                        style={{ display: 'block', marginTop: 2, fontSize: 12.5, fontWeight: 600 }}
+                        style={{
+                          display: 'block',
+                          marginTop: 'var(--space-1)',
+                          fontSize: 'var(--text-sm)',
+                          fontWeight: 500,
+                        }}
                       >
                         {item.id}
                       </span>
@@ -252,30 +253,38 @@ export default function SearchSelect({
                     tabIndex={-1}
                     onMouseMove={() => setActiveIndex(globalIndex)}
                     onClick={() => choose(item)}
+                    className="menu-item"
                     style={{
-                      width: '100%',
-                      display: 'flex',
+                      height: 'auto',
                       alignItems: 'flex-start',
                       justifyContent: 'space-between',
-                      gap: 12,
-                      padding: '10px 11px',
-                      borderRadius: 7,
-                      cursor: 'pointer',
-                      border: 'none',
-                      color: 'var(--text)',
-                      font: 'inherit',
-                      textAlign: 'left',
-                      background:
-                        globalIndex === activeIndex || item.id === value ? 'var(--accent-subtle)' : 'transparent',
+                      gap: 'var(--space-5)',
+                      padding: 'var(--space-3) var(--space-4)',
+                      background: optionBackground(globalIndex === activeIndex, item.id === value),
+                      color: item.id === value ? 'var(--accent-strong)' : 'var(--text)',
                     }}
                   >
                     {renderItem(item)}
-                    {item.id === value && <span style={{ color: 'var(--accent)', fontSize: 13, flex: 'none' }}>✓</span>}
+                    {item.id === value && (
+                      <span
+                        aria-hidden="true"
+                        style={{ color: 'var(--accent-strong)', fontSize: 'var(--text-sm)', flex: 'none' }}
+                      >
+                        ✓
+                      </span>
+                    )}
                   </button>
                 );
               })}
               {options.length === 0 && (
-                <div style={{ padding: 16, textAlign: 'center', fontSize: 12.5, color: 'var(--text-3)' }}>
+                <div
+                  style={{
+                    padding: 'var(--space-6) var(--space-4)',
+                    textAlign: 'center',
+                    fontSize: 'var(--text-xs)',
+                    color: 'var(--text-3)',
+                  }}
+                >
                   {emptyText}
                 </div>
               )}
@@ -288,7 +297,11 @@ export default function SearchSelect({
               }}
               itemLabel="options"
               compact
-              style={{ marginTop: 0, padding: '8px', borderTop: '1px solid var(--border-2)' }}
+              style={{
+                marginTop: 0,
+                padding: 'var(--space-2)',
+                borderTop: '1px solid var(--border-2)',
+              }}
             />
           </div>
         </>

@@ -6,6 +6,7 @@ import ProviderVisibility, { useProviderVisibility } from '../components/Provide
 import DeepSeekApiCheck from '../components/DeepSeekApiCheck.jsx';
 import { PROVIDER_LABELS } from '../lib/providerVisibility.js';
 import { Button, ErrorState, Spinner } from '../components/ui.jsx';
+import { Page, PageHeader, FigureStrip, Figure } from '../components/app.jsx';
 import { usePageChrome } from '../context/ui.jsx';
 import { usePagination } from '../lib/usePagination.js';
 
@@ -194,39 +195,35 @@ export default function Accounts() {
   };
 
   return (
-    <div className="accounts-page" style={{ padding: '30px 32px 56px', maxWidth: 1240 }}>
-      <div className="accounts-heading">
-        <div>
-          <div style={{ fontSize: 27, fontWeight: 600, letterSpacing: '-0.02em' }}>Accounts</div>
-          <div style={{ color: 'var(--text-2)', marginTop: 7, maxWidth: 680, lineHeight: 1.5 }}>
+    <Page>
+      <PageHeader
+        title="Accounts"
+        meta={
+          <span style={{ display: 'block', maxWidth: '65ch' }}>
             Manage provider logins and API keys. Show additional providers below to configure them. Secret values are
             never returned by the API.
-          </div>
-        </div>
-        {data && (
-          <div className="mono" style={{ color: 'var(--text-3)', fontSize: 11 }}>
-            Updated {formatDate(data.generatedAt)}
-          </div>
-        )}
-      </div>
+          </span>
+        }
+        aside={data ? <span className="page-sub">Updated {formatDate(data.generatedAt)}</span> : null}
+      />
 
       {loading && !data && <Spinner label="Loading provider accounts…" />}
       {error && <ErrorState error={error} onRetry={() => load()} />}
 
       {data && (
         <>
-          <div className="account-summary-grid">
-            <Summary label="Configured providers" value={`${data.configuredProviders}/${data.providerCount}`} />
-            <Summary label="Active accounts" value={data.active} color="var(--ok)" />
-            <Summary label="Accounts observed" value={data.total} />
-          </div>
+          <FigureStrip>
+            <Figure label="Configured providers" value={`${data.configuredProviders}/${data.providerCount}`} />
+            <Figure label="Active accounts" value={<span style={{ color: 'var(--ok)' }}>{data.active}</span>} />
+            <Figure label="Accounts observed" value={data.total} />
+          </FigureStrip>
 
           <ProviderVisibility
             configuredProviders={data.providers
               .filter((provider) => provider.configured)
               .map((provider) => provider.id)}
           />
-          <div className="account-provider-grid">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-9)' }}>
             {data.providers
               .filter((provider) => visible.includes(provider.id))
               .map((provider) => (
@@ -275,16 +272,7 @@ export default function Accounts() {
           onSave={save}
         />
       )}
-    </div>
-  );
-}
-
-function Summary({ label, value, color = 'var(--text)' }) {
-  return (
-    <div className="account-summary-card">
-      <div className="mono account-kicker">{label}</div>
-      <div style={{ fontSize: 28, fontWeight: 600, marginTop: 8, color }}>{value}</div>
-    </div>
+    </Page>
   );
 }
 
@@ -332,38 +320,63 @@ export function ProviderCard({
         ? 'var(--ok)'
         : 'var(--text-3)';
   return (
-    <section className="account-provider-card" data-provider={provider.id}>
-      <div className="account-provider-header">
+    <section data-provider={provider.id} style={{ minWidth: 0 }}>
+      <div className="section-head" style={{ alignItems: 'flex-start' }}>
         <div style={{ minWidth: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', flexWrap: 'wrap' }}>
             <ProviderMark provider={provider.id} />
-            <h2 style={{ fontSize: 18, margin: 0 }}>{PROVIDER_LABELS[provider.id] || provider.label}</h2>
+            <h2 style={{ margin: 0 }}>{PROVIDER_LABELS[provider.id] || provider.label}</h2>
           </div>
-          <div style={{ color: 'var(--text-2)', fontSize: 12.5, lineHeight: 1.45, marginTop: 9 }}>
+          <div
+            style={{
+              marginTop: 'var(--space-2)',
+              maxWidth: '65ch',
+              color: 'var(--text-2)',
+              fontSize: 'var(--text-sm)',
+              lineHeight: 1.45,
+            }}
+          >
             {provider.description}
           </div>
+          <div
+            style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              gap: 'var(--space-1) var(--space-5)',
+              marginTop: 'var(--space-3)',
+              color: 'var(--text-3)',
+              fontSize: 'var(--text-xs)',
+            }}
+          >
+            <span>{provider.active || 0} active</span>
+            <span>{provider.total || 0} total</span>
+            {provider.source && <span>{SOURCE_LABELS[provider.source] || provider.source}</span>}
+          </div>
         </div>
-        <span className="account-status-badge" style={{ color: statusColor }}>
-          <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'currentColor' }} />
+        <span
+          style={{
+            flex: 'none',
+            color: statusColor,
+            fontSize: 'var(--text-xs)',
+            fontWeight: 500,
+            whiteSpace: 'nowrap',
+          }}
+        >
           {status}
         </span>
       </div>
 
-      <div className="account-provider-meta">
-        <span>{provider.active || 0} active</span>
-        <span>{provider.total || 0} total</span>
-        {provider.source && <span>{SOURCE_LABELS[provider.source] || provider.source}</span>}
-      </div>
-
-      <div className="account-list">
+      <div>
         {loading ? (
-          <div className="account-empty">
+          <div style={{ padding: 'var(--space-6) 0', borderBottom: '1px solid var(--border-2)' }}>
             <Spinner label={`Loading ${provider.label} accounts…`} />
           </div>
         ) : loadError ? (
-          <div className="account-empty">
+          <div style={{ padding: 'var(--space-5) 0', borderBottom: '1px solid var(--border-2)' }}>
             <div style={{ fontWeight: 500 }}>Could not load {provider.label} accounts</div>
-            <div style={{ color: 'var(--text-2)', fontSize: 12, marginTop: 4 }}>{loadError}</div>
+            <div style={{ color: 'var(--fail)', fontSize: 'var(--text-xs)', marginTop: 'var(--space-1)' }}>
+              {loadError}
+            </div>
           </div>
         ) : (provider.configured || signInRequired) && provider.accounts.length ? (
           accountPages.pageItems.map((account, index) => (
@@ -382,13 +395,13 @@ export function ProviderCard({
             />
           ))
         ) : (
-          <div className="account-empty">
-            <div style={{ fontWeight: 500 }}>
+          <div style={{ padding: 'var(--space-5) 0', borderBottom: '1px solid var(--border-2)' }}>
+            <div style={{ color: 'var(--text)' }}>
               {provider.configured
                 ? `No ${provider.label} account data found`
                 : `No ${provider.label} account configured`}
             </div>
-            <div style={{ color: 'var(--text-2)', fontSize: 12, marginTop: 4 }}>
+            <div style={{ color: 'var(--text-2)', fontSize: 'var(--text-xs)', marginTop: 'var(--space-1)' }}>
               {provider.configured
                 ? `Refresh or reconnect ${provider.label} to load its accounts.`
                 : provider.management === 'login'
@@ -398,26 +411,49 @@ export function ProviderCard({
           </div>
         )}
       </div>
-      <Pagination {...accountPages} itemLabel="accounts" compact />
+      <Pagination {...accountPages} itemLabel="accounts" compact style={{ marginTop: 'var(--space-4)' }} />
       {provider.id === 'deepseek' && provider.configured && (
-        <DeepSeekApiCheck key={`${provider.configured}:${credentialRevision}`} configured={provider.configured} />
+        <div style={{ marginTop: 'var(--space-4)' }}>
+          <DeepSeekApiCheck key={`${provider.configured}:${credentialRevision}`} configured={provider.configured} />
+        </div>
       )}
 
-      <div className="account-provider-actions">
-        <Button onClick={onEdit}>{providerActionLabel(provider)}</Button>
+      <div
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          alignItems: 'center',
+          gap: 'var(--space-3)',
+          marginTop: 'var(--space-4)',
+        }}
+      >
+        <Button variant="ghost" onClick={onEdit}>
+          {providerActionLabel(provider)}
+        </Button>
         {onEditKey && (
           <Button variant="ghost" onClick={onEditKey}>
             {provider.source === 'managed_api_key' || provider.canRemove ? 'Add or replace key' : 'Add API key'}
           </Button>
         )}
         {provider.canRemove && (
-          <Button variant="ghost" onClick={onRemove}>
+          <Button variant="danger" onClick={onRemove}>
             Remove key
           </Button>
         )}
         {PROVIDER_LINKS[provider.id] && (
-          <a className="account-provider-link" href={PROVIDER_LINKS[provider.id]} target="_blank" rel="noreferrer">
-            Get a key ↗
+          <a
+            href={PROVIDER_LINKS[provider.id]}
+            target="_blank"
+            rel="noreferrer"
+            style={{
+              marginLeft: 'auto',
+              color: 'var(--accent-strong)',
+              fontSize: 'var(--text-xs)',
+              textDecoration: 'underline',
+              textUnderlineOffset: 2,
+            }}
+          >
+            Get a key
           </a>
         )}
       </div>
@@ -513,7 +549,18 @@ export function removeProviderFromOverview(overview, providerId) {
 
 function ProviderMark({ provider }) {
   const label = { codex: 'CX', claude: 'CL', xai: 'XA', openrouter: 'OR', deepseek: 'DS' }[provider] || provider;
-  return <span className={`mono account-provider-mark account-provider-mark-${provider}`}>{label}</span>;
+  return (
+    <span className="mono" style={{ flex: 'none', color: 'var(--text-3)', fontSize: 'var(--text-2xs)' }}>
+      {label}
+    </span>
+  );
+}
+
+function accountStatusColor(kind) {
+  if (kind === 'available') return 'var(--ok)';
+  if (kind === 'limited' || kind === 'warning' || kind === 'stale') return 'var(--pend)';
+  if (kind === 'expired' || kind === 'missing') return 'var(--fail)';
+  return 'var(--text-2)';
 }
 
 function AccountDetail({
@@ -532,92 +579,178 @@ function AccountDetail({
   const signInRequired = LOGIN_PROVIDERS.has(providerId) && account.statusKind === 'expired';
   const available = account.available ?? account.active;
   const showRateLimits = providerId !== 'claude' || available;
+  const hasRateLimits =
+    showRateLimits &&
+    (providerId === 'claude' || Boolean(account.rateLimits?.primary || account.rateLimits?.secondary));
+  const hasAside = Boolean(account.credit) || Boolean(weeklyUsage) || hasRateLimits || Boolean(account.canRemove);
 
   return (
-    <div className="account-detail">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontWeight: 550, overflowWrap: 'anywhere' }}>{account.email || account.label}</div>
-          {account.path && (
-            <div
-              className="mono"
-              style={{ fontSize: 10.5, color: 'var(--text-3)', marginTop: 3, overflowWrap: 'anywhere' }}
-            >
-              {account.path}
-            </div>
-          )}
+    <div
+      style={{
+        display: 'flex',
+        flexWrap: 'wrap',
+        alignItems: 'flex-start',
+        gap: 'var(--space-6) var(--space-8)',
+        padding: 'var(--space-5) 0',
+        borderBottom: '1px solid var(--border-2)',
+      }}
+    >
+      <div style={{ flex: '1 1 380px', minWidth: 0 }}>
+        <div
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'baseline',
+            justifyContent: 'space-between',
+            gap: 'var(--space-2) var(--space-4)',
+          }}
+        >
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontWeight: 500, overflowWrap: 'anywhere' }}>{account.email || account.label}</div>
+            {account.path && (
+              <div
+                className="mono"
+                style={{
+                  marginTop: 'var(--space-1)',
+                  color: 'var(--text-3)',
+                  fontSize: 'var(--text-xs)',
+                  overflowWrap: 'anywhere',
+                }}
+              >
+                {account.path}
+              </div>
+            )}
+          </div>
+          <span
+            style={{
+              flex: 'none',
+              color: accountStatusColor(account.statusKind),
+              fontSize: 'var(--text-xs)',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {account.status}
+          </span>
         </div>
-        <span className={`account-kind account-kind-${account.statusKind}`}>{account.status}</span>
+
+        {account.plan && (
+          <div
+            style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              gap: 'var(--space-1) var(--space-4)',
+              marginTop: 'var(--space-3)',
+              color: 'var(--text-2)',
+              fontSize: 'var(--text-xs)',
+            }}
+          >
+            <span>Plan: {account.plan}</span>
+            {isFuture(account.subscriptionUntil) && <span>{formatUntil(account.subscriptionUntil, 'expires')}</span>}
+          </div>
+        )}
+
+        {account.activityId && (
+          <div style={{ marginTop: 'var(--space-3)' }}>
+            <label
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 'var(--space-3)',
+                fontSize: 'var(--text-sm)',
+                cursor: updatingActive ? 'wait' : 'pointer',
+              }}
+            >
+              <input
+                type="checkbox"
+                role="switch"
+                className="checkbox"
+                aria-label={`Active: ${account.label}`}
+                checked={account.active}
+                disabled={updatingActive}
+                onChange={onToggleActive}
+              />
+              Active
+            </label>
+            <div
+              style={{
+                marginTop: 'var(--space-1)',
+                color: 'var(--text-2)',
+                fontSize: 'var(--text-xs)',
+                lineHeight: 1.45,
+              }}
+            >
+              {account.active
+                ? 'Can receive new assignments.'
+                : 'Inactive. Activate this account to use it for new assignments.'}{' '}
+              Calls already assigned may finish.
+            </div>
+          </div>
+        )}
+
+        {signInRequired && <ProviderSignInRequired providerId={providerId} message={account.authError} />}
+
+        {account.details?.length > 0 && (
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))',
+              gap: 'var(--space-4) var(--space-6)',
+              marginTop: 'var(--space-5)',
+            }}
+          >
+            {account.details.map((detail) => (
+              <div key={`${detail.label}-${detail.value}`} style={{ minWidth: 0 }}>
+                <div style={{ color: 'var(--text-3)', fontSize: 'var(--text-xs)' }}>{detail.label}</div>
+                <div
+                  className={detail.mono ? 'mono' : undefined}
+                  style={{ marginTop: 'var(--space-1)', fontSize: 'var(--text-sm)', overflowWrap: 'anywhere' }}
+                >
+                  {detail.value}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
-      {account.activityId && (
-        <div style={{ marginTop: 12 }}>
-          <label style={{ display: 'flex', gap: 8, alignItems: 'center', cursor: updatingActive ? 'wait' : 'pointer' }}>
-            <input
-              type="checkbox"
-              role="switch"
-              aria-label={`Active: ${account.label}`}
-              checked={account.active}
-              disabled={updatingActive}
-              onChange={onToggleActive}
+      {hasAside && (
+        <div
+          style={{
+            display: 'grid',
+            flex: '1 1 240px',
+            gap: 'var(--space-5)',
+            minWidth: 0,
+            maxWidth: 380,
+          }}
+        >
+          {account.credit && <CreditUsage credit={account.credit} />}
+
+          {weeklyUsage && (
+            <CodexWeeklyUsage
+              usage={weeklyUsage}
+              onStart={account.active && available ? onStartWeeklyUsage : null}
+              onReset={onUseManualReset}
+              starting={startingUsage}
+              resetting={resettingUsage}
             />
-            Active
-          </label>
-          <div style={{ color: 'var(--text-2)', fontSize: 11.5, marginTop: 4 }}>
-            {account.active
-              ? 'Can receive new assignments.'
-              : 'Inactive. Activate this account to use it for new assignments.'}{' '}
-            Calls already assigned may finish.
-          </div>
-        </div>
-      )}
+          )}
 
-      {account.plan && (
-        <div style={{ fontSize: 12, color: 'var(--text-2)', marginTop: 10 }}>
-          Plan: {account.plan}
-          {isFuture(account.subscriptionUntil) ? ` · ${formatUntil(account.subscriptionUntil, 'expires')}` : ''}
-        </div>
-      )}
+          {hasRateLimits && (
+            <AccountRateLimits providerId={providerId} rateLimits={account.rateLimits} authenticated={available} />
+          )}
 
-      {signInRequired && <ProviderSignInRequired providerId={providerId} message={account.authError} />}
-
-      {account.credit && <CreditUsage credit={account.credit} />}
-
-      {weeklyUsage && (
-        <CodexWeeklyUsage
-          usage={weeklyUsage}
-          onStart={account.active && available ? onStartWeeklyUsage : null}
-          onReset={onUseManualReset}
-          starting={startingUsage}
-          resetting={resettingUsage}
-        />
-      )}
-
-      {account.details?.length > 0 && (
-        <div className="account-detail-grid">
-          {account.details.map((detail) => (
-            <div key={`${detail.label}-${detail.value}`}>
-              <div className="mono account-kicker">{detail.label}</div>
-              <div
-                className={detail.mono ? 'mono' : undefined}
-                style={{ fontSize: 11.5, marginTop: 3, overflowWrap: 'anywhere' }}
+          {account.canRemove && (
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <Button
+                variant="danger"
+                onClick={onRemove}
+                disabled={removing}
+                aria-label={`Remove ${account.label} account`}
               >
-                {detail.value}
-              </div>
+                {removing ? 'Removing…' : 'Remove account'}
+              </Button>
             </div>
-          ))}
-        </div>
-      )}
-
-      {showRateLimits && (
-        <AccountRateLimits providerId={providerId} rateLimits={account.rateLimits} authenticated={available} />
-      )}
-
-      {account.canRemove && (
-        <div className="account-detail-actions">
-          <Button variant="ghost" onClick={onRemove} disabled={removing} aria-label={`Remove ${account.label} account`}>
-            {removing ? 'Removing…' : 'Remove account'}
-          </Button>
+          )}
         </div>
       )}
     </div>
@@ -631,15 +764,23 @@ export function CodexSignInRequired() {
 export function ProviderSignInRequired({ providerId, message }) {
   const provider = providerId === 'claude' ? 'Claude' : providerId === 'xai' ? 'xAI' : 'Codex';
   return (
-    <div className="account-auth-required" role="alert">
-      <span className="account-auth-required-mark" aria-hidden="true">
-        !
-      </span>
+    <div
+      role="alert"
+      style={{
+        marginTop: 'var(--space-4)',
+        padding: 'var(--space-4)',
+        borderRadius: 'var(--radius-sm)',
+        background: 'var(--fail-bg)',
+        color: 'var(--text-2)',
+        fontSize: 'var(--text-xs)',
+        lineHeight: 1.45,
+      }}
+    >
+      <strong style={{ display: 'block', marginBottom: 'var(--space-1)', color: 'var(--fail)', fontWeight: 600 }}>
+        Sign in to {provider} again
+      </strong>
       <div>
-        <strong>Sign in to {provider} again</strong>
-        <div>
-          {message || `The saved token was rejected. Quota usage is hidden until this account is authenticated again.`}
-        </div>
+        {message || `The saved token was rejected. Quota usage is hidden until this account is authenticated again.`}
       </div>
     </div>
   );
@@ -651,43 +792,41 @@ export function CodexWeeklyUsage({ usage, onStart, onReset, starting, resetting 
   const resetEligible = usage.manualResetsApplicable === null || usage.manualResetsApplicable > 0;
   const manualResetCredits = usage.manualResetCredits || [];
   return (
-    <div
-      className={`account-weekly-usage${usage.notStarted ? ' account-weekly-usage-warning' : ''}`}
-      aria-busy={busy || undefined}
-    >
+    <div aria-busy={busy || undefined} style={{ display: 'grid', gap: 'var(--space-3)' }}>
       {usage.notStarted && (
-        <div className="account-weekly-nudge">
-          <span className="account-weekly-warning-mark" aria-hidden="true">
-            !
-          </span>
-          <span>
-            <strong>Weekly usage hasn’t started.</strong> Use this account now so its allowance doesn’t go unused.
-          </span>
+        <div style={{ color: 'var(--text-2)', fontSize: 'var(--text-xs)', lineHeight: 1.45 }}>
+          <strong style={{ color: 'var(--pend)', fontWeight: 600 }}>Weekly usage hasn’t started.</strong> Use this
+          account now so its allowance doesn’t go unused.
         </div>
       )}
-      <div className="account-weekly-meta">
-        <div className="account-weekly-stat">
-          <span className="mono account-kicker">Weekly reset</span>
-          <span>{usage.resetRemaining || 'Time unavailable'}</span>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2) var(--space-6)' }}>
+        <div>
+          <div style={{ color: 'var(--text-3)', fontSize: 'var(--text-xs)' }}>Weekly reset</div>
+          <div style={{ marginTop: 'var(--space-1)', fontSize: 'var(--text-sm)' }}>
+            {usage.resetRemaining || 'Time unavailable'}
+          </div>
         </div>
         {usage.manualResetsAvailable !== null && (
-          <div className="account-weekly-stat account-manual-reset-stat">
-            <span className="mono account-kicker">Manual resets</span>
-            <span className="account-manual-reset-details">
-              <span>{usage.manualResetsAvailable} available</span>
-              {manualResetCredits.map((credit, index) => (
-                <span className="account-manual-reset-expiry" key={`${credit.expiresAt}-${index}`}>
-                  {credit.title} · Expires {formatResetExpiryDate(credit.expiresAt)}
-                </span>
-              ))}
-            </span>
+          <div>
+            <div style={{ color: 'var(--text-3)', fontSize: 'var(--text-xs)' }}>Manual resets</div>
+            <div style={{ marginTop: 'var(--space-1)', fontSize: 'var(--text-sm)' }}>
+              {usage.manualResetsAvailable} available
+            </div>
+            {manualResetCredits.map((credit, index) => (
+              <div
+                key={`${credit.expiresAt}-${index}`}
+                style={{ marginTop: 'var(--space-1)', color: 'var(--text-3)', fontSize: 'var(--text-xs)' }}
+              >
+                {credit.title}, expires {formatResetExpiryDate(credit.expiresAt)}
+              </div>
+            ))}
           </div>
         )}
       </div>
       {(usage.notStarted || hasManualReset) && (
-        <div className="account-weekly-actions">
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-3)' }}>
           {usage.notStarted && (
-            <Button variant="ghost" onClick={onStart} disabled={busy} className="account-weekly-button">
+            <Button variant="ghost" onClick={onStart} disabled={busy}>
               {starting ? 'Waiting…' : 'Start quota'}
             </Button>
           )}
@@ -696,7 +835,6 @@ export function CodexWeeklyUsage({ usage, onStart, onReset, starting, resetting 
               variant="ghost"
               onClick={onReset}
               disabled={busy || !resetEligible}
-              className="account-weekly-button"
               title={resetEligible ? 'Use one manual reset' : 'No current usage window is eligible for a reset'}
             >
               {resetting ? 'Using reset…' : 'Use reset'}
@@ -705,7 +843,17 @@ export function CodexWeeklyUsage({ usage, onStart, onReset, starting, resetting 
         </div>
       )}
       {busy && (
-        <div className="account-weekly-processing" role="status">
+        <div
+          role="status"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 'var(--space-3)',
+            color: 'var(--pend)',
+            fontSize: 'var(--text-xs)',
+            lineHeight: 1.45,
+          }}
+        >
           <span className="account-weekly-spinner" aria-hidden="true" />
           {resetting
             ? 'Using a manual reset, then refreshing quota…'
@@ -800,15 +948,18 @@ function CreditUsage({ credit }) {
   const limit = finiteNumber(credit.limit);
   const percentage = Math.max(0, Math.min(100, finiteNumber(credit.usedPercent) || 0));
   const hasLimit = limit !== null;
+  const [noteMain, noteReset] = creditUsageNote(credit).split('; ');
 
   return (
-    <div className="account-credit-summary">
-      <div className="account-credit-heading">
+    <div>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 'var(--space-4)' }}>
         <div>
-          <div className="mono account-kicker">Credit usage</div>
-          <div className="account-credit-value">{usage === null ? '—' : `${formatUsd(usage)} used`}</div>
+          <div style={{ color: 'var(--text-3)', fontSize: 'var(--text-xs)' }}>Credit usage</div>
+          <div style={{ marginTop: 'var(--space-1)', fontSize: 'var(--text-sm)', fontWeight: 600 }}>
+            {usage === null ? 'Unavailable' : `${formatUsd(usage)} used`}
+          </div>
         </div>
-        <div className="account-credit-percent">
+        <div style={{ color: 'var(--text-3)', fontSize: 'var(--text-xs)', textAlign: 'right' }}>
           {hasLimit ? `${Math.round(percentage)}% of ${formatUsd(limit)}` : 'No key limit'}
         </div>
       </div>
@@ -817,7 +968,19 @@ function CreditUsage({ credit }) {
           <div style={{ width: `${percentage}%`, background: percentage >= 90 ? 'var(--fail)' : 'var(--accent)' }} />
         </div>
       )}
-      <div className="account-credit-note">{creditUsageNote(credit)}</div>
+      <div
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: 'var(--space-1) var(--space-4)',
+          marginTop: 'var(--space-2)',
+          color: 'var(--text-3)',
+          fontSize: 'var(--text-xs)',
+        }}
+      >
+        <span>{noteMain}</span>
+        {noteReset && <span>{noteReset}</span>}
+      </div>
     </div>
   );
 }
@@ -828,7 +991,7 @@ export function creditUsageNote(credit) {
   const remaining = finiteNumber(credit?.remaining);
   const remainingLabel = remaining === null ? 'Remaining amount unavailable' : `${formatUsd(remaining)} remaining`;
   const reset = credit?.limitReset ? `${credit.limitReset} reset` : 'Does not reset';
-  return `${remainingLabel} · ${reset}`;
+  return `${remainingLabel}; ${reset}`;
 }
 
 export function AccountRateLimits({ providerId, rateLimits, authenticated = true }) {
@@ -838,7 +1001,7 @@ export function AccountRateLimits({ providerId, rateLimits, authenticated = true
   const secondary = rateLimits?.secondary;
   if (!showClaudeUsage && !primary && !secondary) return null;
 
-  const unavailableNote = showClaudeUsage ? 'Usage unavailable · refresh or reconnect Claude' : undefined;
+  const unavailableNote = showClaudeUsage ? 'Usage unavailable. Refresh or reconnect Claude.' : undefined;
   return (
     <div className="account-limit-grid">
       {(primary || showClaudeUsage) && (
@@ -864,8 +1027,10 @@ function RateLimit({ label, limit, unavailableNote = 'No recent limit data' }) {
   const note = limit?.resetsAt ? formatUntil(limit.resetsAt, 'resets') : limit ? null : unavailableNote;
   return (
     <div>
-      <div className="mono account-kicker">{label}</div>
-      <div style={{ fontWeight: 600, fontSize: 17, marginTop: 5 }}>{limit ? `${Math.round(used)}%` : '—'}</div>
+      <div style={{ color: 'var(--text-3)', fontSize: 'var(--text-xs)' }}>{label}</div>
+      <div style={{ marginTop: 'var(--space-1)', fontSize: 'var(--text-md)', fontWeight: 600 }}>
+        {limit ? `${Math.round(used)}%` : 'Unavailable'}
+      </div>
       <div
         className="account-limit-track"
         role="progressbar"
@@ -877,7 +1042,9 @@ function RateLimit({ label, limit, unavailableNote = 'No recent limit data' }) {
       >
         <div style={{ width: `${used}%`, background: used >= 90 ? 'var(--fail)' : 'var(--accent)' }} />
       </div>
-      {note && <div style={{ fontSize: 10.5, color: 'var(--text-3)', marginTop: 5 }}>{note}</div>}
+      {note && (
+        <div style={{ marginTop: 'var(--space-1)', color: 'var(--text-3)', fontSize: 'var(--text-2xs)' }}>{note}</div>
+      )}
     </div>
   );
 }
@@ -976,19 +1143,26 @@ function LoginDialog({ provider, onClose, onComplete }) {
     onClose();
   };
 
+  const stateTone =
+    session?.status === 'completed'
+      ? { background: 'var(--ok-bg)', color: 'var(--ok)' }
+      : session?.status === 'failed' || session?.status === 'canceled'
+        ? { background: 'var(--fail-bg)', color: 'var(--fail)' }
+        : { background: 'var(--surface-2)', color: 'var(--text-2)' };
+
   return (
-    <div className="account-dialog-backdrop" role="presentation" onMouseDown={() => !active && onClose()}>
+    <div className="dialog-wrap" role="presentation" onMouseDown={() => !active && onClose()}>
       <div
-        className="account-dialog account-login-dialog"
+        className="dialog"
         role="dialog"
         aria-modal="true"
         aria-labelledby="account-login-title"
         onMouseDown={(event) => event.stopPropagation()}
       >
-        <div className="account-dialog-header">
+        <div className="dialog-head">
           <div>
-            <div className="mono account-kicker">{provider.label}</div>
-            <div id="account-login-title" style={{ fontSize: 20, fontWeight: 600, marginTop: 5 }}>
+            <div style={{ color: 'var(--text-3)', fontSize: 'var(--text-xs)' }}>{provider.label}</div>
+            <h2 id="account-login-title" className="dialog-title" style={{ marginTop: 'var(--space-1)' }}>
               {relogin
                 ? `Sign in to ${provider.label} again`
                 : provider.id === 'codex'
@@ -996,81 +1170,108 @@ function LoginDialog({ provider, onClose, onComplete }) {
                   : provider.id === 'xai'
                     ? 'Add Grok account'
                     : 'Add Claude account'}
-            </div>
+            </h2>
           </div>
-          <button className="account-dialog-close" type="button" aria-label="Close" onClick={cancel}>
+          <button className="btn btn--icon" type="button" aria-label="Close" onClick={cancel}>
             ×
           </button>
         </div>
 
-        {!session && (
-          <div className="account-login-intro">
-            {provider.id === 'codex' ? (
-              <>
-                Codex will create a one-time device code. Open the sign-in page, enter the code, and authenticate the
-                ChatGPT account you want open·kritt to use.
-              </>
-            ) : provider.id === 'xai' ? (
-              <>
-                Grok will create a one-time device code. Open the xAI sign-in page, enter the code, and authenticate the
-                account you want open·kritt to use for Grok Build.
-              </>
-            ) : (
-              <>
-                Claude will open its subscription sign-in page. After authentication, copy the callback code into this
-                dialog to {relogin ? 'replace the expired login on this account' : 'add this Claude account'}.
-              </>
-            )}
-          </div>
-        )}
+        <div className="dialog-body" style={{ display: 'grid', gap: 'var(--space-5)' }}>
+          {!session && (
+            <div style={{ color: 'var(--text-2)', fontSize: 'var(--text-sm)', lineHeight: 1.6 }}>
+              {provider.id === 'codex' ? (
+                <>
+                  Codex will create a one-time device code. Open the sign-in page, enter the code, and authenticate the
+                  ChatGPT account you want open·kritt to use.
+                </>
+              ) : provider.id === 'xai' ? (
+                <>
+                  Grok will create a one-time device code. Open the xAI sign-in page, enter the code, and authenticate
+                  the account you want open·kritt to use for Grok Build.
+                </>
+              ) : (
+                <>
+                  Claude will open its subscription sign-in page. After authentication, copy the callback code into this
+                  dialog to {relogin ? 'replace the expired login on this account' : 'add this Claude account'}.
+                </>
+              )}
+            </div>
+          )}
 
-        {session && (
-          <div className={`account-login-state account-login-state-${session.status}`}>
-            <div className="mono account-kicker">{loginStatusLabel(session.status)}</div>
-            <div style={{ marginTop: 6, lineHeight: 1.5 }}>{session.message}</div>
-          </div>
-        )}
+          {session && (
+            <div
+              style={{
+                padding: 'var(--space-4)',
+                borderRadius: 'var(--radius-sm)',
+                fontSize: 'var(--text-sm)',
+                ...stateTone,
+              }}
+            >
+              <div style={{ fontSize: 'var(--text-xs)' }}>{loginStatusLabel(session.status)}</div>
+              <div style={{ marginTop: 'var(--space-1)', lineHeight: 1.5 }}>{session.message}</div>
+            </div>
+          )}
 
-        {session?.authorizationUrl && session.status !== 'completed' && (
-          <a className="account-login-link" href={session.authorizationUrl} target="_blank" rel="noreferrer">
-            Open {provider.label} sign-in page ↗
-          </a>
-        )}
+          {session?.authorizationUrl && session.status !== 'completed' && (
+            <a
+              href={session.authorizationUrl}
+              target="_blank"
+              rel="noreferrer"
+              style={{
+                color: 'var(--accent-strong)',
+                fontSize: 'var(--text-sm)',
+                textDecoration: 'underline',
+                textUnderlineOffset: 2,
+              }}
+            >
+              Open {provider.label} sign-in page
+            </a>
+          )}
 
-        {session?.deviceCode && session.status !== 'completed' && (
-          <div className="account-device-code-wrap">
-            <div className="mono account-kicker">One-time device code</div>
-            <div className="mono account-device-code">{session.deviceCode}</div>
-            <Button variant="ghost" onClick={() => navigator.clipboard?.writeText(session.deviceCode)}>
-              Copy code
-            </Button>
-          </div>
-        )}
+          {session?.deviceCode && session.status !== 'completed' && (
+            <div style={{ display: 'grid', gap: 'var(--space-2)', justifyItems: 'start' }}>
+              <div style={{ color: 'var(--text-3)', fontSize: 'var(--text-xs)' }}>One-time device code</div>
+              <div className="mono" style={{ fontSize: 'var(--text-lg)', fontWeight: 600, letterSpacing: '0.08em' }}>
+                {session.deviceCode}
+              </div>
+              <Button variant="ghost" onClick={() => navigator.clipboard?.writeText(session.deviceCode)}>
+                Copy code
+              </Button>
+            </div>
+          )}
 
-        {session?.requiresInput && session.status === 'waiting' && (
-          <form onSubmit={submitCode}>
-            <label htmlFor="claude-callback-code" style={{ display: 'block', fontWeight: 500, fontSize: 13 }}>
-              Claude callback code
-            </label>
-            <input
-              id="claude-callback-code"
-              type="password"
-              autoComplete="off"
-              spellCheck="false"
-              value={callbackCode}
-              onChange={(event) => setCallbackCode(event.target.value)}
-              placeholder="Paste code"
-              className="account-credential-input mono"
-            />
-            <Button type="submit" disabled={submitting} style={{ marginTop: 12 }}>
-              {submitting ? 'Verifying…' : 'Finish Claude login'}
-            </Button>
-          </form>
-        )}
+          {session?.requiresInput && session.status === 'waiting' && (
+            <form onSubmit={submitCode} style={{ display: 'grid', gap: 'var(--space-2)' }}>
+              <label htmlFor="claude-callback-code" style={{ fontWeight: 500, fontSize: 'var(--text-sm)' }}>
+                Claude callback code
+              </label>
+              <input
+                id="claude-callback-code"
+                type="password"
+                autoComplete="off"
+                spellCheck="false"
+                value={callbackCode}
+                onChange={(event) => setCallbackCode(event.target.value)}
+                placeholder="Paste code"
+                className="input mono"
+              />
+              <div style={{ marginTop: 'var(--space-2)' }}>
+                <Button type="submit" disabled={submitting}>
+                  {submitting ? 'Verifying…' : 'Finish Claude login'}
+                </Button>
+              </div>
+            </form>
+          )}
 
-        {error && <div className="account-dialog-error">{error}</div>}
+          {error && (
+            <div role="alert" style={{ color: 'var(--fail)', fontSize: 'var(--text-xs)' }}>
+              {error}
+            </div>
+          )}
+        </div>
 
-        <div className="account-dialog-actions">
+        <div className="dialog-foot">
           {session?.status === 'completed' ? (
             <Button onClick={onClose}>Done</Button>
           ) : (
@@ -1131,47 +1332,55 @@ function CredentialDialog({ provider, onClose, onSave }) {
   };
 
   return (
-    <div className="account-dialog-backdrop" role="presentation" onMouseDown={onClose}>
+    <div className="dialog-wrap" role="presentation" onMouseDown={onClose}>
       <form
-        className="account-dialog"
+        className="dialog"
         role="dialog"
         aria-modal="true"
         aria-labelledby="account-dialog-title"
         onMouseDown={(event) => event.stopPropagation()}
         onSubmit={submit}
       >
-        <div className="account-dialog-header">
+        <div className="dialog-head">
           <div>
-            <div className="mono account-kicker">{provider.label}</div>
-            <div id="account-dialog-title" style={{ fontSize: 20, fontWeight: 600, marginTop: 5 }}>
+            <div style={{ color: 'var(--text-3)', fontSize: 'var(--text-xs)' }}>{provider.label}</div>
+            <h2 id="account-dialog-title" className="dialog-title" style={{ marginTop: 'var(--space-1)' }}>
               {provider.configured ? 'Add or replace API key' : 'Add account'}
-            </div>
+            </h2>
           </div>
-          <button className="account-dialog-close" type="button" aria-label="Close" onClick={onClose}>
+          <button className="btn btn--icon" type="button" aria-label="Close" onClick={onClose}>
             ×
           </button>
         </div>
 
-        <label htmlFor="provider-credential" style={{ display: 'block', fontWeight: 500, fontSize: 13, marginTop: 22 }}>
-          {provider.credentialLabel}
-        </label>
-        <input
-          ref={inputRef}
-          id="provider-credential"
-          type="password"
-          autoComplete="off"
-          spellCheck="false"
-          value={credential}
-          onChange={(event) => setCredential(event.target.value)}
-          placeholder="Paste key"
-          className="account-credential-input mono"
-        />
-        <div style={{ color: 'var(--text-2)', fontSize: 11.5, lineHeight: 1.5, marginTop: 8 }}>
-          Stored locally with restricted file permissions. The value is sent once and is never displayed again.
+        <div className="dialog-body" style={{ display: 'grid', gap: 'var(--space-2)' }}>
+          <label htmlFor="provider-credential" style={{ fontWeight: 500, fontSize: 'var(--text-sm)' }}>
+            {provider.credentialLabel}
+          </label>
+          <input
+            ref={inputRef}
+            id="provider-credential"
+            type="password"
+            autoComplete="off"
+            spellCheck="false"
+            value={credential}
+            onChange={(event) => setCredential(event.target.value)}
+            placeholder="Paste key"
+            className="input mono"
+          />
+          <div
+            style={{ marginTop: 'var(--space-2)', color: 'var(--text-2)', fontSize: 'var(--text-xs)', lineHeight: 1.5 }}
+          >
+            Stored locally with restricted file permissions. The value is sent once and is never displayed again.
+          </div>
+          {error && (
+            <div role="alert" style={{ color: 'var(--fail)', fontSize: 'var(--text-xs)' }}>
+              {error}
+            </div>
+          )}
         </div>
-        {error && <div className="account-dialog-error">{error}</div>}
 
-        <div className="account-dialog-actions">
+        <div className="dialog-foot">
           <Button variant="ghost" onClick={onClose}>
             Cancel
           </Button>
@@ -1218,7 +1427,7 @@ function finiteNumber(value) {
 
 function formatUsd(value) {
   const amount = finiteNumber(value);
-  if (amount === null) return '—';
+  if (amount === null) return 'Unavailable';
   return new Intl.NumberFormat(undefined, {
     style: 'currency',
     currency: 'USD',

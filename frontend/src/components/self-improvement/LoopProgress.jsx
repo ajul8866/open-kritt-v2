@@ -8,11 +8,11 @@ const LABELS = {
   waiting_scan: 'Waiting for completed scan',
   waiting_generation: 'Analyzing workflow',
   awaiting_approval: 'Human approval required',
-  approved: 'Approved · preparing workflow',
+  approved: 'Approved, preparing workflow',
   workflow_ready: 'Queueing approved rerun',
   waiting_candidate: 'Rerun in progress',
   awaiting_evaluation: 'Review both scans to compare results',
-  submission_unknown: 'Creation outcome unknown · reconciliation required',
+  submission_unknown: 'Creation outcome unknown, reconciliation required',
   completed: 'Loop completed',
   failed: 'Loop stopped with an error',
   cancelled: 'Loop cancelled',
@@ -27,8 +27,11 @@ export default function LoopProgress({ loop, busy, onApprove, onReview, onCancel
   const latest = loop.runs.at(-1);
   return (
     <div>
-      <p role="status">
-        <strong>{LABELS[loop.state] || loop.state}</strong> · Iteration {loop.iterations}/{loop.config.max_loops}
+      <p role="status" style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2) var(--space-5)' }}>
+        <strong>{LABELS[loop.state] || loop.state}</strong>
+        <span>
+          Iteration {loop.iterations}/{loop.config.max_loops}
+        </span>
       </p>
       {latest?.no_change_reason && <p role="status">{latest.no_change_reason}</p>}
       {loop.error && (
@@ -52,21 +55,25 @@ export default function LoopProgress({ loop, busy, onApprove, onReview, onCancel
           </ul>
         </div>
       )}
-      <p>
-        Best workflow: <Link to={`/workflows/${loop.best_workflow_id}`}>#{loop.best_workflow_id}</Link> · Best scan:{' '}
-        <Link to={`/scans/${loop.best_scan_id}`}>#{loop.best_scan_id}</Link>
+      <p style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2) var(--space-5)' }}>
+        <span>
+          Best workflow: <Link to={`/workflows/${loop.best_workflow_id}`}>#{loop.best_workflow_id}</Link>
+        </span>
+        <span>
+          Best scan: <Link to={`/scans/${loop.best_scan_id}`}>#{loop.best_scan_id}</Link>
+        </span>
         {latest?.scan_id && (
-          <>
-            {' '}
-            · Candidate: <Link to={`/scans/${latest.scan_id}`}>#{latest.scan_id}</Link>
-          </>
+          <span>
+            Candidate: <Link to={`/scans/${latest.scan_id}`}>#{latest.scan_id}</Link>
+          </span>
         )}
       </p>
       {!closed && (
-        <label htmlFor="sil-reviewer">
+        <label className="field" htmlFor="sil-reviewer">
           Human reviewer
           <input
             id="sil-reviewer"
+            className="input"
             value={reviewer}
             onChange={(event) => setReviewer(event.target.value)}
             placeholder="Your name"
@@ -90,6 +97,7 @@ export default function LoopProgress({ loop, busy, onApprove, onReview, onCancel
             <>
               <label className="sil-checkbox">
                 <input
+                  className="checkbox"
                   type="checkbox"
                   checked={reviewedDigest === loop.approval_digest}
                   onChange={(event) => setReviewedDigest(event.target.checked ? loop.approval_digest : null)}
@@ -142,9 +150,9 @@ export default function LoopProgress({ loop, busy, onApprove, onReview, onCancel
                   .map((run) => (
                     <tr key={run.iteration}>
                       <td>{run.iteration}</td>
-                      <td>{run.evaluation?.baseline[loop.config.metric] ?? '—'}</td>
-                      <td>{run.evaluation?.candidate[loop.config.metric] ?? '—'}</td>
-                      <td>{run.evaluation?.delta ?? '—'}</td>
+                      <td>{run.evaluation?.baseline[loop.config.metric] ?? 'n/a'}</td>
+                      <td>{run.evaluation?.candidate[loop.config.metric] ?? 'n/a'}</td>
+                      <td>{run.evaluation?.delta ?? 'n/a'}</td>
                       <td>
                         {run.evaluation
                           ? run.evaluation.better
@@ -172,10 +180,11 @@ export default function LoopProgress({ loop, busy, onApprove, onReview, onCancel
             Inspect the backend for the existing {loop.pending?.kind} record. Enter its ID to reconcile without creating
             another job.
           </p>
-          <label htmlFor="sil-remote">
+          <label className="field" htmlFor="sil-remote">
             Existing record ID
             <input
               id="sil-remote"
+              className="input"
               value={remoteId}
               onChange={(event) => setRemoteId(event.target.value)}
               required
@@ -196,9 +205,14 @@ export default function LoopProgress({ loop, busy, onApprove, onReview, onCancel
         <details className="sil-review">
           <summary>Cancel loop</summary>
           <p>Queued or running scans continue; manage them through the scan controls.</p>
-          <label htmlFor="sil-reason">
+          <label className="field" htmlFor="sil-reason">
             Reason
-            <input id="sil-reason" value={reason} onChange={(event) => setReason(event.target.value)} />
+            <input
+              id="sil-reason"
+              className="input"
+              value={reason}
+              onChange={(event) => setReason(event.target.value)}
+            />
           </label>
           <Button variant="danger" disabled={busy || !reason.trim()} onClick={() => onCancel(reason)}>
             Cancel loop

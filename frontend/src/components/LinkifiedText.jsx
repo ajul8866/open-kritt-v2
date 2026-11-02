@@ -13,7 +13,7 @@ export default function LinkifiedText({ text }) {
         target="_blank"
         rel="noreferrer"
         onClick={(event) => event.stopPropagation()}
-        style={{ color: 'var(--accent)', textDecoration: 'underline', textUnderlineOffset: 2 }}
+        style={{ color: 'var(--accent-strong)', textDecoration: 'underline', textUnderlineOffset: 2 }}
       >
         {part}
       </a>

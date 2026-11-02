@@ -313,8 +313,8 @@ describe('Codex weekly usage', () => {
       })
     );
 
-    expect(html).toContain('Full reset · Expires Aug 12, 2026');
-    expect(html).toContain('Full reset · Expires Aug 13, 2026');
+    expect(html).toContain('Full reset, expires Aug 12, 2026');
+    expect(html).toContain('Full reset, expires Aug 13, 2026');
     expect(formatResetExpiryDate('2026-08-12T18:07:27Z', 'en-US')).toBe('Aug 12, 2026');
   });
 
@@ -382,7 +382,7 @@ describe('creditUsageNote', () => {
 
   it('distinguishes an unavailable remaining amount from a zero balance', () => {
     expect(creditUsageNote({ limit: 100, remaining: null, limitReset: null })).toBe(
-      'Remaining amount unavailable · Does not reset'
+      'Remaining amount unavailable; Does not reset'
     );
     expect(creditUsageNote({ limit: 100, remaining: 0, limitReset: 'monthly' })).toContain('$0.00 remaining');
   });
