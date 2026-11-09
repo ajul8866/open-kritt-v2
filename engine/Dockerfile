@@ -1,4 +1,4 @@
-FROM docker:29.9.2-cli AS docker-cli
+FROM docker:29.9.3-cli AS docker-cli
 
 FROM node:26.13.0-bookworm-slim AS node_runtime
 
